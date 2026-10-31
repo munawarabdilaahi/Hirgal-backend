@@ -1,6 +1,6 @@
-# Hirgal Complete Database Entity Relationship Diagram (ERD) — 27 Tables
+# Hirgal Complete Database Entity Relationship Diagram (ERD) — 32 Tables (23 Domain + 9 Infrastructure)
 
-This document presents the complete Entity Relationship Diagram covering all **27 domain tables** for the Hirgal platform.
+This document presents the complete Entity Relationship Diagram covering all **23 core business domain tables** and their integration with Laravel framework infrastructure tables (totaling 32 tables) for the Hirgal platform.
 
 ---
 

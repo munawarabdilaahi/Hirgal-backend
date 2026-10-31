@@ -17,6 +17,12 @@ class DevelopmentUserSeeder extends Seeder
      */
     public function run(): void
     {
+        if (app()->isProduction()) {
+            $this->command?->warn('DevelopmentUserSeeder execution blocked: Cannot seed development demo accounts in production environment.');
+
+            return;
+        }
+
         $defaultPassword = Hash::make('Password123!');
 
         $users = [

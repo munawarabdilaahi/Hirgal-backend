@@ -1,6 +1,6 @@
-# Hirgal Database Relationships & Referential Integrity (27 Domain Tables)
+# Hirgal Database Relationships & Referential Integrity (23 Domain + 9 Infrastructure Tables)
 
-This document details all Eloquent relationships, foreign key constraints, cascade rules, referential integrity strategies, and ownership constraints across all 27 domain tables in the Hirgal platform.
+This document details all Eloquent relationships, foreign key constraints, cascade rules, referential integrity strategies, and ownership constraints across the 23 core business domain tables and 9 Laravel framework infrastructure tables (totaling 32 tables) in the Hirgal platform.
 
 ---
 

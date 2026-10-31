@@ -22,27 +22,40 @@ The database architecture is designed with a strict normalized relational model 
    - Modifying statuses or adding new workflow stages requires zero database migration downtime, avoiding MySQL `ALTER TABLE` exclusive metadata table locks.
 5. **Defensive Token Security:**
    - User and project invitation tokens are never stored in plaintext. Only SHA-256 hashes (`token_hash` CHAR 64) are persisted to protect against credential harvesting during database backups or breaches.
-6. **Laravel Native Interoperability:**
-   - The notification infrastructure adheres directly to Laravel's native UUID-based polymorphic notification schema, enabling seamless integration with `Illuminate\Notifications\DatabaseNotification`.
+6. **Clear Separation of Business Domain vs Framework Infrastructure Tables:**
+   - The schema cleanly differentiates Hirgal's proprietary business domain models from Laravel framework-managed infrastructure tables (authentication tokens, sessions, notifications, queues, cache).
 
-## 3. Database Domain Inventory (Exactly 27 Domain Tables)
+## 3. Database Table Classification & Inventory (32 Total Tables)
 
-The **27 normalized domain tables** are distributed across 9 core business domains:
+The database schema comprises **32 total tables**, cleanly partitioned into **23 Core Business Domain Tables** and **9 Laravel Framework Infrastructure Tables**:
 
-| Domain | Tables | Count | Key Responsibilities |
+### A. Core Business Domain Tables (23 Tables)
+These tables model the proprietary business domains and entities of the Hirgal platform, directly corresponding to the 23 Eloquent models in `app/Models/`:
+
+| Domain | Tables | Count | Responsibilities |
 | :--- | :--- | :---: | :--- |
-| **1. Authentication & Identity** | `users`, `user_profiles`, `user_invitations`, `password_reset_tokens`, `personal_access_tokens`, `sessions` | 6 | Credentials, sessions, user metadata, onboarding tokens. |
-| **2. Global RBAC** | `roles`, `permissions`, `role_permissions`, `user_roles` | 4 | System-wide administrative permissions and role definitions. |
-| **3. Projects & Tenancy** | `projects`, `project_members`, `project_invitations` | 3 | Project boundary definitions, project-level roles, and project invitations. |
-| **4. Teams** | `teams`, `team_members`, `project_teams` | 3 | Cross-functional squads, member rosters, and multi-team project allocations. |
-| **5. Tasks & Work Management** | `tasks`, `task_assignments`, `task_comments`, `task_attachments` | 4 | Kanban/list work items, subtasks, multi-user assignment, threading, file records. |
-| **6. Appointments** | `appointments`, `appointment_participants` | 2 | Meeting schedules, video links, calendar RSVPs, participant statuses. |
-| **7. Follow-Up Inbox** | `notifications`, `user_mentions` | 2 | Laravel database notifications and high-speed `@mentions` indexing. |
-| **8. Habit Tracker** | `habits`, `habit_logs` | 2 | Daily/weekly habit definitions, target day schedules, and daily completion logs. |
-| **9. Auditing & Logs** | `activity_logs` | 1 | Polymorphic audit trails capturing actor, IP, subject, and old/new attribute diffs. |
-| **TOTAL** | | **27** | |
+| **1. Identity & Profiles** | `users`, `user_profiles`, `user_invitations` | 3 | User credentials, extended profile, and onboarding invitations. |
+| **2. Global RBAC** | `roles`, `permissions`, `role_permissions`, `user_roles` | 4 | System-wide administrative permissions, capabilities, and role assignments. |
+| **3. Projects & Tenancy** | `projects`, `project_members`, `project_invitations` | 3 | Workspace boundaries, contextual project roles, and project invitations. |
+| **4. Teams** | `teams`, `team_members`, `project_teams` | 3 | Cross-functional squads, member rosters, and multi-team allocations. |
+| **5. Tasks & Work Management** | `tasks`, `task_assignments`, `task_comments`, `task_attachments` | 4 | Kanban items, subtasks, task delegations, threaded discussions, attachments. |
+| **6. Appointments** | `appointments`, `appointment_participants` | 2 | Calendar syncs, video meeting links, and RSVP attendance tracking. |
+| **7. Follow-Up Inbox** | `user_mentions` | 1 | High-speed index table for `@mentions` across tasks and comments. |
+| **8. Habit Tracker** | `habits`, `habit_logs` | 2 | Habit definitions, frequency schedules, and daily completion records. |
+| **9. Auditing & Logs** | `activity_logs` | 1 | Polymorphic audit trail capturing actor, IP, subject, and JSON diffs. |
+| **Subtotal (Core Domain)** | | **23** | |
 
-*(Note: Framework-level queue and cache tables `jobs`, `job_batches`, `failed_jobs`, `cache`, `cache_locks` are managed by Laravel and are auxiliary to the 27 domain tables above).*
+### B. Laravel Framework Infrastructure Tables (9 Tables)
+These tables are managed by Laravel internal drivers and first-party packages:
+
+| Category | Tables | Count | Management Subsystem |
+| :--- | :--- | :---: | :--- |
+| **Authentication & Sessions** | `sessions`, `password_reset_tokens`, `personal_access_tokens` | 3 | Laravel session driver, password broker, and Laravel Sanctum bearer tokens. |
+| **Notifications** | `notifications` | 1 | Laravel native database notification driver (`DatabaseNotification`). |
+| **Queue & Jobs** | `jobs`, `job_batches`, `failed_jobs` | 3 | Laravel queue worker, job batch coordinator, and dead-letter queue. |
+| **Cache & Coordination** | `cache`, `cache_locks` | 2 | Laravel database cache driver and distributed atomic mutex locks. |
+| **Subtotal (Infrastructure)** | | **9** | |
+| **TOTAL DATABASE TABLES** | | **32** | |
 
 ## 4. Documentation Index
 

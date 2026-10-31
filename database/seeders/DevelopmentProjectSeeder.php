@@ -36,6 +36,12 @@ class DevelopmentProjectSeeder extends Seeder
      */
     public function run(): void
     {
+        if (app()->isProduction()) {
+            $this->command?->warn('DevelopmentProjectSeeder execution blocked: Cannot seed demo projects in production environment.');
+
+            return;
+        }
+
         $pm = User::where('email', 'pm@hirgal.local')->first();
         $lead = User::where('email', 'lead@hirgal.local')->first();
         $member = User::where('email', 'member@hirgal.local')->first();
@@ -196,14 +202,16 @@ class DevelopmentProjectSeeder extends Seeder
         );
 
         for ($i = 0; $i < 3; $i++) {
-            HabitLog::firstOrCreate([
-                'habit_id' => $habit->id,
-                'logged_date' => now()->subDays($i)->toDateString(),
-            ], [
-                'user_id' => $habit->user_id,
-                'status' => HabitLogStatus::Completed,
-                'notes' => 'Reviewed PRs and checked index utilization.',
-            ]);
+            $date = now()->subDays($i)->toDateString();
+            if (! HabitLog::where('habit_id', $habit->id)->whereDate('logged_date', $date)->exists()) {
+                HabitLog::create([
+                    'habit_id' => $habit->id,
+                    'user_id' => $habit->user_id,
+                    'logged_date' => $date,
+                    'status' => HabitLogStatus::Completed,
+                    'notes' => 'Reviewed PRs and checked index utilization.',
+                ]);
+            }
         }
     }
 }

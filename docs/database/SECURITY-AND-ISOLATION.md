@@ -1,4 +1,4 @@
-# Hirgal Security, Data Isolation & Authentication Architecture (27 Tables)
+# Hirgal Security, Data Isolation & Authentication Architecture (32 Tables: 23 Domain + 9 Infrastructure)
 
 This document defines the defense-in-depth model, resource isolation mechanisms, IDOR protection, audit-log immutability, and authentication architecture for Hirgal.
 

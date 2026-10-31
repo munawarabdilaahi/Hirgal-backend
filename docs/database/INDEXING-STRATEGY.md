@@ -1,6 +1,6 @@
-# Hirgal Database Indexing Strategy & Performance Architecture (27 Tables)
+# Hirgal Database Indexing Strategy & Performance Architecture (32 Tables)
 
-This document details the indexing architecture, composite index rationale, query optimization patterns, and overlap detection mechanics designed for MySQL 8.0+.
+This document details the indexing architecture, composite index rationale, query optimization patterns, and overlap detection mechanics across all 23 core business domain tables and 9 framework infrastructure tables designed for MySQL 8.0+.
 
 ---
 
@@ -61,7 +61,7 @@ If an index is defined only as `INDEX (start_time, end_time)`:
 
 ---
 
-## 3. Table-by-Table Index Inventory Across All 27 Domain Tables
+## 3. Table-by-Table Index Inventory: Core Business Domain Tables (Tables 1–23)
 
 ### Domain 1: Authentication and Identity
 1. **`users`**
@@ -78,75 +78,65 @@ If an index is defined only as `INDEX (start_time, end_time)`:
    - `INDEX user_invitations_email_idx (`email`)`: Checking existing pending invitations by email.
    - `INDEX user_invitations_status_idx (`status`)`: Filter pending vs accepted invites.
    - `INDEX user_invitations_expires_at_idx (`expires_at`)`: Fast expiration pruning.
-4. **`password_reset_tokens`**
-   - `PRIMARY KEY (`email`)`: Instant lookup on password reset submission.
-5. **`personal_access_tokens`**
-   - `PRIMARY KEY (`id`)`
-   - `UNIQUE INDEX pat_token_unique (`token`)`: Fast bearer token lookup.
-   - `INDEX tokenable_idx (`tokenable_type`, `tokenable_id`)`: Polymorphic token owner resolution.
-6. **`sessions`**
-   - `PRIMARY KEY (`id`)`: Session ID lookup.
-   - `INDEX sessions_user_id_idx (`user_id`)`: Fast eviction on password change / logout.
-   - `INDEX sessions_last_activity_idx (`last_activity`)`: Garbage collection of expired sessions.
 
 ### Domain 2: Global Roles and Permissions (RBAC)
-7. **`roles`**
+4. **`roles`**
    - `PRIMARY KEY (`id`)`
    - `UNIQUE INDEX roles_name_unique (`name`)`
    - `UNIQUE INDEX roles_slug_unique (`slug`)`: Machine role authorization check.
-8. **`permissions`**
+5. **`permissions`**
    - `PRIMARY KEY (`id`)`
    - `UNIQUE INDEX permissions_name_unique (`name`)`
    - `UNIQUE INDEX permissions_slug_unique (`slug`)`: Gate capability check (`Gate::allows`).
    - `INDEX permissions_module_idx (`module`)`: UI grouping.
-9. **`role_permissions`**
+6. **`role_permissions`**
    - `PRIMARY KEY (`id`)`
    - `UNIQUE INDEX role_permission_unique (`role_id`, `permission_id`)`: Idempotent permission binding.
    - `INDEX role_permissions_permission_id_fk (`permission_id`)`
-10. **`user_roles`**
-    - `PRIMARY KEY (`id`)`
-    - `UNIQUE INDEX user_role_unique (`user_id`, `role_id`)`: Guarantees single role assignment.
-    - `INDEX user_roles_role_id_fk (`role_id`)`
+7. **`user_roles`**
+   - `PRIMARY KEY (`id`)`
+   - `UNIQUE INDEX user_role_unique (`user_id`, `role_id`)`: Guarantees single role assignment.
+   - `INDEX user_roles_role_id_fk (`role_id`)`
 
 ### Domain 3: Projects and Project Membership
-11. **`projects`**
-    - `PRIMARY KEY (`id`)`
-    - `UNIQUE INDEX projects_uuid_unique (`uuid`)`: External API route-model binding.
-    - `UNIQUE INDEX projects_slug_unique (`slug`)`: Slug lookups.
-    - `INDEX projects_status_idx (`status`)`
-    - `INDEX projects_priority_idx (`priority`)`
-    - `INDEX projects_due_date_idx (`due_date`)`
-    - `INDEX projects_owner_id_fk (`owner_id`)`
-    - `INDEX projects_deleted_at_idx (`deleted_at`)`
-12. **`project_members`**
-    - `PRIMARY KEY (`id`)`
-    - `UNIQUE INDEX proj_mem_unique (`project_id`, `user_id`)`: Prevents duplicate memberships.
-    - `INDEX project_members_user_id_fk (`user_id`)`: "Find all projects for user".
-    - `INDEX project_members_role_idx (`role`)`: Role-based filtering.
-13. **`project_invitations`**
+8. **`projects`**
+   - `PRIMARY KEY (`id`)`
+   - `UNIQUE INDEX projects_uuid_unique (`uuid`)`: External API route-model binding.
+   - `UNIQUE INDEX projects_slug_unique (`slug`)`: Slug lookups.
+   - `INDEX projects_status_idx (`status`)`
+   - `INDEX projects_priority_idx (`priority`)`
+   - `INDEX projects_due_date_idx (`due_date`)`
+   - `INDEX projects_owner_id_fk (`owner_id`)`
+   - `INDEX projects_deleted_at_idx (`deleted_at`)`
+9. **`project_members`**
+   - `PRIMARY KEY (`id`)`
+   - `UNIQUE INDEX proj_mem_unique (`project_id`, `user_id`)`: Prevents duplicate memberships.
+   - `INDEX project_members_user_id_fk (`user_id`)`: "Find all projects for user".
+   - `INDEX project_members_role_idx (`role`)`: Role-based filtering.
+10. **`project_invitations`**
     - `PRIMARY KEY (`id`)`
     - `UNIQUE INDEX proj_inv_token_unique (`token_hash`)`: Token redemption.
     - `UNIQUE INDEX proj_inv_active_unique (`project_id`, `email`, `status`)`: Prevents duplicate pending invitations to the same email within a project.
     - `INDEX proj_inv_expires_at_idx (`expires_at`)`: Expiration cleanup.
 
 ### Domain 4: Teams
-14. **`teams`**
+11. **`teams`**
     - `PRIMARY KEY (`id`)`
     - `UNIQUE INDEX teams_uuid_unique (`uuid`)`: External API route-model binding.
     - `UNIQUE INDEX teams_slug_unique (`slug`)`
     - `INDEX teams_leader_id_fk (`leader_id`)`
     - `INDEX teams_deleted_at_idx (`deleted_at`)`
-15. **`team_members`**
+12. **`team_members`**
     - `PRIMARY KEY (`id`)`
     - `UNIQUE INDEX team_mem_unique (`team_id`, `user_id`)`: Prevents duplicate team memberships.
     - `INDEX team_members_user_id_fk (`user_id`)`
-16. **`project_teams`**
+13. **`project_teams`**
     - `PRIMARY KEY (`id`)`
     - `UNIQUE INDEX proj_team_unique (`project_id`, `team_id`)`: Prevents duplicate team assignments.
     - `INDEX project_teams_team_id_fk (`team_id`)`
 
 ### Domain 5: Tasks and Work Management
-17. **`tasks`**
+14. **`tasks`**
     - `PRIMARY KEY (`id`)`
     - `UNIQUE INDEX tasks_uuid_unique (`uuid`)`: External API route-model binding.
     - `INDEX tasks_parent_id_fk (`parent_id`)`: Subtask retrieval.
@@ -156,56 +146,90 @@ If an index is defined only as `INDEX (start_time, end_time)`:
     - **`COMPOSITE INDEX tasks_proj_due_idx (`project_id`, `due_date`)`**:  
       *Optimizes:* Calendar and deadline queries.
     - `INDEX tasks_deleted_at_idx (`deleted_at`)`
-18. **`task_assignments`**
+15. **`task_assignments`**
     - `PRIMARY KEY (`id`)`
     - `UNIQUE INDEX task_assign_unique (`task_id`, `user_id`)`: Prevents duplicate user assignment.
     - `INDEX task_assignments_user_id_fk (`user_id`)`: "My assigned tasks" query.
-19. **`task_comments`**
+16. **`task_comments`**
     - `PRIMARY KEY (`id`)`
     - `INDEX task_comments_parent_id_fk (`parent_id`)`: Threaded replies.
     - **`COMPOSITE INDEX comments_task_time_idx (`task_id`, `created_at`)`**:  
       *Optimizes:* Sequential comment stream retrieval.
-20. **`task_attachments`**
+17. **`task_attachments`**
     - `PRIMARY KEY (`id`)`
     - `INDEX task_attachments_task_id_fk (`task_id`)`: Fast file listing for tasks.
 
 ### Domain 6: Appointments
-21. **`appointments`**
+18. **`appointments`**
     - `PRIMARY KEY (`id`)`
     - `UNIQUE INDEX appointments_uuid_unique (`uuid`)`: External API binding.
     - **`COMPOSITE INDEX appt_organizer_overlap_idx (`organizer_id`, `status`, `start_time`, `end_time`)`**: Conflict and overlap detection.
     - **`COMPOSITE INDEX appt_timeline_idx (`start_time`, `end_time`, `status`)`**: Calendar range queries.
-22. **`appointment_participants`**
+19. **`appointment_participants`**
     - `PRIMARY KEY (`id`)`
     - `UNIQUE INDEX appt_user_unique (`appointment_id`, `user_id`)`: Prevents duplicate attendee records.
     - **`COMPOSITE INDEX appt_part_user_status_idx (`user_id`, `status`, `appointment_id`)`**: Active attendee schedule queries.
 
-### Domain 7: Notifications and Follow-Up Inbox
-23. **`notifications`**
-    - `PRIMARY KEY (`id`)` (CHAR 36 UUID)
-    - `INDEX notifiable_idx (`notifiable_type`, `notifiable_id`)`: Core Laravel notification queries.
-    - `INDEX notif_read_at_idx (`read_at`)`: Unread notification badge count.
-24. **`user_mentions`**
+### Domain 7: User Mentions / Follow-Up Inbox
+20. **`user_mentions`**
     - `PRIMARY KEY (`id`)`
     - `INDEX mentionable_idx (`mentionable_type`, `mentionable_id`)`
     - **`COMPOSITE INDEX mentions_inbox_idx (`mentioned_user_id`, `read_at`, `created_at`)`**:  
       *Optimizes:* Follow-up inbox query: `WHERE mentioned_user_id = ? AND read_at IS NULL ORDER BY created_at DESC`.
 
 ### Domain 8: Habit Tracker
-25. **`habits`**
+21. **`habits`**
     - `PRIMARY KEY (`id`)`
     - `UNIQUE INDEX habits_uuid_unique (`uuid`)`: External API binding.
     - **`UNIQUE INDEX habits_id_user_id (`id`, `user_id`)`**: Enables storage-level composite foreign key enforcement.
     - `INDEX habits_user_archived_idx (`user_id`, `is_archived`)`: Active habits dashboard.
-26. **`habit_logs`**
+22. **`habit_logs`**
     - `PRIMARY KEY (`id`)`
     - **`COMPOSITE FK INDEX habit_logs_user_habit_idx (`habit_id`, `user_id`)`**: Backs the composite foreign key.
     - **`UNIQUE INDEX habit_date_unique (`habit_id`, `logged_date`)`**: Prevents duplicate log on the same calendar day.
     - `INDEX habit_logs_user_date_idx (`user_id`, `logged_date`)`: Cross-habit streak calculations.
 
 ### Domain 9: Activity and Auditing
-27. **`activity_logs`**
+23. **`activity_logs`**
     - `PRIMARY KEY (`id`)`
     - `INDEX activity_subject_idx (`subject_type`, `subject_id`)`: Entity audit trail.
     - `INDEX activity_action_idx (`action`)`: Event filtering.
     - **`COMPOSITE INDEX activity_user_time_idx (`user_id`, `created_at`)`**: Actor audit timeline queries.
+
+---
+
+## 4. Table-by-Table Index Inventory: Laravel Framework Infrastructure Tables (Tables 24–32)
+
+### Category A: Authentication & Session Infrastructure
+24. **`sessions`**
+    - `PRIMARY KEY (`id`)`: Session ID lookup.
+    - `INDEX sessions_user_id_idx (`user_id`)`: Fast eviction on password change / logout.
+    - `INDEX sessions_last_activity_idx (`last_activity`)`: Garbage collection of expired sessions.
+25. **`password_reset_tokens`**
+    - `PRIMARY KEY (`email`)`: Instant lookup on password reset submission.
+26. **`personal_access_tokens`**
+    - `PRIMARY KEY (`id`)`
+    - `UNIQUE INDEX pat_token_unique (`token`)`: Fast bearer token lookup.
+    - `INDEX tokenable_idx (`tokenable_type`, `tokenable_id`)`: Polymorphic token owner resolution.
+
+### Category B: Notification Infrastructure
+27. **`notifications`**
+    - `PRIMARY KEY (`id`)` (CHAR 36 UUID)
+    - `INDEX notifiable_idx (`notifiable_type`, `notifiable_id`)`: Core Laravel notification queries.
+    - `INDEX notif_read_at_idx (`read_at`)`: Unread notification badge count.
+
+### Category C: Queue & Asynchronous Jobs Infrastructure
+28. **`jobs`**
+    - `PRIMARY KEY (`id`)`
+    - `INDEX jobs_queue_idx (`queue`)`: Fast worker queue polling.
+29. **`job_batches`**
+    - `PRIMARY KEY (`id`)`
+30. **`failed_jobs`**
+    - `PRIMARY KEY (`id`)`
+    - `UNIQUE INDEX failed_jobs_uuid_unique (`uuid`)`: Failed job UUID resolution.
+
+### Category D: Cache & Locking Infrastructure
+31. **`cache`**
+    - `PRIMARY KEY (`key`)`
+32. **`cache_locks`**
+    - `PRIMARY KEY (`key`)`

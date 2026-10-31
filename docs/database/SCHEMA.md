@@ -1,10 +1,12 @@
-# Hirgal Detailed Table and Column Specifications (27 Domain Tables)
+# Hirgal Detailed Table and Column Specifications (32 Tables)
 
-This document defines every table, column, data type, nullability constraint, default value, and architectural rationale across all 27 domain tables in the Hirgal platform.
+This document defines every table, column, data type, nullability constraint, default value, and architectural rationale across all **32 tables** in the Hirgal database, explicitly distinguishing **23 Core Business Domain Tables** from **9 Laravel Framework Infrastructure Tables**.
 
 ---
 
-## Domain 1: Authentication and Identity (6 Tables)
+# SECTION 1: CORE BUSINESS DOMAIN TABLES (23 Tables)
+
+## Domain 1: Identity & Profiles (3 Tables)
 
 ### 1. `users`
 Core user identity and authentication credentials.
@@ -46,7 +48,7 @@ Extended user biography and application preferences (1:1 with `users`).
 ---
 
 ### 3. `user_invitations`
-Out-of-band email invitations to onboard new users into the Hirgal platform with pre-assigned global roles.
+Out-of-band email invitations to onboard new users with pre-assigned global roles.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -63,52 +65,9 @@ Out-of-band email invitations to onboard new users into the Hirgal platform with
 
 ---
 
-### 4. `password_reset_tokens`
-Out-of-band password recovery tokens (Laravel standard).
-
-| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `email` | `VARCHAR(255)` | NOT NULL | None | PRIMARY KEY | Target recipient email address |
-| `token` | `VARCHAR(255)` | NOT NULL | None | None | Bcrypt hashed reset token |
-| `created_at` | `TIMESTAMP` | NULL | NULL | None | Token generation timestamp |
-
----
-
-### 5. `personal_access_tokens`
-Laravel Sanctum bearer tokens for API client authentication.
-
-| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `id` | `BIGINT UNSIGNED` | NOT NULL, AUTO_INCREMENT | None | PRIMARY KEY | Token record primary key |
-| `tokenable_type` | `VARCHAR(255)` | NOT NULL | None | INDEX (`tokenable_idx`, 1) | Polymorphic authenticatable model class |
-| `tokenable_id` | `BIGINT UNSIGNED` | NOT NULL | None | INDEX (`tokenable_idx`, 2) | Polymorphic authenticatable model ID |
-| `name` | `VARCHAR(255)` | NOT NULL | None | None | Client device or token description |
-| `token` | `CHAR(64)` | NOT NULL | None | UNIQUE (`pat_token_unique`) | SHA-256 hash of plaintext bearer token |
-| `abilities` | `TEXT` | NULL | NULL | None | JSON array of token permission scopes |
-| `last_used_at` | `TIMESTAMP` | NULL | NULL | None | Most recent API request timestamp |
-| `expires_at` | `TIMESTAMP` | NULL | NULL | None | Token expiration deadline |
-| `created_at` | `TIMESTAMP` | NULL | CURRENT_TIMESTAMP | None | Token creation timestamp |
-| `updated_at` | `TIMESTAMP` | NULL | CURRENT_TIMESTAMP ON UPDATE | None | Token update timestamp |
-
----
-
-### 6. `sessions`
-Database-backed session driver storage for web and SPA stateful authentication.
-
-| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `id` | `VARCHAR(255)` | NOT NULL | None | PRIMARY KEY | Unique session identifier |
-| `user_id` | `BIGINT UNSIGNED` | NULL | NULL | INDEX (`sessions_user_id_idx`), FK -> `users(id)` ON DELETE CASCADE | Authenticated user ID (NULL for guests) |
-| `ip_address` | `VARCHAR(45)` | NULL | NULL | None | Client IPv4 or IPv6 address |
-| `user_agent` | `TEXT` | NULL | NULL | None | Client browser user agent string |
-| `payload` | `LONGTEXT` | NOT NULL | None | None | Serialized session data |
-| `last_activity` | `INT UNSIGNED` | NOT NULL | None | INDEX (`sessions_last_activity_idx`) | Unix timestamp of most recent activity |
-
----
-
 ## Domain 2: Global Roles and Permissions (RBAC) (4 Tables)
 
-### 7. `roles`
+### 4. `roles`
 Global system roles.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -123,7 +82,7 @@ Global system roles.
 
 ---
 
-### 8. `permissions`
+### 5. `permissions`
 Granular systemic capabilities.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -138,7 +97,7 @@ Granular systemic capabilities.
 
 ---
 
-### 9. `role_permissions`
+### 6. `role_permissions`
 Many-to-many pivot associating roles with granular permissions.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -152,7 +111,7 @@ Many-to-many pivot associating roles with granular permissions.
 
 ---
 
-### 10. `user_roles`
+### 7. `user_roles`
 Many-to-many pivot associating users with global system roles.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -168,7 +127,7 @@ Many-to-many pivot associating users with global system roles.
 
 ## Domain 3: Projects and Project Membership (3 Tables)
 
-### 11. `projects`
+### 8. `projects`
 Work management container and tenancy boundary.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -191,7 +150,7 @@ Work management container and tenancy boundary.
 
 ---
 
-### 12. `project_members`
+### 9. `project_members`
 Contextual membership and role definitions inside a specific project.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -207,7 +166,7 @@ Contextual membership and role definitions inside a specific project.
 
 ---
 
-### 13. `project_invitations`
+### 10. `project_invitations`
 Invitations for users to join a specific project with an assigned contextual role.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -229,7 +188,7 @@ Invitations for users to join a specific project with an assigned contextual rol
 
 ## Domain 4: Teams (3 Tables)
 
-### 14. `teams`
+### 11. `teams`
 Cross-functional groups and organizational departments.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -246,7 +205,7 @@ Cross-functional groups and organizational departments.
 
 ---
 
-### 15. `team_members`
+### 12. `team_members`
 Team member rosters.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -262,7 +221,7 @@ Team member rosters.
 
 ---
 
-### 16. `project_teams`
+### 13. `project_teams`
 Many-to-many pivot allocating entire teams to a project.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -279,7 +238,7 @@ Many-to-many pivot allocating entire teams to a project.
 
 ## Domain 5: Tasks and Work Management (4 Tables)
 
-### 17. `tasks`
+### 14. `tasks`
 Core task work items supporting subtasks and Kanban ordering.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -306,7 +265,7 @@ Core task work items supporting subtasks and Kanban ordering.
 
 ---
 
-### 18. `task_assignments`
+### 15. `task_assignments`
 Many-to-many relationship assigning users to tasks.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -322,7 +281,7 @@ Many-to-many relationship assigning users to tasks.
 
 ---
 
-### 19. `task_comments`
+### 16. `task_comments`
 Discussion threads on tasks supporting nested replies.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -339,7 +298,7 @@ Discussion threads on tasks supporting nested replies.
 
 ---
 
-### 20. `task_attachments`
+### 17. `task_attachments`
 File attachments uploaded to tasks.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -358,7 +317,7 @@ File attachments uploaded to tasks.
 
 ## Domain 6: Appointments and Scheduling (2 Tables)
 
-### 21. `appointments`
+### 18. `appointments`
 Calendar events, team syncs, and client consultations.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -382,7 +341,7 @@ Calendar events, team syncs, and client consultations.
 
 ---
 
-### 22. `appointment_participants`
+### 19. `appointment_participants`
 Invitees and RSVP response status for appointments.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -400,31 +359,15 @@ Invitees and RSVP response status for appointments.
 
 ---
 
-## Domain 7: Notifications and Follow-Up Inbox (2 Tables)
+## Domain 7: Follow-Up Inbox (1 Table)
 
-### 23. `notifications`
-Laravel native polymorphic notification storage table.
-
-| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `id` | `CHAR(36)` | NOT NULL | None | PRIMARY KEY | Standard Laravel UUID primary key |
-| `type` | `VARCHAR(255)` | NOT NULL | None | None | Fully qualified Notification class name |
-| `notifiable_type` | `VARCHAR(255)` | NOT NULL | None | INDEX (`notifiable_idx`, 1) | Target recipient model class (e.g., `'App\Models\User'`) |
-| `notifiable_id` | `BIGINT UNSIGNED` | NOT NULL | None | INDEX (`notifiable_idx`, 2) | Target recipient user ID |
-| `data` | `JSON` | NOT NULL | None | None | Notification payload, title, action URLs |
-| `read_at` | `TIMESTAMP` | NULL | NULL | INDEX (`notif_read_at_idx`) | Read status timestamp (NULL = unread) |
-| `created_at` | `TIMESTAMP` | NULL | CURRENT_TIMESTAMP | None | Notification dispatch timestamp |
-| `updated_at` | `TIMESTAMP` | NULL | CURRENT_TIMESTAMP ON UPDATE | None | Update timestamp |
-
----
-
-### 24. `user_mentions`
+### 20. `user_mentions`
 Dedicated index table for Follow-Up Inbox tracking `@mentions` across tasks and comments.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `id` | `BIGINT UNSIGNED` | NOT NULL, AUTO_INCREMENT | None | PRIMARY KEY | Mention record primary key |
-| `mentionable_type` | `VARCHAR(255)` | NOT NULL | None | INDEX (`mentionable_idx`, 1) | Origin class: `'task'`, `'task_comment'` |
+| `mentionable_type` | `VARCHAR(255)` | NOT NULL | None | INDEX (`mentionable_idx`, 1) | Origin class: `'App\Models\Task'`, `'App\Models\TaskComment'` |
 | `mentionable_id` | `BIGINT UNSIGNED` | NOT NULL | None | INDEX (`mentionable_idx`, 2) | Origin record ID |
 | `mentioned_user_id` | `BIGINT UNSIGNED` | NOT NULL | None | FK -> `users(id)` ON DELETE CASCADE | Targeted user ID |
 | `author_id` | `BIGINT UNSIGNED` | NOT NULL | None | FK -> `users(id)` ON DELETE CASCADE | Author who typed the mention |
@@ -438,7 +381,7 @@ Dedicated index table for Follow-Up Inbox tracking `@mentions` across tasks and 
 
 ## Domain 8: Habit Tracker (2 Tables)
 
-### 25. `habits`
+### 21. `habits`
 Habits and recurring personal or team routines.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -459,7 +402,7 @@ Habits and recurring personal or team routines.
 
 ---
 
-### 26. `habit_logs`
+### 22. `habit_logs`
 Daily or periodic completion records for habits with storage-engine ownership enforcement.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -479,7 +422,7 @@ Daily or periodic completion records for habits with storage-engine ownership en
 
 ## Domain 9: Activity Logs and System Auditing (1 Table)
 
-### 27. `activity_logs`
+### 23. `activity_logs`
 Polymorphic append-only audit trail capturing user and system actions.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
@@ -495,3 +438,142 @@ Polymorphic append-only audit trail capturing user and system actions.
 | `user_agent` | `TEXT` | NULL | NULL | None | Client browser/HTTP client user agent |
 | `created_at` | `TIMESTAMP` | NOT NULL | CURRENT_TIMESTAMP | INDEX (`activity_created_at_idx`) | Audit event timestamp |
 | *Composite* | `INDEX` | — | — | INDEX (`activity_user_time_idx`: `user_id`, `created_at`) | Actor timeline retrieval |
+
+---
+
+# SECTION 2: LARAVEL FRAMEWORK INFRASTRUCTURE TABLES (9 Tables)
+
+## Category A: Authentication & Sessions Infrastructure (3 Tables)
+
+### 24. `sessions`
+Database-backed session driver storage for web and SPA stateful authentication.
+
+| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `VARCHAR(255)` | NOT NULL | None | PRIMARY KEY | Unique session identifier |
+| `user_id` | `BIGINT UNSIGNED` | NULL | NULL | INDEX (`sessions_user_id_idx`), FK -> `users(id)` ON DELETE CASCADE | Authenticated user ID (NULL for guests) |
+| `ip_address` | `VARCHAR(45)` | NULL | NULL | None | Client IPv4 or IPv6 address |
+| `user_agent` | `TEXT` | NULL | NULL | None | Client browser user agent string |
+| `payload` | `LONGTEXT` | NOT NULL | None | None | Serialized session data |
+| `last_activity` | `INT UNSIGNED` | NOT NULL | None | INDEX (`sessions_last_activity_idx`) | Unix timestamp of most recent activity |
+
+---
+
+### 25. `password_reset_tokens`
+Out-of-band password recovery tokens managed by Laravel password broker.
+
+| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `email` | `VARCHAR(255)` | NOT NULL | None | PRIMARY KEY | Target recipient email address |
+| `token` | `VARCHAR(255)` | NOT NULL | None | None | Bcrypt hashed reset token |
+| `created_at` | `TIMESTAMP` | NULL | NULL | None | Token generation timestamp |
+
+---
+
+### 26. `personal_access_tokens`
+Laravel Sanctum bearer tokens for API client authentication.
+
+| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `BIGINT UNSIGNED` | NOT NULL, AUTO_INCREMENT | None | PRIMARY KEY | Token record primary key |
+| `tokenable_type` | `VARCHAR(255)` | NOT NULL | None | INDEX (`tokenable_idx`, 1) | Polymorphic authenticatable model class |
+| `tokenable_id` | `BIGINT UNSIGNED` | NOT NULL | None | INDEX (`tokenable_idx`, 2) | Polymorphic authenticatable model ID |
+| `name` | `VARCHAR(255)` | NOT NULL | None | None | Client device or token description |
+| `token` | `CHAR(64)` | NOT NULL | None | UNIQUE (`pat_token_unique`) | SHA-256 hash of plaintext bearer token |
+| `abilities` | `TEXT` | NULL | NULL | None | JSON array of token permission scopes |
+| `last_used_at` | `TIMESTAMP` | NULL | NULL | None | Most recent API request timestamp |
+| `expires_at` | `TIMESTAMP` | NULL | NULL | None | Token expiration deadline |
+| `created_at` | `TIMESTAMP` | NULL | CURRENT_TIMESTAMP | None | Token creation timestamp |
+| `updated_at` | `TIMESTAMP` | NULL | CURRENT_TIMESTAMP ON UPDATE | None | Token update timestamp |
+
+---
+
+## Category B: Notification Infrastructure (1 Table)
+
+### 27. `notifications`
+Laravel native polymorphic notification storage table.
+
+| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `CHAR(36)` | NOT NULL | None | PRIMARY KEY | Standard Laravel UUID primary key |
+| `type` | `VARCHAR(255)` | NOT NULL | None | None | Fully qualified Notification class name |
+| `notifiable_type` | `VARCHAR(255)` | NOT NULL | None | INDEX (`notifiable_idx`, 1) | Target recipient model class (e.g., `'App\Models\User'`) |
+| `notifiable_id` | `BIGINT UNSIGNED` | NOT NULL | None | INDEX (`notifiable_idx`, 2) | Target recipient user ID |
+| `data` | `JSON` | NOT NULL | None | None | Notification payload, title, action URLs |
+| `read_at` | `TIMESTAMP` | NULL | NULL | INDEX (`notif_read_at_idx`) | Read status timestamp (NULL = unread) |
+| `created_at` | `TIMESTAMP` | NULL | CURRENT_TIMESTAMP | None | Notification dispatch timestamp |
+| `updated_at` | `TIMESTAMP` | NULL | CURRENT_TIMESTAMP ON UPDATE | None | Update timestamp |
+
+---
+
+## Category C: Queue & Asynchronous Jobs Infrastructure (3 Tables)
+
+### 28. `jobs`
+Pending asynchronous background jobs for worker processing.
+
+| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `BIGINT UNSIGNED` | NOT NULL, AUTO_INCREMENT | None | PRIMARY KEY | Job primary key |
+| `queue` | `VARCHAR(255)` | NOT NULL | None | INDEX (`jobs_queue_idx`) | Queue channel name |
+| `payload` | `LONGTEXT` | NOT NULL | None | None | Serialized job command closure |
+| `attempts` | `TINYINT UNSIGNED` | NOT NULL | None | None | Attempt counter |
+| `reserved_at` | `INT UNSIGNED` | NULL | NULL | None | Worker reservation timestamp |
+| `available_at` | `INT UNSIGNED` | NOT NULL | None | None | Scheduling release timestamp |
+| `created_at` | `INT UNSIGNED` | NOT NULL | None | None | Job push timestamp |
+
+---
+
+### 29. `job_batches`
+Coordinator table tracking batched queue executions.
+
+| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `VARCHAR(255)` | NOT NULL | None | PRIMARY KEY | Unique batch UUID |
+| `name` | `VARCHAR(255)` | NOT NULL | None | None | Batch name |
+| `total_jobs` | `INT` | NOT NULL | None | None | Total jobs in batch |
+| `pending_jobs` | `INT` | NOT NULL | None | None | Remaining jobs count |
+| `failed_jobs` | `INT` | NOT NULL | None | None | Failed jobs count |
+| `failed_job_ids` | `LONGTEXT` | NOT NULL | None | None | JSON array of failed job IDs |
+| `options` | `MEDIUMTEXT` | NULL | NULL | None | Serialized batch callbacks |
+| `cancelled_at` | `INT` | NULL | NULL | None | Cancellation timestamp |
+| `created_at` | `INT` | NOT NULL | None | None | Creation timestamp |
+| `finished_at` | `INT` | NULL | NULL | None | Completion timestamp |
+
+---
+
+### 30. `failed_jobs`
+Dead-letter queue table for failed asynchronous jobs.
+
+| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `BIGINT UNSIGNED` | NOT NULL, AUTO_INCREMENT | None | PRIMARY KEY | Failed job record primary key |
+| `uuid` | `VARCHAR(255)` | NOT NULL | None | UNIQUE (`failed_jobs_uuid_unique`) | Unique failed job UUID |
+| `connection` | `TEXT` | NOT NULL | None | None | Queue connection name |
+| `queue` | `TEXT` | NOT NULL | None | None | Queue channel name |
+| `payload` | `LONGTEXT` | NOT NULL | None | None | Job payload data |
+| `exception` | `LONGTEXT` | NOT NULL | None | None | Exception stack trace |
+| `failed_at` | `TIMESTAMP` | NOT NULL | CURRENT_TIMESTAMP | None | Failure timestamp |
+
+---
+
+## Category D: Cache & Mutex Lock Infrastructure (2 Tables)
+
+### 31. `cache`
+Database-backed key-value cache store.
+
+| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `key` | `VARCHAR(255)` | NOT NULL | None | PRIMARY KEY | Unique cache key |
+| `value` | `MEDIUMTEXT` | NOT NULL | None | None | Serialized cached value |
+| `expiration` | `INT` | NOT NULL | None | None | Expiration Unix timestamp |
+
+---
+
+### 32. `cache_locks`
+Distributed atomic mutex lock storage for cache/job concurrency control.
+
+| Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `key` | `VARCHAR(255)` | NOT NULL | None | PRIMARY KEY | Mutex lock key |
+| `owner` | `VARCHAR(255)` | NOT NULL | None | None | Process lock owner identifier |
+| `expiration` | `INT` | NOT NULL | None | None | Lock expiration Unix timestamp |

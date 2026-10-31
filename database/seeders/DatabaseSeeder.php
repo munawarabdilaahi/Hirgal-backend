@@ -11,12 +11,19 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // 1. Core systemic roles and permissions (safe and required for all environments including production)
         $this->call([
             RoleSeeder::class,
             PermissionSeeder::class,
             RolePermissionSeeder::class,
-            DevelopmentUserSeeder::class,
-            DevelopmentProjectSeeder::class,
         ]);
+
+        // 2. Development demonstration accounts & sample projects (strictly forbidden in production)
+        if (! app()->isProduction()) {
+            $this->call([
+                DevelopmentUserSeeder::class,
+                DevelopmentProjectSeeder::class,
+            ]);
+        }
     }
 }
