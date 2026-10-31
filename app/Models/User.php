@@ -162,4 +162,28 @@ class User extends Authenticatable
     {
         return $this->roles->contains('slug', $slug);
     }
+
+    public function isSystemAdmin(): bool
+    {
+        return $this->hasRole(\App\Enums\UserRole::SystemAdmin->value);
+    }
+
+    public function isActive(): bool
+    {
+        return $this->account_status === AccountStatus::Active;
+    }
+
+    public function hasPermission(string $slug): bool
+    {
+        if ($this->isSystemAdmin()) {
+            return true;
+        }
+
+        return $this->allPermissions()->contains('slug', $slug);
+    }
+
+    public function allPermissions(): \Illuminate\Support\Collection
+    {
+        return $this->roles->flatMap(fn (Role $role) => $role->permissions)->unique('id');
+    }
 }
