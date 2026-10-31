@@ -174,6 +174,8 @@ class UserManagementTest extends TestCase
         $this->assertSame(AccountStatus::Suspended, $targetUser->fresh()->account_status);
 
         // Target user token is revoked
+        $this->app['auth']->forgetGuards();
+
         $this->withHeader('Authorization', 'Bearer '.$targetUserToken)
             ->getJson('/api/v1/auth/me')
             ->assertStatus(401);

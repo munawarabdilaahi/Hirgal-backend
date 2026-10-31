@@ -13,7 +13,7 @@ class UpdateUserRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        $targetUser = $this->route('user');
+        $targetUser = $this->route('id') ?? $this->route('user');
 
         if (! $targetUser instanceof User) {
             $targetUser = User::find($targetUser);
@@ -29,9 +29,8 @@ class UpdateUserRequest extends FormRequest
      */
     public function rules(): array
     {
-        $targetUserId = $this->route('user') instanceof User
-            ? $this->route('user')->id
-            : $this->route('user');
+        $param = $this->route('id') ?? $this->route('user');
+        $targetUserId = $param instanceof User ? $param->id : $param;
 
         return [
             'name' => ['sometimes', 'string', 'max:255'],

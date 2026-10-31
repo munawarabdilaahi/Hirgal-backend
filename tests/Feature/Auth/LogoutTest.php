@@ -32,6 +32,8 @@ class LogoutTest extends TestCase
             ->assertJsonPath('message', 'Successfully logged out.');
 
         // Verify the revoked token can no longer authenticate
+        $this->app['auth']->forgetGuards();
+
         $followUpResponse = $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/v1/auth/me');
 
@@ -51,9 +53,13 @@ class LogoutTest extends TestCase
             ->assertJsonPath('success', true);
 
         // Verify both tokens are revoked
+        $this->app['auth']->forgetGuards();
+
         $this->withHeader('Authorization', 'Bearer '.$token1)
             ->getJson('/api/v1/auth/me')
             ->assertStatus(401);
+
+        $this->app['auth']->forgetGuards();
 
         $this->withHeader('Authorization', 'Bearer '.$token2)
             ->getJson('/api/v1/auth/me')

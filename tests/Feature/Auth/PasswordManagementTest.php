@@ -181,6 +181,8 @@ class PasswordManagementTest extends TestCase
             ->assertOk();
 
         // Other token is revoked
+        $this->app['auth']->forgetGuards();
+
         $this->withHeader('Authorization', 'Bearer '.$otherToken)
             ->getJson('/api/v1/auth/me')
             ->assertStatus(401);
