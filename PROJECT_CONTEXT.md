@@ -1,29 +1,33 @@
 # Hirgal — Project Context
 
-> **Central Project Knowledge & Architecture Guide for AI Agents & Developers**  
+> **Central Project Knowledge, Architectural Blueprint & Living Operational Guide**  
 > **Repository Location:** `C:\Hirgal`  
-> **Last Updated:** 2026-11-02  
-> **Status:** Phase 5.2 Completed & Accepted (`main` commit `2a571ee`)
+> **Current Version:** Phase 5.2 Accepted / Phase 5.3 Documentation Reconciled  
+> **Last Audited & Updated:** 2026-11-02  
+> **Git Baseline:** Commit `2a571ee` (Phase 5.2 Hardening) & Commit `3556549` (Documentation Baseline)
 
 ---
 
 ## 1. Project Overview
 
 ### 1.1 Purpose & Vision
-**Hirgal** is an enterprise-grade Project Management and Team Collaboration Platform built as a robust, secure, API-driven backend. The system integrates project planning, cross-functional team coordination, Kanban task workflows, calendar scheduling, personal habit tracking, user follow-up inboxes, and centralized audit logging into a unified, high-performance architecture.
+**Hirgal** is an enterprise-grade Project Management and Team Collaboration Platform built as an API-first backend system. It unifies project planning, cross-functional team coordination, Kanban task workflows, calendar scheduling, personal habit tracking, user follow-up inboxes, and centralized audit logging into a modular, secure, high-performance architecture.
 
-### 1.2 Core Product Functionality
-1. **Identity & Access Management:** Secure token-based authentication via Laravel Sanctum, invitation-driven onboarding, granular role-based access control (RBAC), and user profile management.
-2. **Projects & Tenancy Workspaces:** Contextual project boundaries with project-specific member assignments, contextual membership roles, and invitations.
-3. **Teams & Squad Coordination:** Cross-functional organizational squads, team rosters, and multi-team project assignments.
-4. **Tasks & Work Management:** Project Kanban boards, subtasks, task delegations, priority matrices, threaded discussions, and file attachments.
-5. **Appointments & Scheduling:** Collaborative calendar appointments, video conferencing links, and participant RSVP status tracking.
-6. **Habit Tracker:** Personal habit definition, cadence/frequency scheduling, daily check-in logging, and completion streak tracking.
-7. **Follow-Up Inbox & Mentions:** High-speed indexed `@mentions` across tasks and comments, automated in-app notifications, and activity tracking.
-8. **Polymorphic Activity Auditing:** Immutable audit trail recording actor identity, client IP, action type, subject entity, and change diffs.
+### 1.2 Core Product Functionality (Vision vs Current Status)
+The complete platform vision encompasses 8 functional pillars. As of Phase 5.3, these exist in two distinct states: **Implemented APIs** versus **Database Foundation Only (APIs Planned)**:
+
+1. **Identity & Access Management (`IMPLEMENTED & AUDITED`):** Token-based authentication via Laravel Sanctum, invitation-driven onboarding, granular role-based access control (RBAC), and user profile management.
+2. **User Directory (`IMPLEMENTED & AUDITED`):** Team collaboration directory exposing basic profile details with administrative metadata redacted.
+3. **Projects & Tenancy Workspaces (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 6`):** Workspace boundaries, contextual project roles, and project invitations.
+4. **Teams & Squad Coordination (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 6`):** Organizational squads, member rosters, and multi-team project allocations.
+5. **Tasks & Work Management (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 6`):** Kanban boards, subtasks, task delegations, priorities, threaded discussions, and file attachments.
+6. **Appointments & Scheduling (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 7`):** Calendar appointments, video conferencing links, and participant RSVP tracking.
+7. **Habit Tracker (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 8`):** Personal habit definitions, frequency schedules, daily check-in logging, and streak tracking.
+8. **Follow-Up Inbox & Mentions (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 9`):** Indexed `@mentions` across tasks and comments, notifications, and activity tracking.
+9. **Polymorphic Activity Auditing (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 9`):** Immutable audit trail recording actor identity, client IP, action type, subject entity, and change diffs.
 
 ### 1.3 Intended Users & Role Profiles
-- **System Administrator:** Global platform administrators responsible for system configuration, user lifecycle administration, and global security management.
+- **System Administrator:** Global platform administrator responsible for system configuration, user lifecycle administration, and global security management.
 - **Project Manager:** Coordinates project lifecycles, creates projects, invites team members, establishes sprint boards, and tracks task delivery.
 - **Team Leader:** Leads functional squads, assigns tasks to squad members, schedules team meetings, and supervises daily workflows.
 - **Member:** Individual team contributors collaborating on assigned tasks, tracking personal productivity habits, and participating in meetings.
@@ -52,7 +56,8 @@ All versions documented below reflect the **actual installed packages** verified
 Hirgal is architected as a **Modular Monolith**. Code is partitioned by functional domain rather than scattered utility scripts. All client interaction is strictly conducted through a versioned RESTful API under the `/api/v1` route namespace.
 
 ### 3.2 Actions → Services → Controllers Pattern
-The backend enforces a strict four-layer separation of concerns:
+The backend enforces a strict separation of concerns across dedicated architectural layers:
+
 ```
 [HTTP Request]
        │
@@ -60,25 +65,26 @@ The backend enforces a strict four-layer separation of concerns:
 [Form Request] ────> Validates schema & verifies request-level gate authorization
        │
        ▼
-[Controller]   ────> Thin endpoint; extracts parameters, invokes Service/Action
+[Controller]   ────> Thin transport handler; extracts inputs, invokes Service/Action
        │
        ▼
-[Service]      ────> Orchestrates multi-step business logic and read operations
+[Service]      ────> Orchestrates multi-step business workflows and read queries
        │
        ▼
 [Action]       ────> Single-responsibility state mutation inside DB::transaction()
        │
        ▼
-[API Resource] ────> Sanitizes model data and returns uniform ApiResponse JSON
+[API Resource] ────> Presentation layer: sanitizes attributes, returns ApiResponse JSON
 ```
 
-- **Form Requests (`app/Http/Requests`):** Validate input schemas, sanitize data, and enforce early authorization rules.
-- **Controllers (`app/Http/Controllers/Api/V1`):** Keep endpoints minimal (under 30 lines per method). Controllers never write raw SQL or complex business conditionals.
-- **Services (`app/Services`):** Coordinate multi-model workflows, read aggregations, and business process lifecycles.
-- **Actions (`app/Actions`):** Pure, single-purpose classes executing database write operations within atomic transactions (`DB::transaction()`).
-- **API Resources (`app/Http/Resources`):** Transform Eloquent models into sanitized JSON output. Sensitive attributes (`password`, `token_hash`, internal admin metadata) are never leaked.
-- **Policies (`app/Policies`):** Centralize granular authorization logic, mapped directly to Eloquent models.
-- **Middleware (`app/Http/Middleware`):** Intercept and enforce system invariants (`ForceJsonResponse`, `EnsureAccountIsActive`, `auth:sanctum`).
+### 3.3 Layer Responsibilities
+- **Form Requests (`app/Http/Requests`):** Validate input schemas, sanitize incoming parameters, and evaluate request-level authorization rules (e.g. verifying caller permissions before reaching the controller).
+- **Controllers (`app/Http/Controllers/Api/V1`):** Purely **HTTP transport handlers**. They receive validated request data, dispatch execution to dedicated Services or Actions, and return JSON responses wrapped in `ApiResponse`. Controllers contain **no business logic, no direct SQL queries, and no state mutations**.
+- **Services (`app/Services`):** Business workflow coordinators and read query providers. They manage multi-step processes, complex read filtering/pagination, and coordinate across multiple Actions or external providers.
+- **Actions (`app/Actions`):** Discrete, single-purpose state mutation units. Each action executes a specific business operation (e.g. `UpdateUserAction`, `DeactivateUserAction`) and manages its own database transactions (`DB::transaction`) to ensure atomicity.
+- **Policies (`app/Policies`):** Fine-grained model-level authorization logic defining who can view, create, update, or delete specific domain resources based on global permissions and entity ownership.
+- **API Resources (`app/Http/Resources`):** Strictly **presentation and serialization layers**. They transform Eloquent models into sanitized JSON arrays, format timestamps (ISO 8601), and redact sensitive internal attributes (`password`, `token_hash`, administrative metadata). They do **NOT** contain business logic, query databases, or perform mutations.
+- **Middleware (`app/Http/Middleware`):** HTTP pipeline filters that enforce cross-cutting concerns, such as forcing JSON responses (`ForceJsonResponse`), verifying Sanctum authentication (`auth:sanctum`), enforcing active account status (`EnsureAccountIsActive`), and applying rate limits.
 - **Response Standard:** Standardized JSON responses through `App\Support\ApiResponse`.
 - **Naming Conventions:** PascalCase for classes, camelCase for methods/variables, snake_case for database columns and JSON keys, kebab-case for URLs and permission slugs.
 
@@ -97,7 +103,7 @@ C:\Hirgal
 │   │   ├── Controllers/Api/V1/   # Thin REST API controllers
 │   │   ├── Middleware/           # Request filters (ForceJsonResponse, EnsureAccountIsActive)
 │   │   ├── Requests/Api/V1/      # Form requests for validation and gate checks
-│   │   └── Resources/Api/V1/     # Eloquent API transformation resources
+│   │   └── Resources/Api/V1/     # Eloquent API presentation & transformation resources
 │   ├── Models/                   # 23 Eloquent models representing business entities
 │   ├── Notifications/            # Mailable email notifications (ResetPassword, UserInvitation)
 │   ├── Policies/                 # Authorization policies (UserPolicy, UserInvitationPolicy)
@@ -140,19 +146,19 @@ The database contains **32 tables**, strictly partitioned into **23 Core Busines
 10. **Framework Infrastructure (9):** `personal_access_tokens`, `password_reset_tokens`, `sessions`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`, `notifications`
 
 ### 5.2 Key Design Principles
-- **Dual Identification Strategy:** High-performance clustered `BIGINT UNSIGNED AUTO_INCREMENT` primary keys for joins and foreign keys; public `uuid` (CHAR 36) on tenant-facing entities (`projects`, `tasks`, `teams`, `appointments`, `habits`) to prevent enumeration attacks.
+- **Dual Identification Strategy:** High-performance clustered `BIGINT UNSIGNED AUTO_INCREMENT` primary keys for joins and foreign keys; public `uuid` (CHAR 36) on tenant-facing entities (`projects`, `tasks`, `teams`, `appointments`, `habits`) to prevent sequential enumeration attacks.
 - **Composite Ownership Constraints:** Enforced at storage engine level (e.g., `(habit_id, user_id)` foreign key on `habit_logs` referencing `habits(id, user_id)`).
-- **Application-Level Enums:** All categorical columns (`status`, `priority`, `role`) store `VARCHAR(50)` cast to PHP 8.4 Enums.
-- **Cryptographic Token Hashing:** Invitation and password reset tokens store only SHA-256 hashes (`token_hash` CHAR 64). Raw tokens are never persisted.
+- **Application-Level Enums:** All categorical columns (`status`, `priority`, `role`) store `VARCHAR(50)` cast to strongly-typed PHP 8.4 Enums.
+- **Cryptographic Token Hashing:** Invitation and password reset tokens store only SHA-256 hashes (`token_hash` CHAR 64). Raw tokens are never persisted in the database.
 - **Soft Deletes:** Preserved on `users`, `projects`, `tasks`, `teams`, `appointments`, and `habits`.
-- **Explicit Scoping:** No hidden global scopes that silently corrupt CLI jobs or administrative reporting.
+- **Explicit Scoping:** Multi-tenant boundaries rely on explicit project queries and policies. Hidden global scopes are avoided to prevent silent corruption in CLI jobs or administrative reporting.
 
 ---
 
 ## 6. Authentication & Security
 
 ### 6.1 Sanctum Authentication & Token Lifecycle
-- Token issuance occurs on `POST /api/v1/auth/login`, `POST /api/v1/auth/register` (when enabled), or `POST /api/v1/invitations/{token}/accept`.
+- Token issuance occurs on `POST /api/v1/auth/login`, `POST /api/v1/auth/register` (when public registration is enabled), or `POST /api/v1/invitations/{token}/accept`.
 - Tokens are SHA-256 hashed in `personal_access_tokens`.
 - Token revocation is strictly immediate:
   - `POST /api/v1/auth/logout`: Revokes caller's current token.
@@ -174,14 +180,15 @@ The database contains **32 tables**, strictly partitioned into **23 Core Busines
   - Demoting or deactivating the last active System Administrator is blocked.
   - Mutating System Admin status executes within a database transaction acquiring a pessimistic exclusive row lock on the `system-admin` role (`Role::lockForUpdate()`), eliminating TOCTOU race conditions.
 - **Token Exposure Mitigation (SEC-04):**
-  - Public invitation verification is handled via `POST /api/v1/invitations/inspect` with `{ "token": "..." }` in the request body. Legacy URL path token routes are deprecated (`Deprecation: true` header).
+  - Public invitation verification is handled via `POST /api/v1/invitations/inspect` with `{ "token": "..." }` in the request body, eliminating URI-based token logging.
+  - The legacy `GET /api/v1/invitations/{token}` route remains temporarily operational for backward compatibility, marked with a `Deprecation: true` header. *(See Section 6.5 for critical risk details).*
 - **User Enumeration Timing Defense (SEC-05):**
-  - `LoginUserAction` executes a dummy 12-round Bcrypt comparison when an email is not found, equalizing response time with valid account verification (~250ms).
+  - `LoginUserAction` executes a dummy 12-round Bcrypt comparison when an email is not found, substantially reducing timing discrepancies compared to an immediate return. *(See Section 6.6 for realistic assessment).*
 - **Orphaned Token Table Exhaustion Defense (SEC-06):**
   - `SendPasswordResetLinkAction` queries user existence prior to inserting into `password_reset_tokens`. Non-existent emails trigger no database writes while returning a generic 200 response.
 - **Collaborative Directory Separation (SEC-07):**
   - Administrative user lists (`GET /api/v1/users`) require `users.view`.
-  - General member lookup uses `GET /api/v1/users/directory` requiring `users.view_directory`, exposing only sanitized collaboration fields (`id`, `name`, `email`, `avatar_url`, `timezone`, `job_title`, `department`).
+  - General member lookup uses `GET /api/v1/users/directory` requiring `users.view_directory`, exposing sanitized collaboration fields (`id`, `name`, `email`, `avatar_url`, `timezone`, `job_title`, `department`). *(See Section 6.7 for privacy considerations).*
 - **Frontend Action Link Redirection (SEC-08):**
   - Password reset and invitation emails generate action links directed to the frontend SPA (`config('app.frontend_url')`).
 
@@ -191,6 +198,31 @@ The database contains **32 tables**, strictly partitioned into **23 Core Busines
 - Password Reset: 5 requests / minute (Client IP).
 - Invitations: 10 requests / minute (User ID or Client IP).
 - Token Inspection: 30 requests / minute (Client IP).
+
+### 6.5 Legacy Route Token Exposure Analysis (SEC-04 Technical Truth)
+- **Current State:** The legacy route `GET /api/v1/invitations/{token}` is **still operational**.
+- **Security Exposure:** The route accepts the raw 64-character unauthenticated credential directly in the URL path.
+- **Header Limitation:** Emitting the `Deprecation: true` response header notifies HTTP clients that the endpoint is deprecated, but **does NOT prevent the raw token from being logged** across web server access logs (Nginx/Apache), reverse proxy logs (Cloudflare, AWS ALB), browser histories, or HTTP Referrer headers.
+- **Remediation & Removal Milestone:** The newly introduced `POST /api/v1/invitations/inspect` endpoint passes the token within the JSON body, eliminating URL exposure. The legacy `GET` endpoint must be completely decommissioned and removed from `routes/api.php` prior to public production deployment (recommended by Phase 6 or Phase 7).
+
+### 6.6 Authentication Timing Protection Reality (SEC-05 Technical Truth)
+- **Implementation:** `LoginUserAction` executes `Hash::check($password, '$2y$12$...')` when `$user === null` to mitigate gross timing attacks (avoiding a ~2ms immediate return vs a ~250ms Bcrypt hash).
+- **Realistic Security Assessment:** This is a **heuristic timing mitigation**, NOT a mathematically guaranteed constant-time algorithm.
+- **Sources of Discrepancy:**
+  1. Database query duration varies between cache hits, index lookups, and missing rows.
+  2. Eager-loaded relations (`roles.permissions`, `profile`) run additional queries when `$user` is found, which do not run when `$user` is null.
+  3. PHP runtime garbage collection, OS thread scheduling, and network latency introduce timing jitter.
+- Therefore, the system mitigates timing disparity to an extent that makes remote network-based enumeration impractical, but it does **not** provide mathematical constant-time guarantees.
+
+### 6.7 User Directory Privacy Analysis (SEC-07 Policy Truth)
+- **Current State:** `GET /api/v1/users/directory` uses `UserDirectoryResource` and exposes: `id`, `name`, `email`, `avatar_url`, `timezone`, `job_title`, and `department`.
+- **Policy Enforcement:** Accessible by any authenticated, active user with `users.view_directory` (assigned to Member, Team Leader, Project Manager, System Admin).
+- **Open Product Decision:** Exposing `email` to all organizational members facilitates cross-team collaboration, but in strict privacy or multi-tenant corporate settings, global email disclosure might violate internal data minimization standards.
+- **Action Required:** Product ownership must explicitly decide before Phase 10 whether:
+  1. Email visibility remains open to all organization members;
+  2. Email visibility should be restricted to users who share a common project/team;
+  3. Users should be given a profile-level privacy toggle (`show_email_in_directory`).
+  *(In accordance with Phase 5.3 rules, no code changes have been made to the resource or permissions; this policy decision is flagged for product owner review).*
 
 ---
 
@@ -226,39 +258,78 @@ Permissions are distributed across 8 functional modules:
 
 ---
 
-## 8. Implemented Modules
+## 8. Implemented Modules Inventory
 
-### Module 1: Authentication & User Profile
+To maintain strict truth in documentation, modules are classified into three distinct implementation statuses:
+1. **Implemented & Audited:** Complete end-to-end implementation (Routes, Controllers, Services, Actions, Policies, Resources, Automated Tests).
+2. **Database Foundation Only:** Migrations, Eloquent Models, Factories, and Seeders exist. **APIs, Controllers, Actions, and Routes DO NOT EXIST.**
+3. **Planned:** Scheduled for future roadmap phases.
+
+### 8.1 Implemented & Audited Modules
+
+#### Module 1: Authentication & User Profile
 - **Status:** `IMPLEMENTED` | `TESTED` | `AUDITED` | `HARDENED`
 - **Main Responsibilities:** User login, logout, device token invalidation, profile inspection (`/auth/me`), profile updates (`/auth/me/profile`), password reset, password modification.
-- **Routes:** `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `POST /api/v1/auth/logout-all`, `GET /api/v1/auth/me`, `PUT /api/v1/auth/me/profile`, `POST /api/v1/auth/forgot-password`, `POST /api/v1/auth/reset-password`, `POST /api/v1/auth/change-password`
+- **Routes (8):**
+  - `POST /api/v1/auth/login`
+  - `POST /api/v1/auth/logout`
+  - `POST /api/v1/auth/logout-all`
+  - `GET /api/v1/auth/me`
+  - `PUT /api/v1/auth/me/profile`
+  - `POST /api/v1/auth/forgot-password`
+  - `POST /api/v1/auth/reset-password`
+  - `POST /api/v1/auth/change-password`
 - **Models / Tables:** `User` (`users`), `UserProfile` (`user_profiles`), `password_reset_tokens`, `personal_access_tokens`
 - **Tests:** `tests/Feature/Auth/LoginTest.php`, `tests/Feature/Auth/PasswordResetTest.php`, `tests/Feature/Auth/ProfileTest.php`
 - **Docs:** [`docs/api/AUTH.md`](file:///c:/Hirgal/docs/api/AUTH.md)
 
-### Module 2: User Administration & Directory
+#### Module 2: User Administration & Directory
 - **Status:** `IMPLEMENTED` | `TESTED` | `AUDITED` | `HARDENED`
 - **Main Responsibilities:** Administrative user listing, individual user inspection, profile & role updates, user account activation, deactivation with token revocation, team collaboration directory.
-- **Routes:** `GET /api/v1/users`, `GET /api/v1/users/directory`, `GET /api/v1/users/{id}`, `PUT /api/v1/users/{id}`, `POST /api/v1/users/{id}/activate`, `POST /api/v1/users/{id}/deactivate`
+- **Routes (6):**
+  - `GET /api/v1/users` (Admin list)
+  - `GET /api/v1/users/directory` (Collaboration directory)
+  - `GET /api/v1/users/{id}`
+  - `PUT /api/v1/users/{id}`
+  - `POST /api/v1/users/{id}/activate`
+  - `POST /api/v1/users/{id}/deactivate`
 - **Models / Tables:** `User` (`users`), `Role` (`roles`), `user_roles`
 - **Policies / Permissions:** `UserPolicy`, permissions: `users.view`, `users.view_directory`, `users.update`, `users.delete`
 - **Tests:** `tests/Feature/Users/UserManagementTest.php`, `tests/Feature/Security/SecurityHardeningTest.php`
 - **Docs:** [`docs/api/USERS.md`](file:///c:/Hirgal/docs/api/USERS.md)
 
-### Module 3: User Invitations & Onboarding
+#### Module 3: User Invitations & Onboarding
 - **Status:** `IMPLEMENTED` | `TESTED` | `AUDITED` | `HARDENED`
 - **Main Responsibilities:** Dispatch onboarding invitations, token inspection via POST body, invitation resending, revocation, single-use acceptance.
-- **Routes:** `POST /api/v1/invitations/inspect`, `GET /api/v1/invitations/{token}` (deprecated), `POST /api/v1/invitations/{token}/accept`, `GET /api/v1/invitations`, `POST /api/v1/invitations`, `POST /api/v1/invitations/{id}/resend`, `DELETE /api/v1/invitations/{id}`
+- **Routes (7):**
+  - `POST /api/v1/invitations/inspect` (Preferred body inspect)
+  - `GET /api/v1/invitations/{token}` (Deprecated URL inspect)
+  - `POST /api/v1/invitations/{token}/accept`
+  - `GET /api/v1/invitations`
+  - `POST /api/v1/invitations`
+  - `POST /api/v1/invitations/{id}/resend`
+  - `DELETE /api/v1/invitations/{id}`
 - **Models / Tables:** `UserInvitation` (`user_invitations`), `User` (`users`), `Role` (`roles`)
 - **Policies / Permissions:** `UserInvitationPolicy`, permission: `users.invite`
 - **Tests:** `tests/Feature/Users/UserInvitationManagementTest.php`, `tests/Feature/Auth/InvitationAcceptanceTest.php`, `tests/Feature/Security/SecurityHardeningTest.php`
 - **Docs:** [`docs/api/INVITATIONS.md`](file:///c:/Hirgal/docs/api/INVITATIONS.md)
 
-### Module 4: Database Infrastructure & Models Foundation
-- **Status:** `IMPLEMENTED` | `TESTED` | `AUDITED` | `VERIFIED ON MYSQL 8`
-- **Main Responsibilities:** 23 Eloquent models, 14 migrations, relationship definitions, factories, and seeders.
-- **Tests:** `tests/Feature/Database/*` (Integrity, ModelRelationships, MySQLCompositeConstraintTest)
-- **Docs:** [`docs/database/`](file:///c:/Hirgal/docs/database/)
+---
+
+### 8.2 Database Foundations Only (APIs NOT Implemented)
+
+> **WARNING FOR FUTURE AGENTS:** The following modules have completed database schemas, Eloquent models, factories, and seeders from Phase 4. **No API routes, controllers, or actions exist for these domains.** Do NOT attempt to query or integrate against endpoints for these modules until their respective phases are executed.
+
+| Domain Module | Database Tables | Eloquent Models | API Route Status | Planned Roadmap Phase |
+| :--- | :--- | :--- | :---: | :---: |
+| **Global RBAC Management** | `roles`, `permissions`, `role_permissions`, `user_roles` | `Role`, `Permission` | **NO API ROUTES** | Phase 5.2 (Permissions Seeded Only) |
+| **Projects & Tenancy** | `projects`, `project_members`, `project_invitations` | `Project`, `ProjectMember`, `ProjectInvitation` | **NO API ROUTES** | **Phase 6** |
+| **Teams & Squads** | `teams`, `team_members`, `project_teams` | `Team`, `TeamMember`, `ProjectTeam` | **NO API ROUTES** | **Phase 6** |
+| **Tasks & Work Management** | `tasks`, `task_assignments`, `task_comments`, `task_attachments` | `Task`, `TaskAssignment`, `TaskComment`, `TaskAttachment` | **NO API ROUTES** | **Phase 6** |
+| **Appointments & Scheduling** | `appointments`, `appointment_participants` | `Appointment`, `AppointmentParticipant` | **NO API ROUTES** | **Phase 7** |
+| **Habit Tracker** | `habits`, `habit_logs` | `Habit`, `HabitLog` | **NO API ROUTES** | **Phase 8** |
+| **Follow-Up Inbox & Mentions** | `user_mentions`, `notifications` | `UserMention` | **NO API ROUTES** | **Phase 9** |
+| **Activity Auditing & Logs** | `activity_logs` | `ActivityLog` | **NO API ROUTES** | **Phase 9** |
 
 ---
 
@@ -324,11 +395,12 @@ Managed centrally through `App\Support\ApiResponse`:
   ```
 
 ### 10.2 Verified Test Count & Assertion Summary
-Verified directly via runtime execution:
+Verified directly via live runtime execution on 2026-11-02:
 - **Total Tests:** 102
 - **Passing Tests:** 102 (100% green)
 - **Total Assertions:** 469
 - **Failures / Errors:** 0
+- **Execution Time:** ~7.0 seconds
 
 ### 10.3 Test Suite Breakdown
 1. `tests/Unit`: 1 test, 1 assertion.
@@ -339,34 +411,41 @@ Verified directly via runtime execution:
 6. `tests/Feature/Api`: 4 tests, 32 assertions (Connection, Health checks).
 7. `tests/Feature/ExampleTest.php`: 1 test, 1 assertion.
 
-### 10.4 SQLite vs MySQL Testing Strategy
-- **SQLite In-Memory (`:memory:`):** Default for high-speed feature and unit testing in `phpunit.xml`.
-- **MySQL 8 (`hirgal_backend_test`):** Mandatory for composite foreign key constraints, pessimistic row locks, and real InnoDB transactions (`tests/Feature/Database/MySQLCompositeConstraintTest.php`).
+### 10.4 SQLite vs MySQL Testing Reality
+- **SQLite In-Memory (`:memory:`):** Executes the standard 100 feature/unit tests in `phpunit.xml`.
+- **MySQL 8 (`hirgal_backend_test`):** Specifically verified by [`tests/Feature/Database/MySQLCompositeConstraintTest.php`](file:///c:/Hirgal/tests/Feature/Database/MySQLCompositeConstraintTest.php) (2 tests):
+  1. `test_mysql8_enforces_composite_foreign_key_on_habit_logs`: Validates cross-user tampering rejection on `(habit_id, user_id)`.
+  2. `test_mysql8_composite_foreign_key_cascades_on_habit_delete`: Validates cascading deletes on composite foreign keys under MySQL InnoDB.
+- **Pessimistic Row Locking Concurrency Status (`NOT VERIFIED` under multi-process contention):**
+  - Pessimistic row locking syntax (`Role::lockForUpdate()`) is verified transactionally in `SecurityHardeningTest.php`.
+  - However, **true multi-process concurrent lock contention** (two concurrent PHP processes simultaneously executing deactivation requests on MySQL) is `NOT VERIFIED` via automated concurrency tests because PHPUnit runs as a single synchronous process.
 
 ---
 
-## 11. Completed Phases
+## 11. Completed Phases & Audit Milestones
 
-| Phase | Title | Completion Date | Acceptance Status | Git Commit | Key Achievements / Scope |
-| :---: | :--- | :---: | :---: | :---: | :--- |
-| **Phase 1** | Architecture Blueprint | 2026-10-30 | **ACCEPTED** | — | System requirements, modular design, domain boundaries. |
-| **Phase 2** | Backend Foundation & Scaffolding | 2026-10-31 | **ACCEPTED** | — | Laravel 13 setup, Sanctum, ApiResponse envelope, Health API. |
-| **Phase 3** | Database Design & ERD | 2026-10-31 | **ACCEPTED** | — | Complete 32-table schema, indexing strategy, data dictionary. |
-| **Phase 3.1** | Database Design Corrections | 2026-10-31 | **ACCEPTED** | — | Schema reconciliation, habit composite FK, seeder plans. |
-| **Phase 4** | Database Implementation | 2026-10-31 | **ACCEPTED** | `0c9582b` | 14 migrations, 23 Eloquent models, factories, seeders. |
-| **Phase 4.1** | Database Audit & Verification | 2026-10-31 | **ACCEPTED** | — | Read-only audit identifying seeder production risks. |
-| **Phase 4.2** | Seeder Safety & Reconciliation | 2026-10-31 | **ACCEPTED** | `e6c9111` | Environment safety guards on seeders, table classification. |
-| **Phase 5** | Auth & User Management API | 2026-10-31 | **ACCEPTED** | `b9e913e` | Implemented 21 endpoints, Actions/Services/Controllers. |
-| **Phase 5.1** | Security Audit | 2026-10-31 | **FAILED** | — | Independent audit identified SEC-01 through SEC-08. |
-| **Phase 5.2** | Security Hardening & Remediation | 2026-11-02 | **ACCEPTED** | `2a571ee` | Fixed SEC-01 to SEC-08, added 23 regression tests (102 tests total). |
+| Phase | Title | Milestone Type | Date | Status | Git Commit | Key Achievements / Findings |
+| :---: | :--- | :---: | :---: | :---: | :---: | :--- |
+| **Phase 1** | Architecture Blueprint | Architecture | 2026-10-30 | **ACCEPTED** | — | System requirements, modular design, domain boundaries. |
+| **Phase 2** | Backend Foundation & Scaffolding | Implementation | 2026-10-31 | **ACCEPTED** | — | Laravel 13 setup, Sanctum, ApiResponse envelope, Health API. |
+| **Phase 3** | Database Design & ERD | Architecture | 2026-10-31 | **ACCEPTED** | — | Complete 32-table schema, indexing strategy, data dictionary. |
+| **Phase 3.1** | Database Design Corrections | Architecture | 2026-10-31 | **ACCEPTED** | — | Schema reconciliation, habit composite FK, seeder plans. |
+| **Phase 4** | Database Implementation | Implementation | 2026-10-31 | **ACCEPTED** | `0c9582b` | 14 migrations, 23 Eloquent models, factories, seeders. |
+| **Phase 4.1** | Database Implementation Audit | Read-Only Audit | 2026-10-31 | **ACCEPTED** | — | Audit identified production seeder risks & table inventory gap. |
+| **Phase 4.2** | Seeder Safety & Reconciliation | Implementation | 2026-10-31 | **ACCEPTED** | `e6c9111` | Environment safety guards on seeders, table classification. |
+| **Phase 5** | Auth & User Management API | Implementation | 2026-10-31 | **ACCEPTED** | `b9e913e` | Implemented 21 endpoints, Actions/Services/Controllers. |
+| **Phase 5.1** | Security Audit | Read-Only Audit | 2026-10-31 | **FAILED** | — | Independent audit identified vulnerabilities SEC-01 to SEC-08. |
+| **Phase 5.2** | Security Hardening & Remediation | Implementation | 2026-11-02 | **ACCEPTED** | `2a571ee` | Remediated SEC-01 to SEC-08, 23 regression tests (102 total). |
+| **Phase 5.2 Docs** | Permanent Context Documentation | Documentation | 2026-11-02 | **ACCEPTED** | `3556549` | Created root `PROJECT_CONTEXT.md` living guide. |
+| **Phase 5.3** | Context Audit & Reconciliation | Documentation Audit | 2026-11-02 | **ACCEPTED** | *Current* | Reconciled implemented vs planned modules and security risks. |
 
 ---
 
 ## 12. Current Project Status
 
-- **Latest Completed Phase:** Phase 5.2 (Security Hardening & Remediation).
-- **Latest Accepted Phase:** Phase 5.2 (Passed all audit requirements; report generated).
-- **Current Development Phase:** Phase 5.2 Finalized / Pre-Phase 6.
+- **Latest Completed Phase:** Phase 5.3 (Project Context Documentation Audit & Reconciliation).
+- **Latest Accepted Implementation:** Phase 5.2 (Commit `2a571ee`).
+- **Current Development Phase:** Pre-Phase 6 (Documentation fully audited; awaiting authorization for Phase 6).
 - **Remaining Work:**
   - Phase 6: Projects, Teams & Work Management APIs.
   - Phase 7: Appointments & Scheduling API.
@@ -381,9 +460,10 @@ Verified directly via runtime execution:
 
 ## 13. Known Issues & Technical Debt
 
-1. **Invitation GET Route Deprecation:** `GET /api/v1/invitations/{token}` remains operational for backwards compatibility with a `Deprecation: true` header. It must be scheduled for complete removal in a future major API release once clients transition to `POST /api/v1/invitations/inspect`.
-2. **Multi-Node Concurrency Scaling:** Pessimistic row locking on `roles` table (`Role::lockForUpdate()`) provides serialization across single MySQL instances. If the platform migrates to a multi-master or globally distributed database cluster, an atomic distributed lock (Redis/Cache lock) will be required.
-3. **Public Registration Disabled:** `config('auth.allow_registration')` is `false` by default; platform onboarding relies strictly on administrative invitations. Public registration flows require further review before production enablement.
+1. **Invitation GET Route Deprecation (Security Debt):** `GET /api/v1/invitations/{token}` remains operational for backwards compatibility with a `Deprecation: true` header. This endpoint leaks raw tokens in web server logs. It must be permanently deleted prior to production release.
+2. **Directory Privacy Decision (Policy Debt):** `GET /api/v1/users/directory` exposes member email addresses globally across all active users. A formal product owner decision is required before Phase 10 on whether email should remain globally visible or be restricted to project collaborators.
+3. **Multi-Node Concurrency Scaling (Architectural Debt):** `Role::lockForUpdate()` provides serialization across single MySQL instances. If the platform migrates to a distributed or clustered database setup, an atomic distributed lock (Redis/Cache lock) will be required.
+4. **Public Registration Disabled:** `config('auth.allow_registration')` is `false` by default; platform onboarding relies strictly on administrative invitations. Public registration flows require further review before production enablement.
 
 ---
 
@@ -410,7 +490,7 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 
 1. **Backend-First Development:** Do not write frontend code, React components, Vue templates, or Blade views.
 2. **Verify Before Coding:** Always read `PROJECT_CONTEXT.md` and inspect actual files, routes, and tests before making modifications.
-3. **Preserve Architecture:** Adhere strictly to Actions → Services → Controllers, Form Requests, Policies, and `ApiResponse`. Never put business logic in controllers.
+3. **Preserve Architecture:** Adhere strictly to Actions → Services → Controllers, Form Requests, Policies, and `ApiResponse`. Never put business logic in controllers or API resources.
 4. **No Destructive Database Commands:** Never run `migrate:fresh`, `db:wipe`, or schema commands that destroy existing data.
 5. **Enforce Authorization Server-Side:** Never rely on client-side constraints. Every route must validate authentication, account status, and model policies.
 6. **Mandatory Automated Tests:** Every new endpoint, action, and bugfix must include automated PHPUnit feature tests asserting both positive and negative authorization cases.
@@ -428,7 +508,9 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 | **2026-10-31** | Phase 2 | — | Foundation | Laravel setup, Sanctum, ApiResponse envelope. | 4 tests | `README.md` |
 | **2026-10-31** | Phase 3 & 3.1 | — | `docs/database/` | Complete 32-table database design and corrections. | — | `docs/database/*` |
 | **2026-10-31** | Phase 4 & 4.2 | `0c9582b`<br>`e6c9111` | `database/`, `app/Models/` | 14 migrations, 23 models, factories, seeders with safety guards. | 26 tests | Database documentation |
+| **2026-10-31** | Phase 4.1 | — | Audit Report | Read-only database audit identifying seeder production risks. | — | Audit report artifact |
 | **2026-10-31** | Phase 5 | `b9e913e` | `app/Http/`, `app/Actions/`, `routes/api.php` | 21 endpoints for Auth, Users, and Invitations. | 79 tests | `docs/api/*` |
-| **2026-10-31** | Phase 5.1 | — | Security Audit | Independent audit identifying vulnerabilities SEC-01 through SEC-08. | — | Audit report artifact |
+| **2026-10-31** | Phase 5.1 | — | Security Audit | Read-only security audit identifying vulnerabilities SEC-01 through SEC-08 (FAILED). | — | Audit report artifact |
 | **2026-11-02** | Phase 5.2 | `2a571ee` | `app/`, `config/`, `routes/`, `tests/Feature/Security/` | Remediated SEC-01 to SEC-08, added 23 regression tests, Pint formatted. | 102 tests | `docs/api/*`, acceptance report |
-| **2026-11-02** | Phase 5.2 Docs | *Current* | `PROJECT_CONTEXT.md` | Created permanent root-level living documentation file for all future agents. | 102 tests | `PROJECT_CONTEXT.md` |
+| **2026-11-02** | Phase 5.2 Docs | `3556549` | `PROJECT_CONTEXT.md` | Created permanent root-level living documentation file for all future agents. | 102 tests | `PROJECT_CONTEXT.md` |
+| **2026-11-02** | Phase 5.3 | *Pending* | `PROJECT_CONTEXT.md` | Reconciled implemented vs planned modules, token security reality, directory privacy, timing mitigation nuances, and multi-process lock status. | 102 tests | `PROJECT_CONTEXT.md` |
