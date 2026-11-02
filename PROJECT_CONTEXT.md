@@ -2,9 +2,9 @@
 
 > **Central Project Knowledge, Architectural Blueprint & Living Operational Guide**  
 > **Repository Location:** `C:\Hirgal`  
-> **Current Version:** Phase 5.2 Accepted / Phase 5.3 Documentation Reconciled  
+> **Current Version:** Phase 6 Accepted (Projects, Teams & Tasks APIs)  
 > **Last Audited & Updated:** 2026-11-02  
-> **Git Baseline:** Commit `2a571ee` (Phase 5.2 Hardening) & Commit `3556549` (Documentation Baseline)
+> **Git Baseline:** Commit `8128fa6` (Boost Setup) & Commit `3556549` (Documentation Baseline) — Phase 6 commit recorded in Section 11
 
 ---
 
@@ -18,9 +18,9 @@ The complete platform vision encompasses 8 functional pillars. As of Phase 5.3, 
 
 1. **Identity & Access Management (`IMPLEMENTED & AUDITED`):** Token-based authentication via Laravel Sanctum, invitation-driven onboarding, granular role-based access control (RBAC), and user profile management.
 2. **User Directory (`IMPLEMENTED & AUDITED`):** Team collaboration directory exposing basic profile details with administrative metadata redacted.
-3. **Projects & Tenancy Workspaces (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 6`):** Workspace boundaries, contextual project roles, and project invitations.
-4. **Teams & Squad Coordination (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 6`):** Organizational squads, member rosters, and multi-team project allocations.
-5. **Tasks & Work Management (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 6`):** Kanban boards, subtasks, task delegations, priorities, threaded discussions, and file attachments.
+3. **Projects & Tenancy Workspaces (`IMPLEMENTED — PHASE 6`):** Workspace boundaries, contextual project roles, membership management, project/team allocation.
+4. **Teams & Squad Coordination (`IMPLEMENTED — PHASE 6`):** Organizational squads, member rosters, and multi-team project allocations.
+5. **Tasks & Work Management (`IMPLEMENTED — PHASE 6`):** Kanban task workflows, subtasks, task assignments, priorities, and status lifecycle. *(Comments and attachments remain database-only, deferred to a later phase.)*
 6. **Appointments & Scheduling (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 7`):** Calendar appointments, video conferencing links, and participant RSVP tracking.
 7. **Habit Tracker (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 8`):** Personal habit definitions, frequency schedules, daily check-in logging, and streak tracking.
 8. **Follow-Up Inbox & Mentions (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 9`):** Indexed `@mentions` across tasks and comments, notifications, and activity tracking.
@@ -97,17 +97,20 @@ C:\Hirgal
 ├── app/
 │   ├── Actions/                  # Single-purpose write operations
 │   │   ├── Auth/                 # Login, Logout, Password reset, Invitation acceptance
+│   │   ├── Projects/             # Project & membership mutations (Phase 6)
+│   │   ├── Teams/                # Team, roster & allocation mutations (Phase 6)
+│   │   ├── Tasks/                # Task & assignment mutations (Phase 6)
 │   │   └── User/                 # User mutation, Activation, Deactivation, Invitations
 │   ├── Enums/                    # Strongly-typed PHP 8.4 Enums (Roles, Statuses, Priorities)
 │   ├── Http/
-│   │   ├── Controllers/Api/V1/   # Thin REST API controllers
+│   │   ├── Controllers/Api/V1/   # Thin REST API controllers (Projects, Teams, Tasks, ...)
 │   │   ├── Middleware/           # Request filters (ForceJsonResponse, EnsureAccountIsActive)
-│   │   ├── Requests/Api/V1/      # Form requests for validation and gate checks
+│   │   ├── Requests/Api/V1/      # Form requests (Auth, Users, Projects, Teams, Tasks)
 │   │   └── Resources/Api/V1/     # Eloquent API presentation & transformation resources
 │   ├── Models/                   # 23 Eloquent models representing business entities
 │   ├── Notifications/            # Mailable email notifications (ResetPassword, UserInvitation)
-│   ├── Policies/                 # Authorization policies (UserPolicy, UserInvitationPolicy)
-│   ├── Services/                 # Business logic orchestrators (Auth, User, Invitation)
+│   ├── Policies/                 # Authorization policies (6 Phase 6 policies + User, UserInvitation)
+│   ├── Services/                 # Business logic orchestrators (Auth, User, Project, Team, Task)
 │   └── Support/                  # Shared framework helpers (ApiResponse)
 ├── config/                       # Configuration (app, auth, database, sanctum)
 ├── database/
@@ -120,7 +123,7 @@ C:\Hirgal
 ├── routes/
 │   └── api.php                   # Versioned REST API route definitions (/api/v1)
 ├── tests/
-│   ├── Feature/                  # Feature tests (Auth, Users, Database, Security, Api)
+│   ├── Feature/                  # Feature tests (Auth, Users, Projects, Teams, Tasks, Database, Security, Api)
 │   └── Unit/                     # Low-level unit tests
 └── PROJECT_CONTEXT.md            # Central project context & living documentation (this file)
 ```
@@ -253,8 +256,9 @@ Permissions are distributed across 8 functional modules:
 > **CRITICAL ARCHITECTURAL DISTINCTION:**  
 > Never confuse **Global System Roles** (`roles`) with **Contextual Project Membership Roles** (`project_members.role`).
 - Global Roles govern system-wide administration, tenant creation, and access to platform-level APIs.
-- Contextual Project Roles (`owner`, `manager`, `contributor`, `viewer`) exist strictly within the boundary of a specific project.
+- Contextual Project Roles (`owner`, `lead`, `member`, `viewer`) exist strictly within the boundary of a specific project (enum `ProjectMemberRole`). Team rosters use `TeamMemberRole` (`leader`, `member`).
 - A user with the global `Member` role may be the `owner` of an individual project. Conversely, a global `Project Manager` does not possess write privileges to projects to which they have not been explicitly added as a member.
+- **Two-Tier Authorization (Phase 6):** every contextual write requires BOTH the global permission (or System Admin bypass) AND a contextual role that permits the ability — enforced in policies (`App\Policies`) with `Gate::before`/`Gate::after` hooks in `AppServiceProvider`. Out-of-scope access returns `404` (never `403`) to avoid resource existence disclosure.
 
 ---
 
@@ -314,6 +318,53 @@ To maintain strict truth in documentation, modules are classified into three dis
 - **Tests:** `tests/Feature/Users/UserInvitationManagementTest.php`, `tests/Feature/Auth/InvitationAcceptanceTest.php`, `tests/Feature/Security/SecurityHardeningTest.php`
 - **Docs:** [`docs/api/INVITATIONS.md`](file:///c:/Hirgal/docs/api/INVITATIONS.md)
 
+#### Module 4: Projects & Membership
+- **Status:** `IMPLEMENTED` | `TESTED` | `AUDITED`
+- **Main Responsibilities:** Project CRUD, archive/restore lifecycle, membership listing/addition/role updates/removal, project-scoped task creation, project-team allocation listing.
+- **Routes (15):**
+  - `GET|POST /api/v1/projects`
+  - `GET|PUT|DELETE /api/v1/projects/{project}` (UUID-bound)
+  - `POST /api/v1/projects/{project}/archive`
+  - `POST /api/v1/projects/{project}/restore` (soft-deleted, `withTrashed`)
+  - `GET|POST /api/v1/projects/{project}/members`
+  - `PUT|DELETE /api/v1/projects/{project}/members/{member}`
+  - `GET /api/v1/projects/{project}/teams`
+  - `POST|DELETE /api/v1/projects/{project}/teams/{team}` (allocate/deallocate)
+  - `POST /api/v1/projects/{project}/tasks`
+- **Models / Tables:** `Project` (`projects`), `ProjectMember` (`project_members`), `ProjectTeam` (`project_teams`)
+- **Policies / Permissions:** `ProjectPolicy`, `ProjectMemberPolicy`; global permissions `projects.view/create/update/delete/archive`; contextual roles `owner|lead|member|viewer` (viewer is read-only; `owner` role rejected on membership writes).
+- **Invariants:** allocation requires team roster ⊆ project members (incl. `owner_id`); removing a user who is the designated leader of an allocated team is rejected (`422`).
+- **Tests:** `tests/Feature/Projects/ProjectManagementTest.php` (19), `tests/Feature/Projects/ProjectMembershipTest.php` (18)
+
+#### Module 5: Teams & Project Allocation
+- **Status:** `IMPLEMENTED` | `TESTED` | `AUDITED`
+- **Main Responsibilities:** Team CRUD, roster management (add/update role/remove), team listing scoped to leader/roster/shared projects, project-team allocation.
+- **Routes (9):**
+  - `GET|POST /api/v1/teams`
+  - `GET|PUT|DELETE /api/v1/teams/{team}` (UUID-bound)
+  - `GET|POST /api/v1/teams/{team}/members`
+  - `PUT|DELETE /api/v1/teams/{team}/members/{member}`
+- **Models / Tables:** `Team` (`teams`), `TeamMember` (`team_members`), `ProjectTeam` (`project_teams`)
+- **Policies / Permissions:** `TeamPolicy`, `TeamMemberPolicy`; global permissions `teams.view/create/update/delete`; contextual roles `owner|lead|member|viewer` for allocation authority (`projects.update` + `owner|lead`).
+- **Invariants:** adding a team member requires the candidate to be a member of every allocated project; changing `leader_id` requires the new leader to be in every allocated project; allocation of a team outside the actor's scope returns `404`.
+- **Tests:** `tests/Feature/Teams/TeamManagementTest.php`, `tests/Feature/Teams/TeamMembershipTest.php`, `tests/Feature/Teams/TeamProjectAllocationTest.php` (38 total)
+
+#### Module 6: Tasks & Assignments
+- **Status:** `IMPLEMENTED` | `TESTED` | `AUDITED`
+- **Main Responsibilities:** Task listing with filters (`project`, `team`, `status`, `priority`, `assignee`), task CRUD with subtask parenting, bulk assignment, single unassignment, `completed_at` lifecycle sync.
+- **Routes (6):**
+  - `GET /api/v1/tasks` (filters via query string)
+  - `GET|PUT|DELETE /api/v1/tasks/{task}` (UUID-bound)
+  - `POST /api/v1/tasks/{task}/assign`
+  - `DELETE /api/v1/tasks/{task}/assignees/{user}`
+- **Models / Tables:** `Task` (`tasks`), `TaskAssignment` (`task_assignments`)
+- **Policies / Permissions:** `TaskPolicy`, `TaskAssignmentPolicy`; global permissions `tasks.view/create/update/delete/assign`; contextual roles `owner|lead|member|viewer` (viewer read-only; assignment additionally allowed for the task creator).
+- **Rules:** `parent` and `assignees` must belong to the same project (`422` otherwise); setting status `done` stamps `completed_at`, reverting clears it; duplicate assignments are idempotent.
+- **Tests:** `tests/Feature/Tasks/TaskManagementTest.php` (22), `tests/Feature/Tasks/TaskAssignmentTest.php` (13)
+
+#### Cross-Cutting Phase 6 Authorization
+- **Test:** `tests/Feature/Api/V1/Phase6AuthorizationTest.php` (48 tests) verifies `401` on all Phase 6 endpoints, `403 ACCOUNT_NOT_ACTIVE` for suspended accounts, `404 RESOURCE_NOT_FOUND` across 18 cross-scope route/verb combinations, UUID-only route binding, and the standard error/success envelopes.
+
 ---
 
 ### 8.2 Database Foundations Only (APIs NOT Implemented)
@@ -323,9 +374,7 @@ To maintain strict truth in documentation, modules are classified into three dis
 | Domain Module | Database Tables | Eloquent Models | API Route Status | Planned Roadmap Phase |
 | :--- | :--- | :--- | :---: | :---: |
 | **Global RBAC Management** | `roles`, `permissions`, `role_permissions`, `user_roles` | `Role`, `Permission` | **NO API ROUTES** | Phase 5.2 (Permissions Seeded Only) |
-| **Projects & Tenancy** | `projects`, `project_members`, `project_invitations` | `Project`, `ProjectMember`, `ProjectInvitation` | **NO API ROUTES** | **Phase 6** |
-| **Teams & Squads** | `teams`, `team_members`, `project_teams` | `Team`, `TeamMember`, `ProjectTeam` | **NO API ROUTES** | **Phase 6** |
-| **Tasks & Work Management** | `tasks`, `task_assignments`, `task_comments`, `task_attachments` | `Task`, `TaskAssignment`, `TaskComment`, `TaskAttachment` | **NO API ROUTES** | **Phase 6** |
+| **Task Comments & Attachments** | `task_comments`, `task_attachments` | `TaskComment`, `TaskAttachment` | **NO API ROUTES** | Deferred (Phase 6 covered tasks/assignments only) |
 | **Appointments & Scheduling** | `appointments`, `appointment_participants` | `Appointment`, `AppointmentParticipant` | **NO API ROUTES** | **Phase 7** |
 | **Habit Tracker** | `habits`, `habit_logs` | `Habit`, `HabitLog` | **NO API ROUTES** | **Phase 8** |
 | **Follow-Up Inbox & Mentions** | `user_mentions`, `notifications` | `UserMention` | **NO API ROUTES** | **Phase 9** |
@@ -395,21 +444,24 @@ Managed centrally through `App\Support\ApiResponse`:
   ```
 
 ### 10.2 Verified Test Count & Assertion Summary
-Verified directly via live runtime execution on 2026-11-02:
-- **Total Tests:** 102
-- **Passing Tests:** 102 (100% green)
-- **Total Assertions:** 469
+Verified directly via live runtime execution on 2026-11-02 (post-Phase 6):
+- **Total Tests:** 260
+- **Passing Tests:** 260 (100% green)
+- **Total Assertions:** 963
 - **Failures / Errors:** 0
-- **Execution Time:** ~7.0 seconds
+- **Execution Time:** ~25 seconds
 
 ### 10.3 Test Suite Breakdown
 1. `tests/Unit`: 1 test, 1 assertion.
 2. `tests/Feature/Auth`: 30 tests, 138 assertions (Registration, Login, Logout, Profile, Passwords, Invitations).
 3. `tests/Feature/Users`: 17 tests, 74 assertions (CRUD, Activation, Deactivation, Invitations).
-4. `tests/Feature/Database`: 26 tests, 126 assertions (Relationships, Schema constraints, Seeders, MySQL composite keys).
-5. `tests/Feature/Security`: 23 tests, 97 assertions (Security regression tests SEC-01 through SEC-08).
-6. `tests/Feature/Api`: 4 tests, 32 assertions (Connection, Health checks).
-7. `tests/Feature/ExampleTest.php`: 1 test, 1 assertion.
+4. `tests/Feature/Projects`: 37 tests, 112 assertions (Project management, membership, contextual authorization).
+5. `tests/Feature/Teams`: 38 tests, 105 assertions (Team management, rosters, project allocation invariants).
+6. `tests/Feature/Tasks`: 35 tests, 89 assertions (Task CRUD, lifecycle, assignment/unassignment).
+7. `tests/Feature/Database`: 26 tests, 126 assertions (Relationships, Schema constraints, Seeders, MySQL composite keys).
+8. `tests/Feature/Security`: 23 tests, 97 assertions (Security regression tests SEC-01 through SEC-08).
+9. `tests/Feature/Api`: 52 tests, 220 assertions (Connection, Health checks, envelope structure, Phase 6 cross-cutting authorization).
+10. `tests/Feature/ExampleTest.php`: 1 test, 1 assertion.
 
 ### 10.4 SQLite vs MySQL Testing Reality
 - **SQLite In-Memory (`:memory:`):** Executes the standard 100 feature/unit tests in `phpunit.xml`.
@@ -437,17 +489,17 @@ Verified directly via live runtime execution on 2026-11-02:
 | **Phase 5.1** | Security Audit | Read-Only Audit | 2026-10-31 | **FAILED** | — | Independent audit identified vulnerabilities SEC-01 to SEC-08. |
 | **Phase 5.2** | Security Hardening & Remediation | Implementation | 2026-11-02 | **ACCEPTED** | `2a571ee` | Remediated SEC-01 to SEC-08, 23 regression tests (102 total). |
 | **Phase 5.2 Docs** | Permanent Context Documentation | Documentation | 2026-11-02 | **ACCEPTED** | `3556549` | Created root `PROJECT_CONTEXT.md` living guide. |
-| **Phase 5.3** | Context Audit & Reconciliation | Documentation Audit | 2026-11-02 | **ACCEPTED** | *Current* | Reconciled implemented vs planned modules and security risks. |
+| **Phase 5.3** | Context Audit & Reconciliation | Documentation Audit | 2026-11-02 | **ACCEPTED** | `3556549`+ | Reconciled implemented vs planned modules and security risks. |
+| **Phase 6** | Projects, Teams & Tasks Management APIs | Implementation | 2026-11-02 | **ACCEPTED** | *Current* | 30 endpoints, 6 policies, 21 actions, 3 services, 6 resources, 16 form requests, 158 new tests (260 total). Fixed enum-cast bug in `ProjectPolicy::contextualRole`. |
 
 ---
 
 ## 12. Current Project Status
 
-- **Latest Completed Phase:** Phase 5.3 (Project Context Documentation Audit & Reconciliation).
-- **Latest Accepted Implementation:** Phase 5.2 (Commit `2a571ee`).
-- **Current Development Phase:** Pre-Phase 6 (Documentation fully audited; awaiting authorization for Phase 6).
+- **Latest Completed Phase:** Phase 6 (Projects, Teams & Task Management APIs).
+- **Latest Accepted Implementation:** Phase 6 (commit recorded in Section 16; prior baseline `2a571ee` for Phase 5.2).
+- **Current Development Phase:** Phase 6 Complete — awaiting authorization for Phase 7.
 - **Remaining Work:**
-  - Phase 6: Projects, Teams & Work Management APIs.
   - Phase 7: Appointments & Scheduling API.
   - Phase 8: Habit Tracker API.
   - Phase 9: Follow-Up Inbox, Mentions & Activity Logging.
@@ -469,10 +521,11 @@ Verified directly via live runtime execution on 2026-11-02:
 
 ## 14. Development Roadmap
 
-1. **Phase 6: Projects, Teams & Task Management API**
-   - Projects CRUD, workspace boundaries, project invitations, project membership roles.
-   - Teams CRUD, team rosters, multi-team project allocation.
-   - Tasks CRUD, Kanban boards, subtasks, task assignments, task comments, attachments.
+1. **Phase 6: Projects, Teams & Task Management API** — ✅ **COMPLETED (2026-11-02).**
+   - Projects CRUD + archive/restore, project membership roles, project-team allocation.
+   - Teams CRUD, team rosters, multi-team project allocation with roster invariants.
+   - Tasks CRUD, subtask parenting, task assignments/unassignments, status lifecycle.
+   - *Deferred from original scope:* project invitations, task comments, attachments (database-only).
 2. **Phase 7: Appointments & Calendar Scheduling API**
    - Appointments CRUD, video conferencing link integrations, participant invitations & RSVP tracking.
 3. **Phase 8: Habit Tracker API**
@@ -513,4 +566,5 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 | **2026-10-31** | Phase 5.1 | — | Security Audit | Read-only security audit identifying vulnerabilities SEC-01 through SEC-08 (FAILED). | — | Audit report artifact |
 | **2026-11-02** | Phase 5.2 | `2a571ee` | `app/`, `config/`, `routes/`, `tests/Feature/Security/` | Remediated SEC-01 to SEC-08, added 23 regression tests, Pint formatted. | 102 tests | `docs/api/*`, acceptance report |
 | **2026-11-02** | Phase 5.2 Docs | `3556549` | `PROJECT_CONTEXT.md` | Created permanent root-level living documentation file for all future agents. | 102 tests | `PROJECT_CONTEXT.md` |
-| **2026-11-02** | Phase 5.3 | *Pending* | `PROJECT_CONTEXT.md` | Reconciled implemented vs planned modules, token security reality, directory privacy, timing mitigation nuances, and multi-process lock status. | 102 tests | `PROJECT_CONTEXT.md` |
+| **2026-11-02** | Phase 5.3 | `3556549` | `PROJECT_CONTEXT.md` | Reconciled implemented vs planned modules, token security reality, directory privacy, timing mitigation nuances, and multi-process lock status. | 102 tests | `PROJECT_CONTEXT.md` |
+| **2026-11-02** | Phase 6 | *Current* | `app/Actions/{Projects,Teams,Tasks}`, `app/Services/{Project,Team,Task}`, `app/Http/{Controllers,Requests,Resources}/Api/V1`, `app/Policies`, `routes/api.php`, `tests/Feature/{Projects,Teams,Tasks,Api}` | 30 REST endpoints for Projects (15), Teams (9), Tasks (6); 6 policies, 21 actions, 3 services, 6 resources, 16 form requests; UUID route binding; two-tier contextual authorization; fixed enum-cast bug in `ProjectPolicy::contextualRole`. | 260 tests | `PROJECT_CONTEXT.md` |

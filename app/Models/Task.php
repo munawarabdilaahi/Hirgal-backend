@@ -33,6 +33,11 @@ class Task extends Model
         'completed_at',
     ];
 
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+
     protected function casts(): array
     {
         return [

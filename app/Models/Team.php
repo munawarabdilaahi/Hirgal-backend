@@ -22,6 +22,11 @@ class Team extends Model
         'leader_id',
     ];
 
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $model): void {

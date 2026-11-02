@@ -4,6 +4,13 @@ use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\InvitationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\Projects\ProjectController;
+use App\Http\Controllers\Api\V1\Projects\ProjectMemberController;
+use App\Http\Controllers\Api\V1\Projects\ProjectTeamController;
+use App\Http\Controllers\Api\V1\Tasks\TaskAssignmentController;
+use App\Http\Controllers\Api\V1\Tasks\TaskController;
+use App\Http\Controllers\Api\V1\Teams\TeamController;
+use App\Http\Controllers\Api\V1\Teams\TeamMemberController;
 use App\Http\Controllers\Api\V1\User\UserController;
 use App\Http\Controllers\Api\V1\User\UserInvitationController;
 use Illuminate\Support\Facades\Route;
@@ -94,6 +101,70 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('throttle:invitations')
                 ->name('api.v1.invitations.resend');
             Route::delete('/{id}', [UserInvitationController::class, 'destroy'])->name('api.v1.invitations.destroy');
+        });
+
+        /*
+        |----------------------------------------------------------------------
+        | Project Management (Phase 6)
+        |----------------------------------------------------------------------
+        */
+        Route::prefix('projects')->group(function (): void {
+            Route::get('/', [ProjectController::class, 'index'])->name('api.v1.projects.index');
+            Route::post('/', [ProjectController::class, 'store'])->name('api.v1.projects.store');
+            Route::get('/{project}', [ProjectController::class, 'show'])->name('api.v1.projects.show');
+            Route::put('/{project}', [ProjectController::class, 'update'])->name('api.v1.projects.update');
+            Route::post('/{project}/archive', [ProjectController::class, 'archive'])->name('api.v1.projects.archive');
+            Route::post('/{project}/restore', [ProjectController::class, 'restore'])
+                ->withTrashed()
+                ->name('api.v1.projects.restore');
+            Route::delete('/{project}', [ProjectController::class, 'destroy'])->name('api.v1.projects.destroy');
+
+            // Project contextual membership
+            Route::get('/{project}/members', [ProjectMemberController::class, 'index'])->name('api.v1.projects.members.index');
+            Route::post('/{project}/members', [ProjectMemberController::class, 'store'])->name('api.v1.projects.members.store');
+            Route::put('/{project}/members/{member}', [ProjectMemberController::class, 'update'])->name('api.v1.projects.members.update');
+            Route::delete('/{project}/members/{member}', [ProjectMemberController::class, 'destroy'])->name('api.v1.projects.members.destroy');
+
+            // Team allocation
+            Route::get('/{project}/teams', [ProjectTeamController::class, 'index'])->name('api.v1.projects.teams.index');
+            Route::post('/{project}/teams/{team}', [ProjectTeamController::class, 'store'])->name('api.v1.projects.teams.store');
+            Route::delete('/{project}/teams/{team}', [ProjectTeamController::class, 'destroy'])->name('api.v1.projects.teams.destroy');
+
+            // Task creation nested under the project
+            Route::post('/{project}/tasks', [TaskController::class, 'store'])->name('api.v1.projects.tasks.store');
+        });
+
+        /*
+        |----------------------------------------------------------------------
+        | Team Management (Phase 6)
+        |----------------------------------------------------------------------
+        */
+        Route::prefix('teams')->group(function (): void {
+            Route::get('/', [TeamController::class, 'index'])->name('api.v1.teams.index');
+            Route::post('/', [TeamController::class, 'store'])->name('api.v1.teams.store');
+            Route::get('/{team}', [TeamController::class, 'show'])->name('api.v1.teams.show');
+            Route::put('/{team}', [TeamController::class, 'update'])->name('api.v1.teams.update');
+            Route::delete('/{team}', [TeamController::class, 'destroy'])->name('api.v1.teams.destroy');
+
+            // Team contextual membership
+            Route::get('/{team}/members', [TeamMemberController::class, 'index'])->name('api.v1.teams.members.index');
+            Route::post('/{team}/members', [TeamMemberController::class, 'store'])->name('api.v1.teams.members.store');
+            Route::put('/{team}/members/{member}', [TeamMemberController::class, 'update'])->name('api.v1.teams.members.update');
+            Route::delete('/{team}/members/{member}', [TeamMemberController::class, 'destroy'])->name('api.v1.teams.members.destroy');
+        });
+
+        /*
+        |----------------------------------------------------------------------
+        | Task Management (Phase 6)
+        |----------------------------------------------------------------------
+        */
+        Route::prefix('tasks')->group(function (): void {
+            Route::get('/', [TaskController::class, 'index'])->name('api.v1.tasks.index');
+            Route::get('/{task}', [TaskController::class, 'show'])->name('api.v1.tasks.show');
+            Route::put('/{task}', [TaskController::class, 'update'])->name('api.v1.tasks.update');
+            Route::delete('/{task}', [TaskController::class, 'destroy'])->name('api.v1.tasks.destroy');
+            Route::post('/{task}/assign', [TaskAssignmentController::class, 'store'])->name('api.v1.tasks.assign');
+            Route::delete('/{task}/assignees/{user}', [TaskAssignmentController::class, 'destroy'])->name('api.v1.tasks.unassign');
         });
     });
 });
