@@ -4,7 +4,7 @@
 > **Repository Location:** `C:\Hirgal`  
 > **Current Version:** Phase 6 Accepted (Projects, Teams & Tasks APIs)  
 > **Last Audited & Updated:** 2026-11-02  
-> **Git Baseline:** Commit `8128fa6` (Boost Setup) & Commit `3556549` (Documentation Baseline) — Phase 6 commit recorded in Section 11
+> **Git Baseline:** Commit `77e62b4` (Phase 6) & Commit `3556549` (Documentation Baseline) — Phase 6 commit recorded in Section 11
 
 ---
 
@@ -490,14 +490,14 @@ Verified directly via live runtime execution on 2026-11-02 (post-Phase 6):
 | **Phase 5.2** | Security Hardening & Remediation | Implementation | 2026-11-02 | **ACCEPTED** | `2a571ee` | Remediated SEC-01 to SEC-08, 23 regression tests (102 total). |
 | **Phase 5.2 Docs** | Permanent Context Documentation | Documentation | 2026-11-02 | **ACCEPTED** | `3556549` | Created root `PROJECT_CONTEXT.md` living guide. |
 | **Phase 5.3** | Context Audit & Reconciliation | Documentation Audit | 2026-11-02 | **ACCEPTED** | `3556549`+ | Reconciled implemented vs planned modules and security risks. |
-| **Phase 6** | Projects, Teams & Tasks Management APIs | Implementation | 2026-11-02 | **ACCEPTED** | *Current* | 30 endpoints, 6 policies, 21 actions, 3 services, 6 resources, 16 form requests, 158 new tests (260 total). Fixed enum-cast bug in `ProjectPolicy::contextualRole`. |
+| **Phase 6** | Projects, Teams & Tasks Management APIs | Implementation | 2026-11-02 | **ACCEPTED** | `77e62b4` | 30 endpoints, 6 policies, 21 actions, 3 services, 6 resources, 16 form requests, 158 new tests (260 total). Fixed enum-cast bug in `ProjectPolicy::contextualRole`. |
 
 ---
 
 ## 12. Current Project Status
 
 - **Latest Completed Phase:** Phase 6 (Projects, Teams & Task Management APIs).
-- **Latest Accepted Implementation:** Phase 6 (commit recorded in Section 16; prior baseline `2a571ee` for Phase 5.2).
+- **Latest Accepted Implementation:** Phase 6 (Commit `77e62b4`; prior baseline `2a571ee` for Phase 5.2).
 - **Current Development Phase:** Phase 6 Complete — awaiting authorization for Phase 7.
 - **Remaining Work:**
   - Phase 7: Appointments & Scheduling API.
@@ -567,4 +567,4 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 | **2026-11-02** | Phase 5.2 | `2a571ee` | `app/`, `config/`, `routes/`, `tests/Feature/Security/` | Remediated SEC-01 to SEC-08, added 23 regression tests, Pint formatted. | 102 tests | `docs/api/*`, acceptance report |
 | **2026-11-02** | Phase 5.2 Docs | `3556549` | `PROJECT_CONTEXT.md` | Created permanent root-level living documentation file for all future agents. | 102 tests | `PROJECT_CONTEXT.md` |
 | **2026-11-02** | Phase 5.3 | `3556549` | `PROJECT_CONTEXT.md` | Reconciled implemented vs planned modules, token security reality, directory privacy, timing mitigation nuances, and multi-process lock status. | 102 tests | `PROJECT_CONTEXT.md` |
-| **2026-11-02** | Phase 6 | *Current* | `app/Actions/{Projects,Teams,Tasks}`, `app/Services/{Project,Team,Task}`, `app/Http/{Controllers,Requests,Resources}/Api/V1`, `app/Policies`, `routes/api.php`, `tests/Feature/{Projects,Teams,Tasks,Api}` | 30 REST endpoints for Projects (15), Teams (9), Tasks (6); 6 policies, 21 actions, 3 services, 6 resources, 16 form requests; UUID route binding; two-tier contextual authorization; fixed enum-cast bug in `ProjectPolicy::contextualRole`. | 260 tests | `PROJECT_CONTEXT.md` |
+| **2026-11-02** | Phase 6 | `77e62b4` | `app/Actions/{Projects,Teams,Tasks}`, `app/Services/{Project,Team,Task}`, `app/Http/{Controllers,Requests,Resources}/Api/V1`, `app/Policies`, `routes/api.php`, `tests/Feature/{Projects,Teams,Tasks,Api}` | 30 REST endpoints for Projects (15), Teams (9), Tasks (6); 6 policies, 21 actions, 3 services, 6 resources, 16 form requests; UUID route binding; two-tier contextual authorization; fixed enum-cast bug in `ProjectPolicy::contextualRole`. | 260 tests | `PROJECT_CONTEXT.md` |
