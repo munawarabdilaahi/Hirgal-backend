@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ProjectMemberRole;
 use App\Models\ProjectMember;
 use App\Models\Task;
 use App\Models\TaskAssignment;
@@ -27,7 +28,7 @@ class TaskAssignmentFactory extends Factory
                         'project_id' => $task->project_id,
                         'user_id' => $user->id,
                     ], [
-                        'role' => \App\Enums\ProjectMemberRole::Member,
+                        'role' => ProjectMemberRole::Member,
                         'joined_at' => now(),
                     ]);
                 }

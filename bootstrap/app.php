@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\ForceJsonResponse;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -28,7 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'account.active' => \App\Http\Middleware\EnsureAccountIsActive::class,
+            'account.active' => EnsureAccountIsActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

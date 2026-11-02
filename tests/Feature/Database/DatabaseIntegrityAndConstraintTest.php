@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Database;
 
+use App\Enums\HabitLogStatus;
+use App\Enums\ProjectMemberRole;
 use App\Models\ActivityLog;
 use App\Models\Habit;
 use App\Models\HabitLog;
@@ -27,7 +29,7 @@ class DatabaseIntegrityAndConstraintTest extends TestCase
         ProjectMember::create([
             'project_id' => $project->id,
             'user_id' => $user->id,
-            'role' => \App\Enums\ProjectMemberRole::Member,
+            'role' => ProjectMemberRole::Member,
         ]);
 
         $this->expectException(QueryException::class);
@@ -36,7 +38,7 @@ class DatabaseIntegrityAndConstraintTest extends TestCase
         ProjectMember::create([
             'project_id' => $project->id,
             'user_id' => $user->id,
-            'role' => \App\Enums\ProjectMemberRole::Viewer,
+            'role' => ProjectMemberRole::Viewer,
         ]);
     }
 
@@ -69,7 +71,7 @@ class DatabaseIntegrityAndConstraintTest extends TestCase
             'habit_id' => $habit->id,
             'user_id' => $habit->user_id,
             'logged_date' => '2026-11-01',
-            'status' => \App\Enums\HabitLogStatus::Completed,
+            'status' => HabitLogStatus::Completed,
         ]);
 
         $this->expectException(QueryException::class);
@@ -79,7 +81,7 @@ class DatabaseIntegrityAndConstraintTest extends TestCase
             'habit_id' => $habit->id,
             'user_id' => $habit->user_id,
             'logged_date' => '2026-11-01',
-            'status' => \App\Enums\HabitLogStatus::Completed,
+            'status' => HabitLogStatus::Completed,
         ]);
     }
 

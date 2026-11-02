@@ -18,12 +18,12 @@ class TeamFactory extends Factory
 
     public function definition(): array
     {
-        $name = fake()->company() . ' Team';
+        $name = fake()->company().' Team';
 
         return [
             'uuid' => (string) Str::uuid(),
             'name' => $name,
-            'slug' => Str::slug($name) . '-' . Str::lower(Str::random(6)),
+            'slug' => Str::slug($name).'-'.Str::lower(Str::random(6)),
             'description' => fake()->sentence(),
             'leader_id' => User::factory(),
         ];

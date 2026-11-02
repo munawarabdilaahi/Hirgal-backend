@@ -12,9 +12,7 @@ class UpdateUserProfileAction
     /**
      * Update permitted profile fields for the authenticated user.
      *
-     * @param  User  $user
      * @param  array<string, mixed>  $data
-     * @return User
      */
     public function execute(User $user, array $data): User
     {

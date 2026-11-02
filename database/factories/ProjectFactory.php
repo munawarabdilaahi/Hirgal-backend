@@ -25,7 +25,7 @@ class ProjectFactory extends Factory
         return [
             'uuid' => (string) Str::uuid(),
             'name' => $name,
-            'slug' => Str::slug($name) . '-' . Str::lower(Str::random(6)),
+            'slug' => Str::slug($name).'-'.Str::lower(Str::random(6)),
             'description' => fake()->paragraph(),
             'status' => fake()->randomElement(ProjectStatus::cases()),
             'priority' => fake()->randomElement(ProjectPriority::cases()),

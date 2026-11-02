@@ -21,7 +21,6 @@ class UserInvitationService
      * List user invitations with filtering and pagination.
      *
      * @param  array<string, mixed>  $filters
-     * @return LengthAwarePaginator
      */
     public function listInvitations(array $filters): LengthAwarePaginator
     {
@@ -41,7 +40,6 @@ class UserInvitationService
     }
 
     /**
-     * @param  User  $actor
      * @param  array{email: string, role_id: int}  $data
      * @return array{invitation: UserInvitation, raw_token: string}
      */
@@ -51,7 +49,6 @@ class UserInvitationService
     }
 
     /**
-     * @param  UserInvitation  $invitation
      * @return array{invitation: UserInvitation, raw_token: string}
      */
     public function resendInvitation(UserInvitation $invitation): array

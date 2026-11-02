@@ -128,6 +128,7 @@
   "error_code": "VALIDATION_ERROR"
 }
 ```
+*Security Note (SEC-05):* Login uses constant-time credential verification. If an email does not exist in the database, a dummy 12-round Bcrypt comparison is executed to equalize response latency with valid accounts (~250ms), mitigating timing-based user enumeration side-channels.
 
 #### Error Response — Suspended Account (403)
 ```json
@@ -214,7 +215,10 @@ Ordinary profile updates ignore or reject protected fields (`role_id`, `account_
   "email": "user@hirgal.local"
 }
 ```
-*Note:* Always returns 200 OK with a generic message even if the email does not exist to eliminate account enumeration risks.
+*Security Note (SEC-06 & SEC-08):*
+- Always returns 200 OK with a generic message regardless of whether the email exists.
+- The reset token is only generated and inserted into the `password_reset_tokens` table if the user exists on the platform, preventing orphaned token exhaustion attacks.
+- Dispatched emails generate action links pointing directly to the frontend SPA reset page (`config('app.frontend_url') . '/reset-password?token=...'`).
 
 #### Reset Password
 - **Route:** `POST /api/v1/auth/reset-password`

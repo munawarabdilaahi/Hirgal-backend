@@ -4,6 +4,7 @@ namespace Tests\Feature\Database;
 
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class MySQLCompositeConstraintTest extends TestCase
@@ -21,7 +22,7 @@ class MySQLCompositeConstraintTest extends TestCase
         try {
             DB::connection('mysql_test')->getPdo();
         } catch (\Throwable $e) {
-            $this->markTestSkipped('MySQL test database unavailable: ' . $e->getMessage());
+            $this->markTestSkipped('MySQL test database unavailable: '.$e->getMessage());
         }
     }
 
@@ -55,7 +56,7 @@ class MySQLCompositeConstraintTest extends TestCase
 
         // Alice creates Habit #1
         $habitId = $conn->table('habits')->insertGetId([
-            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'uuid' => (string) Str::uuid(),
             'user_id' => $userAId,
             'title' => "Alice's Private Habit",
             'frequency' => 'daily',
@@ -102,7 +103,7 @@ class MySQLCompositeConstraintTest extends TestCase
         ]);
 
         $habitId = $conn->table('habits')->insertGetId([
-            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'uuid' => (string) Str::uuid(),
             'user_id' => $userId,
             'title' => 'Temporary Habit',
             'frequency' => 'daily',

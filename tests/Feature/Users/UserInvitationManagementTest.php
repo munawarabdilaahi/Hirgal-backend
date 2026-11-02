@@ -12,6 +12,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
@@ -20,8 +21,11 @@ class UserInvitationManagementTest extends TestCase
     use RefreshDatabase;
 
     protected User $admin;
+
     protected User $member;
+
     protected Role $memberRole;
+
     protected Role $adminRole;
 
     protected function setUp(): void
@@ -96,7 +100,7 @@ class UserInvitationManagementTest extends TestCase
         ]);
 
         Notification::assertSentTo(
-            new \Illuminate\Notifications\AnonymousNotifiable,
+            new AnonymousNotifiable,
             UserInvitationNotification::class
         );
     }
@@ -168,7 +172,7 @@ class UserInvitationManagementTest extends TestCase
         $this->assertTrue($fresh->expires_at->isAfter(now()->addDays(6)));
 
         Notification::assertSentTo(
-            new \Illuminate\Notifications\AnonymousNotifiable,
+            new AnonymousNotifiable,
             UserInvitationNotification::class
         );
     }

@@ -10,11 +10,7 @@ class ApiResponse
     /**
      * Return a standardized success JSON response.
      *
-     * @param  mixed  $data
-     * @param  string  $message
-     * @param  int  $status
      * @param  array<string, mixed>  $meta
-     * @return JsonResponse
      */
     public static function success(
         mixed $data = null,
@@ -37,12 +33,6 @@ class ApiResponse
 
     /**
      * Return a standardized error JSON response.
-     *
-     * @param  string  $message
-     * @param  int  $status
-     * @param  mixed  $errors
-     * @param  string|null  $errorCode
-     * @return JsonResponse
      */
     public static function error(
         string $message = 'An error occurred',

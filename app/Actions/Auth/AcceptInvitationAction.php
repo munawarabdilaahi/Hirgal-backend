@@ -16,7 +16,6 @@ class AcceptInvitationAction
     /**
      * Accept an invitation, create the user, assign role, and issue access token.
      *
-     * @param  string  $rawToken
      * @param  array<string, mixed>  $data
      * @return array{user: User, token: string}
      *

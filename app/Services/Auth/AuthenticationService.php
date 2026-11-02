@@ -33,9 +33,6 @@ class AuthenticationService
     }
 
     /**
-     * @param  string  $email
-     * @param  string  $password
-     * @param  string|null  $deviceName
      * @return array{user: User, token: string}
      */
     public function login(string $email, string $password, ?string $deviceName = null): array
@@ -64,9 +61,7 @@ class AuthenticationService
     }
 
     /**
-     * @param  User  $user
      * @param  array<string, mixed>  $data
-     * @return User
      */
     public function updateProfile(User $user, array $data): User
     {

@@ -46,6 +46,10 @@ Route::prefix('v1')->group(function (): void {
 
     // Public invitation inspection & acceptance
     Route::prefix('invitations')->group(function (): void {
+        Route::post('/inspect', [InvitationController::class, 'inspect'])
+            ->middleware('throttle:30,1')
+            ->name('api.v1.invitations.inspect');
+
         Route::get('/{token}', [InvitationController::class, 'show'])
             ->middleware('throttle:30,1')
             ->name('api.v1.invitations.show');
@@ -73,6 +77,7 @@ Route::prefix('v1')->group(function (): void {
         // User Management
         Route::prefix('users')->group(function (): void {
             Route::get('/', [UserController::class, 'index'])->name('api.v1.users.index');
+            Route::get('/directory', [UserController::class, 'directory'])->name('api.v1.users.directory');
             Route::get('/{id}', [UserController::class, 'show'])->name('api.v1.users.show');
             Route::put('/{id}', [UserController::class, 'update'])->name('api.v1.users.update');
             Route::post('/{id}/activate', [UserController::class, 'activate'])->name('api.v1.users.activate');

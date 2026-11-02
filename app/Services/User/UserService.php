@@ -5,6 +5,7 @@ namespace App\Services\User;
 use App\Actions\User\ActivateUserAction;
 use App\Actions\User\DeactivateUserAction;
 use App\Actions\User\UpdateUserAction;
+use App\Enums\AccountStatus;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
@@ -20,7 +21,6 @@ class UserService
      * List users with optional filtering, sorting, and pagination.
      *
      * @param  array<string, mixed>  $filters
-     * @return LengthAwarePaginator
      */
     public function listUsers(array $filters): LengthAwarePaginator
     {
@@ -51,10 +51,39 @@ class UserService
     }
 
     /**
-     * Retrieve individual user by ID with relations.
+     * List active users for the collaborative directory.
      *
-     * @param  int  $id
-     * @return User
+     * @param  array<string, mixed>  $filters
+     */
+    public function listDirectory(array $filters): LengthAwarePaginator
+    {
+        $query = User::with('profile')
+            ->where('account_status', AccountStatus::Active);
+
+        if (! empty($filters['search'])) {
+            $search = '%'.$filters['search'].'%';
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', $search)
+                    ->orWhere('email', 'like', $search)
+                    ->orWhereHas('profile', function ($pq) use ($search) {
+                        $pq->where('job_title', 'like', $search)
+                            ->orWhere('department', 'like', $search);
+                    });
+            });
+        }
+
+        if (! empty($filters['department'])) {
+            $department = $filters['department'];
+            $query->whereHas('profile', fn ($q) => $q->where('department', $department));
+        }
+
+        $perPage = (int) ($filters['per_page'] ?? 20);
+
+        return $query->orderBy('name', 'asc')->paginate($perPage);
+    }
+
+    /**
+     * Retrieve individual user by ID with relations.
      */
     public function getUser(int $id): User
     {
@@ -62,10 +91,7 @@ class UserService
     }
 
     /**
-     * @param  User  $actor
-     * @param  User  $targetUser
      * @param  array<string, mixed>  $data
-     * @return User
      */
     public function updateUser(User $actor, User $targetUser, array $data): User
     {

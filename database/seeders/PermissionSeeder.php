@@ -14,7 +14,8 @@ class PermissionSeeder extends Seeder
     {
         $permissions = [
             // Users
-            ['name' => 'View Users', 'slug' => 'users.view', 'module' => 'users', 'description' => 'Can view user directory and profiles.'],
+            ['name' => 'View Users', 'slug' => 'users.view', 'module' => 'users', 'description' => 'Can view full administrative user management list.'],
+            ['name' => 'View Directory', 'slug' => 'users.view_directory', 'module' => 'users', 'description' => 'Can view basic member directory for collaboration.'],
             ['name' => 'Create Users', 'slug' => 'users.create', 'module' => 'users', 'description' => 'Can create new user accounts directly.'],
             ['name' => 'Update Users', 'slug' => 'users.update', 'module' => 'users', 'description' => 'Can update user profiles and account statuses.'],
             ['name' => 'Delete Users', 'slug' => 'users.delete', 'module' => 'users', 'description' => 'Can deactivate or delete user accounts.'],

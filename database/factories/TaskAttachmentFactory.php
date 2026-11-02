@@ -19,8 +19,8 @@ class TaskAttachmentFactory extends Factory
         return [
             'task_id' => Task::factory(),
             'user_id' => User::factory(),
-            'file_name' => fake()->word() . '.pdf',
-            'file_path' => 'attachments/' . fake()->uuid() . '.pdf',
+            'file_name' => fake()->word().'.pdf',
+            'file_path' => 'attachments/'.fake()->uuid().'.pdf',
             'mime_type' => 'application/pdf',
             'file_size' => rand(10000, 5000000),
         ];

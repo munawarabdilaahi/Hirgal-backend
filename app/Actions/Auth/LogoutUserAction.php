@@ -8,10 +8,6 @@ class LogoutUserAction
 {
     /**
      * Revoke tokens for the authenticated user.
-     *
-     * @param  User  $user
-     * @param  bool  $allDevices
-     * @return void
      */
     public function execute(User $user, bool $allDevices = false): void
     {

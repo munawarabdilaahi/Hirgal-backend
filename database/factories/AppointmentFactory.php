@@ -26,12 +26,12 @@ class AppointmentFactory extends Factory
         return [
             'uuid' => (string) Str::uuid(),
             'organizer_id' => User::factory(),
-            'title' => fake()->sentence(3) . ' Sync',
+            'title' => fake()->sentence(3).' Sync',
             'description' => fake()->paragraph(),
             'start_time' => $start,
             'end_time' => $end,
             'location_type' => AppointmentLocationType::Virtual,
-            'meeting_link' => 'https://meet.google.com/' . Str::lower(Str::random(3)) . '-' . Str::lower(Str::random(4)) . '-' . Str::lower(Str::random(3)),
+            'meeting_link' => 'https://meet.google.com/'.Str::lower(Str::random(3)).'-'.Str::lower(Str::random(4)).'-'.Str::lower(Str::random(3)),
             'location_address' => null,
             'status' => AppointmentStatus::Scheduled,
         ];

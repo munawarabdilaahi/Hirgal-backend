@@ -3,9 +3,12 @@
 namespace App\Actions\User;
 
 use App\Enums\InvitationStatus;
+use App\Enums\UserRole;
+use App\Models\Role;
 use App\Models\User;
 use App\Models\UserInvitation;
 use App\Notifications\UserInvitationNotification;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -15,7 +18,6 @@ class CreateUserInvitationAction
     /**
      * Create an onboarding user invitation and send notification.
      *
-     * @param  User  $actor
      * @param  array{email: string, role_id: int}  $data
      * @return array{invitation: UserInvitation, raw_token: string}
      *
@@ -40,6 +42,15 @@ class CreateUserInvitationAction
             throw ValidationException::withMessages([
                 'email' => ['A pending invitation has already been dispatched to this email address.'],
             ]);
+        }
+
+        $targetRole = Role::findOrFail($data['role_id']);
+
+        // SEC-02: Prevent role escalation via invitation payloads
+        if ($targetRole->slug === UserRole::SystemAdmin->value && ! $actor->isSystemAdmin()) {
+            throw new AuthorizationException(
+                'Only System Administrators are permitted to invite users with the System Administrator role.'
+            );
         }
 
         $rawToken = Str::random(64);

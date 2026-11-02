@@ -67,7 +67,17 @@ All API responses follow a uniform JSON structure.
 
 ---
 
-## 4. API Modules Navigation
+## 4. Security Hardening & Isolation Architecture (Phase 5.2)
+
+1. **Role Authority Hierarchy:** Privilege escalation prevention ensures only System Admins can assign or invite System Admins. Regular users cannot self-escalate roles or account statuses via administrative endpoints.
+2. **Pessimistic Concurrency Locking:** Demoting or deactivating System Administrators uses pessimistic InnoDB row locks (`SELECT ... FOR UPDATE` on `roles` table) inside atomic transactions, eliminating race conditions that could lead to administrative lockout.
+3. **Information Disclosure & Credential Hygiene:** Raw invitation tokens are sent via `POST /api/v1/invitations/inspect` request bodies, removing sensitive credentials from web server access logs and browser histories.
+4. **Timing Attack Resistance:** Dummy Bcrypt password evaluations ensure indistinguishable response times for valid vs non-existent accounts during login.
+5. **Least Privilege Data Exposure:** Administrative management endpoints (`/users`) are isolated behind `users.view`. General team member directory lookup uses `/users/directory`, providing sanitized collaboration profiles without exposing account lifecycle or audit metadata.
+
+---
+
+## 5. API Modules Navigation
 
 - [Authentication & Profile API](./AUTH.md)
 - [User Management API](./USERS.md)

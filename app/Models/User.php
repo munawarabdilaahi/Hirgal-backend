@@ -10,11 +10,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['name', 'email', 'password', 'account_status', 'avatar_url', 'timezone', 'last_login_at'])]
@@ -182,7 +181,7 @@ class User extends Authenticatable
         return $this->allPermissions()->contains('slug', $slug);
     }
 
-    public function allPermissions(): \Illuminate\Support\Collection
+    public function allPermissions(): Collection
     {
         return $this->roles->flatMap(fn (Role $role) => $role->permissions)->unique('id');
     }

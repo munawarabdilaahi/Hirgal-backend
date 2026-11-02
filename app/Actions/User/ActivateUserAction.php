@@ -9,9 +9,6 @@ class ActivateUserAction
 {
     /**
      * Activate a user account.
-     *
-     * @param  User  $targetUser
-     * @return User
      */
     public function execute(User $targetUser): User
     {

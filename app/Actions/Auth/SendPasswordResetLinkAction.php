@@ -11,27 +11,24 @@ class SendPasswordResetLinkAction
 {
     /**
      * Generate a password reset token and dispatch the notification.
-     *
-     * @param  string  $email
-     * @return void
      */
     public function execute(string $email): void
     {
-        $rawToken = Str::random(64);
-        $hashedToken = hash('sha256', $rawToken);
-
-        // Store hashed token in password_reset_tokens
-        DB::table('password_reset_tokens')->updateOrInsert(
-            ['email' => $email],
-            [
-                'token' => $hashedToken,
-                'created_at' => now(),
-            ]
-        );
-
         $user = User::where('email', $email)->first();
 
+        // SEC-06: Do not store orphaned tokens or allocate resources for non-existent emails
         if ($user) {
+            $rawToken = Str::random(64);
+            $hashedToken = hash('sha256', $rawToken);
+
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $email],
+                [
+                    'token' => $hashedToken,
+                    'created_at' => now(),
+                ]
+            );
+
             $user->notify(new ResetPasswordNotification($rawToken, $email));
         }
     }

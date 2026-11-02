@@ -29,7 +29,7 @@ class Team extends Model
                 $model->uuid = (string) Str::uuid();
             }
             if (empty($model->slug)) {
-                $model->slug = Str::slug($model->name) . '-' . Str::lower(Str::random(6));
+                $model->slug = Str::slug($model->name).'-'.Str::lower(Str::random(6));
             }
         });
     }

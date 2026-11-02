@@ -2,11 +2,12 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Models\UserProfile;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * @mixin \App\Models\UserProfile
+ * @mixin UserProfile
  */
 class UserProfileResource extends JsonResource
 {

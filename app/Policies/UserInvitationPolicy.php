@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use App\Models\UserInvitation;
 
@@ -28,6 +29,10 @@ class UserInvitationPolicy
      */
     public function resend(User $actor, UserInvitation $invitation): bool
     {
+        if ($invitation->role?->slug === UserRole::SystemAdmin->value && ! $actor->isSystemAdmin()) {
+            return false;
+        }
+
         return $actor->hasPermission('users.invite');
     }
 
@@ -36,6 +41,10 @@ class UserInvitationPolicy
      */
     public function delete(User $actor, UserInvitation $invitation): bool
     {
+        if ($invitation->role?->slug === UserRole::SystemAdmin->value && ! $actor->isSystemAdmin()) {
+            return false;
+        }
+
         return $actor->hasPermission('users.invite');
     }
 }

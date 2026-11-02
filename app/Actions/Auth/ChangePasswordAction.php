@@ -9,11 +9,6 @@ class ChangePasswordAction
 {
     /**
      * Change password for the authenticated user and optionally revoke other tokens.
-     *
-     * @param  User  $user
-     * @param  string  $newPassword
-     * @param  bool  $logoutOtherDevices
-     * @return void
      */
     public function execute(User $user, string $newPassword, bool $logoutOtherDevices = false): void
     {

@@ -24,7 +24,7 @@ class HealthController extends Controller
             $dbLatencyMs = round((microtime(true) - $startTime) * 1000, 2);
             $dbStatus = 'connected';
         } catch (Throwable $e) {
-            $dbStatus = 'unreachable: ' . $e->getMessage();
+            $dbStatus = 'unreachable: '.$e->getMessage();
         }
 
         $healthy = ($dbStatus === 'connected');
@@ -34,7 +34,7 @@ class HealthController extends Controller
                 'status' => $healthy ? 'healthy' : 'degraded',
                 'service' => config('app.name', 'Hirgal API'),
                 'version' => '1.0.0',
-                'framework' => 'Laravel ' . app()->version(),
+                'framework' => 'Laravel '.app()->version(),
                 'php' => PHP_VERSION,
                 'environment' => config('app.env'),
                 'timestamp' => now()->toIso8601String(),

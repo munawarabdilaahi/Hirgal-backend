@@ -11,8 +11,6 @@ class RevokeUserInvitationAction
     /**
      * Revoke an outstanding invitation.
      *
-     * @param  UserInvitation  $invitation
-     * @return UserInvitation
      *
      * @throws ValidationException
      */

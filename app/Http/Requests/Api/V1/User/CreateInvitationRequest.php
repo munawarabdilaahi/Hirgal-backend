@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests\Api\V1\User;
 
+use App\Enums\UserRole;
+use App\Models\Role;
 use App\Models\UserInvitation;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CreateInvitationRequest extends FormRequest
@@ -12,13 +15,27 @@ class CreateInvitationRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->can('create', UserInvitation::class) ?? false;
+        $actor = $this->user();
+        if (! $actor || ! $actor->can('create', UserInvitation::class)) {
+            return false;
+        }
+
+        // SEC-02: Only System Administrators may dispatch invitations for the System Admin role
+        $roleId = $this->input('role_id');
+        if ($roleId) {
+            $role = Role::find($roleId);
+            if ($role && $role->slug === UserRole::SystemAdmin->value && ! $actor->isSystemAdmin()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {

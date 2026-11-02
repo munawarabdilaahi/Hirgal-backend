@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\V1\User;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\User\ListDirectoryRequest;
 use App\Http\Requests\Api\V1\User\ListUsersRequest;
 use App\Http\Requests\Api\V1\User\UpdateUserRequest;
+use App\Http\Resources\Api\V1\UserDirectoryResource;
 use App\Http\Resources\Api\V1\UserResource;
 use App\Models\User;
 use App\Services\User\UserService;
@@ -20,7 +22,7 @@ class UserController extends Controller
     ) {}
 
     /**
-     * List all users with pagination and filtering.
+     * List all users with pagination and filtering (administrative).
      */
     public function index(ListUsersRequest $request): JsonResponse
     {
@@ -28,6 +30,25 @@ class UserController extends Controller
 
         return ApiResponse::success(
             data: UserResource::collection($paginator->items()),
+            message: 'Administrative user list retrieved successfully.',
+            meta: [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ]
+        );
+    }
+
+    /**
+     * List basic user directory for team collaboration.
+     */
+    public function directory(ListDirectoryRequest $request): JsonResponse
+    {
+        $paginator = $this->userService->listDirectory($request->validated());
+
+        return ApiResponse::success(
+            data: UserDirectoryResource::collection($paginator->items()),
             message: 'User directory retrieved successfully.',
             meta: [
                 'current_page' => $paginator->currentPage(),

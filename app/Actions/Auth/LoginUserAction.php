@@ -13,9 +13,6 @@ class LoginUserAction
     /**
      * Authenticate user credentials and issue an access token.
      *
-     * @param  string  $email
-     * @param  string  $password
-     * @param  string|null  $deviceName
      * @return array{user: User, token: string}
      *
      * @throws ValidationException|AuthorizationException
@@ -26,8 +23,17 @@ class LoginUserAction
             ->where('email', $email)
             ->first();
 
-        // Prevent timing and enumeration attacks with secure check
-        if (! $user || ! Hash::check($password, $user->password)) {
+        // SEC-05: Mitigation for timing-based user enumeration
+        if (! $user) {
+            // Perform dummy bcrypt verification to balance execution time with genuine credentials
+            Hash::check($password, '$2y$12$u4cijEATRWhZzLoDUX.K.uGPM0S75v0v3Bu71m5IWJZxrNrFjbnG2');
+
+            throw ValidationException::withMessages([
+                'email' => ['Invalid credentials.'],
+            ]);
+        }
+
+        if (! Hash::check($password, $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Invalid credentials.'],
             ]);

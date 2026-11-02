@@ -3,8 +3,6 @@
 namespace Tests\Feature\Auth;
 
 use App\Enums\AccountStatus;
-use App\Enums\UserRole;
-use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RolePermissionSeeder;

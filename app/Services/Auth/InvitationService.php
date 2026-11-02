@@ -17,8 +17,6 @@ class InvitationService
     /**
      * Look up invitation by raw token string without exposing secrets.
      *
-     * @param  string  $rawToken
-     * @return UserInvitation
      *
      * @throws ValidationException
      */
@@ -54,7 +52,6 @@ class InvitationService
     }
 
     /**
-     * @param  string  $rawToken
      * @param  array<string, mixed>  $data
      * @return array{user: User, token: string}
      */

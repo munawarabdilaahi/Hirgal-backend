@@ -11,7 +11,6 @@ use App\Enums\TaskStatus;
 use App\Enums\UserRole as UserRoleEnum;
 use App\Models\Appointment;
 use App\Models\Habit;
-use App\Models\HabitLog;
 use App\Models\Permission;
 use App\Models\Project;
 use App\Models\ProjectMember;

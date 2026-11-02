@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Auth\AcceptInvitationRequest;
+use App\Http\Requests\Api\V1\Auth\InspectInvitationRequest;
 use App\Http\Resources\Api\V1\AuthTokenResource;
 use App\Http\Resources\Api\V1\UserInvitationResource;
 use App\Services\Auth\InvitationService;
@@ -18,7 +19,20 @@ class InvitationController extends Controller
     ) {}
 
     /**
-     * Inspect and verify an invitation token prior to acceptance.
+     * Inspect and verify an invitation token via POST body (SEC-04).
+     */
+    public function inspect(InspectInvitationRequest $request): JsonResponse
+    {
+        $invitation = $this->invitationService->getInvitationByToken($request->validated('token'));
+
+        return ApiResponse::success(
+            data: new UserInvitationResource($invitation),
+            message: 'Invitation details verified.'
+        );
+    }
+
+    /**
+     * Inspect and verify an invitation token prior to acceptance (Deprecated: Use POST /inspect).
      */
     public function show(string $token): JsonResponse
     {
@@ -27,7 +41,7 @@ class InvitationController extends Controller
         return ApiResponse::success(
             data: new UserInvitationResource($invitation),
             message: 'Invitation details verified.'
-        );
+        )->header('Deprecation', 'true');
     }
 
     /**

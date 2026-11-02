@@ -13,10 +13,6 @@ class ResetPasswordAction
     /**
      * Verify token and reset user password.
      *
-     * @param  string  $email
-     * @param  string  $token
-     * @param  string  $password
-     * @return void
      *
      * @throws ValidationException
      */

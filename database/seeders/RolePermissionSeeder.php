@@ -29,6 +29,7 @@ class RolePermissionSeeder extends Seeder
                 return in_array($permission->module, ['projects', 'tasks', 'appointments'])
                     || in_array($permission->slug, [
                         'users.view',
+                        'users.view_directory',
                         'users.invite',
                         'teams.view',
                         'teams.create',
@@ -58,7 +59,7 @@ class RolePermissionSeeder extends Seeder
                     'appointments.create',
                     'appointments.update',
                     'habits.manage',
-                    'users.view',
+                    'users.view_directory',
                 ]);
             });
             $leadRole->permissions()->sync($leadPermissions->pluck('id'));
@@ -74,7 +75,7 @@ class RolePermissionSeeder extends Seeder
                     'tasks.comment',
                     'appointments.view',
                     'habits.manage',
-                    'users.view',
+                    'users.view_directory',
                 ]);
             });
             $memberRole->permissions()->sync($memberPermissions->pluck('id'));

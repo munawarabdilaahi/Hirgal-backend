@@ -14,7 +14,6 @@ class ResendUserInvitationAction
     /**
      * Refresh invitation expiration, regenerate token, and re-dispatch notification.
      *
-     * @param  UserInvitation  $invitation
      * @return array{invitation: UserInvitation, raw_token: string}
      *
      * @throws ValidationException

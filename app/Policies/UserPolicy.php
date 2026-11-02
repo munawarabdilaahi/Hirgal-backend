@@ -17,6 +17,14 @@ class UserPolicy
     }
 
     /**
+     * Determine whether the user can view the collaborative user directory.
+     */
+    public function viewDirectory(User $actor): bool
+    {
+        return $actor->hasPermission('users.view_directory') || $actor->hasPermission('users.view');
+    }
+
+    /**
      * Determine whether the user can view an individual user profile.
      */
     public function view(User $actor, User $target): bool
@@ -37,19 +45,16 @@ class UserPolicy
     }
 
     /**
-     * Determine whether the user can update the target user.
+     * Determine whether the user can update the target user via administrative endpoint.
      */
     public function update(User $actor, User $target): bool
     {
-        if ($actor->id === $target->id) {
-            return true;
-        }
-
+        // Administrative user update requires explicit users.update capability
         if (! $actor->hasPermission('users.update')) {
             return false;
         }
 
-        // Only a System Admin can modify another System Admin
+        // Only a System Admin can modify another user possessing the System Admin role
         if ($target->isSystemAdmin() && ! $actor->isSystemAdmin()) {
             return false;
         }

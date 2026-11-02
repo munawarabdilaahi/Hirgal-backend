@@ -30,7 +30,8 @@ class ResetPasswordNotification extends Notification
      */
     public function toMail(object $notifiable): MailMessage
     {
-        $resetUrl = url('/api/v1/auth/reset-password?token='.$this->token.'&email='.urlencode($this->email));
+        $frontendUrl = rtrim((string) config('app.frontend_url', 'http://localhost:3000'), '/');
+        $resetUrl = $frontendUrl.'/reset-password?token='.$this->token.'&email='.urlencode($this->email);
 
         return (new MailMessage)
             ->subject('Reset Your Hirgal Password')
