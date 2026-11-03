@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Tasks;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Tasks\RemoveTaskAssignmentRequest;
 use App\Http\Requests\Api\V1\Tasks\StoreTaskAssignmentRequest;
 use App\Http\Resources\Api\V1\TaskResource;
 use App\Models\Task;
@@ -11,7 +12,6 @@ use App\Policies\ProjectPolicy;
 use App\Services\Task\TaskService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 class TaskAssignmentController extends Controller
@@ -41,14 +41,17 @@ class TaskAssignmentController extends Controller
 
     /**
      * Remove a single user's assignment from the task.
+     *
+     * The route parameter stays a string so malformed identifiers reach the
+     * request validator (422) instead of a scalar type coercion error (500).
      */
-    public function destroy(Request $request, Task $task, int $user): JsonResponse
+    public function destroy(RemoveTaskAssignmentRequest $request, Task $task, string $user): JsonResponse
     {
         abort_unless(ProjectPolicy::isWithinScope($request->user(), $task->project), 404);
 
         $assignment = TaskAssignment::query()
             ->where('task_id', $task->id)
-            ->where('user_id', $user)
+            ->where('user_id', (int) $user)
             ->first();
 
         abort_unless($assignment !== null, 404);

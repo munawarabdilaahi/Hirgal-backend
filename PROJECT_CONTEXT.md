@@ -2,9 +2,9 @@
 
 > **Central Project Knowledge, Architectural Blueprint & Living Operational Guide**  
 > **Repository Location:** `C:\Hirgal`  
-> **Current Version:** Phase 6 Accepted (Projects, Teams & Tasks APIs)  
-> **Last Audited & Updated:** 2026-11-02  
-> **Git Baseline:** Commit `77e62b4` (Phase 6) & Commit `3556549` (Documentation Baseline) — Phase 6 commit recorded in Section 11
+> **Current Version:** Phase 6.2 Accepted (Task Access Hardening)  
+> **Last Audited & Updated:** 2026-11-03  
+> **Git Baseline:** Commit `77e62b4` (Phase 6) & Commit `3556549` (Documentation Baseline) — Phases 6 & 6.2 recorded in Section 11
 
 ---
 
@@ -350,7 +350,7 @@ To maintain strict truth in documentation, modules are classified into three dis
 - **Tests:** `tests/Feature/Teams/TeamManagementTest.php`, `tests/Feature/Teams/TeamMembershipTest.php`, `tests/Feature/Teams/TeamProjectAllocationTest.php` (38 total)
 
 #### Module 6: Tasks & Assignments
-- **Status:** `IMPLEMENTED` | `TESTED` | `AUDITED`
+- **Status:** `IMPLEMENTED` | `TESTED` | `AUDITED` | `HARDENED`
 - **Main Responsibilities:** Task listing with filters (`project`, `team`, `status`, `priority`, `assignee`), task CRUD with subtask parenting, bulk assignment, single unassignment, `completed_at` lifecycle sync.
 - **Routes (6):**
   - `GET /api/v1/tasks` (filters via query string)
@@ -359,11 +359,11 @@ To maintain strict truth in documentation, modules are classified into three dis
   - `DELETE /api/v1/tasks/{task}/assignees/{user}`
 - **Models / Tables:** `Task` (`tasks`), `TaskAssignment` (`task_assignments`)
 - **Policies / Permissions:** `TaskPolicy`, `TaskAssignmentPolicy`; global permissions `tasks.view/create/update/delete/assign`; contextual roles `owner|lead|member|viewer` (viewer read-only; assignment additionally allowed for the task creator).
-- **Rules:** `parent` and `assignees` must belong to the same project (`422` otherwise); setting status `done` stamps `completed_at`, reverting clears it; duplicate assignments are idempotent.
-- **Tests:** `tests/Feature/Tasks/TaskManagementTest.php` (22), `tests/Feature/Tasks/TaskAssignmentTest.php` (13)
+- **Rules:** `parent` and `assignees` must belong to the same project (`422` otherwise); setting status `done` stamps `completed_at`, reverting clears it; duplicate assignments are idempotent; tasks of soft-deleted projects are excluded from all listings and resolve to `404` on direct access (restoring the project restores visibility); the `assignees/{user}` route identifier must be an integer (`422` otherwise).
+- **Tests:** `tests/Feature/Tasks/TaskManagementTest.php` (22), `tests/Feature/Tasks/TaskAssignmentTest.php` (13), `tests/Feature/Tasks/TaskProjectSoftDeleteTest.php` (13)
 
 #### Cross-Cutting Phase 6 Authorization
-- **Test:** `tests/Feature/Api/V1/Phase6AuthorizationTest.php` (48 tests) verifies `401` on all Phase 6 endpoints, `403 ACCOUNT_NOT_ACTIVE` for suspended accounts, `404 RESOURCE_NOT_FOUND` across 18 cross-scope route/verb combinations, UUID-only route binding, and the standard error/success envelopes.
+- **Test:** `tests/Feature/Api/V1/Phase6AuthorizationTest.php` (48 tests) verifies `401` on all Phase 6 endpoints, `403 ACCOUNT_NOT_ACTIVE` for suspended accounts, `404 RESOURCE_NOT_FOUND` across 19 cross-scope route/verb combinations, UUID-only route binding, and the standard error/success envelopes.
 
 ---
 
@@ -374,6 +374,7 @@ To maintain strict truth in documentation, modules are classified into three dis
 | Domain Module | Database Tables | Eloquent Models | API Route Status | Planned Roadmap Phase |
 | :--- | :--- | :--- | :---: | :---: |
 | **Global RBAC Management** | `roles`, `permissions`, `role_permissions`, `user_roles` | `Role`, `Permission` | **NO API ROUTES** | Phase 5.2 (Permissions Seeded Only) |
+| **Project Invitations** | `project_invitations` | `ProjectInvitation` | **NO API ROUTES** | Deferred (Phase 6 covered projects/memberships only) |
 | **Task Comments & Attachments** | `task_comments`, `task_attachments` | `TaskComment`, `TaskAttachment` | **NO API ROUTES** | Deferred (Phase 6 covered tasks/assignments only) |
 | **Appointments & Scheduling** | `appointments`, `appointment_participants` | `Appointment`, `AppointmentParticipant` | **NO API ROUTES** | **Phase 7** |
 | **Habit Tracker** | `habits`, `habit_logs` | `Habit`, `HabitLog` | **NO API ROUTES** | **Phase 8** |
@@ -444,12 +445,12 @@ Managed centrally through `App\Support\ApiResponse`:
   ```
 
 ### 10.2 Verified Test Count & Assertion Summary
-Verified directly via live runtime execution on 2026-11-02 (post-Phase 6):
-- **Total Tests:** 260
-- **Passing Tests:** 260 (100% green)
-- **Total Assertions:** 963
+Verified directly via live runtime execution on 2026-11-03 (post-Phase 6.2; Phase 6 baseline was 260 tests / 963 assertions):
+- **Total Tests:** 273
+- **Passing Tests:** 273 (100% green)
+- **Total Assertions:** 1052
 - **Failures / Errors:** 0
-- **Execution Time:** ~25 seconds
+- **Execution Time:** ~33 seconds
 
 ### 10.3 Test Suite Breakdown
 1. `tests/Unit`: 1 test, 1 assertion.
@@ -457,14 +458,14 @@ Verified directly via live runtime execution on 2026-11-02 (post-Phase 6):
 3. `tests/Feature/Users`: 17 tests, 74 assertions (CRUD, Activation, Deactivation, Invitations).
 4. `tests/Feature/Projects`: 37 tests, 112 assertions (Project management, membership, contextual authorization).
 5. `tests/Feature/Teams`: 38 tests, 105 assertions (Team management, rosters, project allocation invariants).
-6. `tests/Feature/Tasks`: 35 tests, 89 assertions (Task CRUD, lifecycle, assignment/unassignment).
+6. `tests/Feature/Tasks`: 48 tests, 178 assertions (Task CRUD, lifecycle, assignment/unassignment, soft-deleted-project access hardening).
 7. `tests/Feature/Database`: 26 tests, 126 assertions (Relationships, Schema constraints, Seeders, MySQL composite keys).
 8. `tests/Feature/Security`: 23 tests, 97 assertions (Security regression tests SEC-01 through SEC-08).
 9. `tests/Feature/Api`: 52 tests, 220 assertions (Connection, Health checks, envelope structure, Phase 6 cross-cutting authorization).
 10. `tests/Feature/ExampleTest.php`: 1 test, 1 assertion.
 
 ### 10.4 SQLite vs MySQL Testing Reality
-- **SQLite In-Memory (`:memory:`):** Executes the standard 100 feature/unit tests in `phpunit.xml`.
+- **SQLite In-Memory (`:memory:`):** Executes the full feature/unit test suite (273 tests) in `phpunit.xml`.
 - **MySQL 8 (`hirgal_backend_test`):** Specifically verified by [`tests/Feature/Database/MySQLCompositeConstraintTest.php`](file:///c:/Hirgal/tests/Feature/Database/MySQLCompositeConstraintTest.php) (2 tests):
   1. `test_mysql8_enforces_composite_foreign_key_on_habit_logs`: Validates cross-user tampering rejection on `(habit_id, user_id)`.
   2. `test_mysql8_composite_foreign_key_cascades_on_habit_delete`: Validates cascading deletes on composite foreign keys under MySQL InnoDB.
@@ -490,15 +491,17 @@ Verified directly via live runtime execution on 2026-11-02 (post-Phase 6):
 | **Phase 5.2** | Security Hardening & Remediation | Implementation | 2026-11-02 | **ACCEPTED** | `2a571ee` | Remediated SEC-01 to SEC-08, 23 regression tests (102 total). |
 | **Phase 5.2 Docs** | Permanent Context Documentation | Documentation | 2026-11-02 | **ACCEPTED** | `3556549` | Created root `PROJECT_CONTEXT.md` living guide. |
 | **Phase 5.3** | Context Audit & Reconciliation | Documentation Audit | 2026-11-02 | **ACCEPTED** | `3556549`+ | Reconciled implemented vs planned modules and security risks. |
-| **Phase 6** | Projects, Teams & Tasks Management APIs | Implementation | 2026-11-02 | **ACCEPTED** | `77e62b4` | 30 endpoints, 6 policies, 21 actions, 3 services, 6 resources, 16 form requests, 158 new tests (260 total). Fixed enum-cast bug in `ProjectPolicy::contextualRole`. |
+| **Phase 6** | Projects, Teams & Tasks Management APIs | Implementation | 2026-11-02 | **ACCEPTED** | `77e62b4` | 30 endpoints, 6 policies, 21 actions, 3 services, 5 resources, 16 form requests, 158 new tests (260 total). Fixed enum-cast bug in `ProjectPolicy::contextualRole`. |
+| **Phase 6.1** | Independent Security & Implementation Audit | Read-Only Audit | 2026-11-03 | **CONDITIONALLY PASSED** | — | Re-verified 30 routes / 6 policies / invariants; identified F-1 (500 on soft-deleted-project task endpoints, MEDIUM), F-2/F-3/F-4/F-6 (LOW), F-5 flagged for product decision. |
+| **Phase 6.2** | Task Access Hardening & Doc Corrections | Security Remediation | 2026-11-03 | **ACCEPTED** | *Current* | Null-safe project scoping resolves soft-deleted-project task access to 404 (F-1/F-2); task listings exclude soft-deleted projects (F-3); assignee route identifier validated → 422 (F-4); 13 regression tests (273 total); documentation counts corrected (5 resources, 19 cross-scope, `project_invitations` deferred row). |
 
 ---
 
 ## 12. Current Project Status
 
-- **Latest Completed Phase:** Phase 6 (Projects, Teams & Task Management APIs).
-- **Latest Accepted Implementation:** Phase 6 (Commit `77e62b4`; prior baseline `2a571ee` for Phase 5.2).
-- **Current Development Phase:** Phase 6 Complete — awaiting authorization for Phase 7.
+- **Latest Completed Phase:** Phase 6.2 (Task Access Hardening & Documentation Corrections).
+- **Latest Accepted Implementation:** Phase 6.2 (commit recorded in Section 16; prior baseline `77e62b4` for Phase 6).
+- **Current Development Phase:** Phase 6.2 Complete — awaiting authorization for Phase 7.
 - **Remaining Work:**
   - Phase 7: Appointments & Scheduling API.
   - Phase 8: Habit Tracker API.
@@ -516,6 +519,8 @@ Verified directly via live runtime execution on 2026-11-02 (post-Phase 6):
 2. **Directory Privacy Decision (Policy Debt):** `GET /api/v1/users/directory` exposes member email addresses globally across all active users. A formal product owner decision is required before Phase 10 on whether email should remain globally visible or be restricted to project collaborators.
 3. **Multi-Node Concurrency Scaling (Architectural Debt):** `Role::lockForUpdate()` provides serialization across single MySQL instances. If the platform migrates to a distributed or clustered database setup, an atomic distributed lock (Redis/Cache lock) will be required.
 4. **Public Registration Disabled:** `config('auth.allow_registration')` is `false` by default; platform onboarding relies strictly on administrative invitations. Public registration flows require further review before production enablement.
+5. **Team Leadership Transfer Roster Behavior (Product Decision Pending):** `UpdateTeamAction` preserves the previous leader's `team_members` row as `leader` when `leader_id` changes (co-leader retention) and does not upgrade an existing roster row's role. This matches the tested co-leader design but was flagged in the Phase 6.1 audit (F-5). A product owner decision is required: keep explicit co-leader behavior, auto-demote the previous leader, or keep role-preservation with clearer documentation. No code change was made in Phase 6.2.
+6. **Scalar Integer Route Parameter Outside Phase 6 Scope:** `DELETE /api/v1/invitations/{id}` still type-hints `int $id`; a non-numeric identifier can produce a `500` TypeError — the same defect class as Phase 6.2 F-4, which fixed `DELETE /api/v1/tasks/{task}/assignees/{user}`. Remediate before Phase 10.
 
 ---
 
@@ -567,4 +572,7 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 | **2026-11-02** | Phase 5.2 | `2a571ee` | `app/`, `config/`, `routes/`, `tests/Feature/Security/` | Remediated SEC-01 to SEC-08, added 23 regression tests, Pint formatted. | 102 tests | `docs/api/*`, acceptance report |
 | **2026-11-02** | Phase 5.2 Docs | `3556549` | `PROJECT_CONTEXT.md` | Created permanent root-level living documentation file for all future agents. | 102 tests | `PROJECT_CONTEXT.md` |
 | **2026-11-02** | Phase 5.3 | `3556549` | `PROJECT_CONTEXT.md` | Reconciled implemented vs planned modules, token security reality, directory privacy, timing mitigation nuances, and multi-process lock status. | 102 tests | `PROJECT_CONTEXT.md` |
-| **2026-11-02** | Phase 6 | `77e62b4` | `app/Actions/{Projects,Teams,Tasks}`, `app/Services/{Project,Team,Task}`, `app/Http/{Controllers,Requests,Resources}/Api/V1`, `app/Policies`, `routes/api.php`, `tests/Feature/{Projects,Teams,Tasks,Api}` | 30 REST endpoints for Projects (15), Teams (9), Tasks (6); 6 policies, 21 actions, 3 services, 6 resources, 16 form requests; UUID route binding; two-tier contextual authorization; fixed enum-cast bug in `ProjectPolicy::contextualRole`. | 260 tests | `PROJECT_CONTEXT.md` |
+| **2026-11-02** | Phase 6 | `77e62b4` | `app/Actions/{Projects,Teams,Tasks}`, `app/Services/{Project,Team,Task}`, `app/Http/{Controllers,Requests,Resources}/Api/V1`, `app/Policies`, `routes/api.php`, `tests/Feature/{Projects,Teams,Tasks,Api}` | 30 REST endpoints for Projects (15), Teams (9), Tasks (6); 6 policies, 21 actions, 3 services, 5 resources, 16 form requests; UUID route binding; two-tier contextual authorization; fixed enum-cast bug in `ProjectPolicy::contextualRole`. | 260 tests | `PROJECT_CONTEXT.md` |
+| **2026-11-02** | Phase 6 Docs | `8dc1f75` | `PROJECT_CONTEXT.md` | Recorded Phase 6 commit hash in header, Sections 11 and 12. | 260 tests | `PROJECT_CONTEXT.md` |
+| **2026-11-03** | Phase 6.1 | — | Audit Report | Independent read-only audit; CONDITIONALLY PASSED with F-1 (MEDIUM, dynamically proven) and F-2/F-3/F-4/F-6 (LOW) findings; F-5 flagged for product decision. | 260 tests | Audit report artifact |
+| **2026-11-03** | Phase 6.2 | *Current* | `app/Policies/ProjectPolicy.php`, `app/Http/Requests/Api/V1/Tasks/*`, `app/Http/Controllers/Api/V1/Tasks/TaskAssignmentController.php`, `app/Services/Task/TaskService.php`, `tests/Feature/Tasks/TaskProjectSoftDeleteTest.php`, `PROJECT_CONTEXT.md` | Null-safe project scoping (soft-deleted project → 404, no TypeErrors), task listings exclude soft-deleted projects, assignee identifier validation → 422; 13 regression tests; doc corrections (5 resources, 19 cross-scope, `project_invitations` row, F-5 known issue). | 273 tests | `PROJECT_CONTEXT.md` |

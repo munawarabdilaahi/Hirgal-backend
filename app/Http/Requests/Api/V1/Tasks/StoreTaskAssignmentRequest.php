@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Api\V1\Tasks;
 
-use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskAssignment;
 use App\Policies\ProjectPolicy;
@@ -15,7 +14,8 @@ class StoreTaskAssignmentRequest extends FormRequest
     /**
      * Determine if the user is authorized to make this request.
      *
-     * Cross-scope access resolves as 404 before any ability check.
+     * Cross-scope access — including tasks of soft-deleted projects — resolves
+     * as 404 before any ability check.
      */
     public function authorize(): bool
     {
@@ -26,13 +26,7 @@ class StoreTaskAssignmentRequest extends FormRequest
             return false;
         }
 
-        $project = $task->project;
-
-        if (! $project instanceof Project) {
-            return false;
-        }
-
-        abort_unless(ProjectPolicy::isWithinScope($actor, $project), 404);
+        abort_unless(ProjectPolicy::isWithinScope($actor, $task->project), 404);
 
         return $actor->can('create', [TaskAssignment::class, $task]);
     }

@@ -128,10 +128,16 @@ class ProjectPolicy
     /**
      * Determine whether the project lies inside the actor's tenant boundary.
      *
-     * Used to return 404 for cross-tenant resource access before ability checks.
+     * A soft-deleted (null) project is never in scope, so callers resolve to 404
+     * instead of crashing. Used to return 404 for cross-tenant resource access
+     * before ability checks.
      */
-    public static function isWithinScope(User $actor, Project $project): bool
+    public static function isWithinScope(User $actor, ?Project $project): bool
     {
+        if ($project === null) {
+            return false;
+        }
+
         if ($actor->isSystemAdmin()) {
             return true;
         }
@@ -148,9 +154,15 @@ class ProjectPolicy
 
     /**
      * Resolve the actor's contextual project role, or null when not a member.
+     *
+     * A soft-deleted (null) project yields null so authorization fails closed.
      */
-    public static function contextualRole(User $actor, Project $project): ?ProjectMemberRole
+    public static function contextualRole(User $actor, ?Project $project): ?ProjectMemberRole
     {
+        if ($project === null) {
+            return null;
+        }
+
         if ($actor->isSystemAdmin()) {
             return ProjectMemberRole::Owner;
         }

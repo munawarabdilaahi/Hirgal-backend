@@ -50,7 +50,9 @@ class TaskService
      */
     public function listTasks(User $actor, array $filters): LengthAwarePaginator
     {
-        $query = Task::query()->with(self::EAGER);
+        $query = Task::query()
+            ->with(self::EAGER)
+            ->whereHas('project');
 
         if (! $actor->isSystemAdmin()) {
             $query->whereIn('project_id', $this->accessibleProjectIds($actor));
