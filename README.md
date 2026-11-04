@@ -1,58 +1,70 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Hirgal
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Hirgal is an API-first project management and team collaboration backend built with Laravel. Its versioned REST API is served under `/api/v1`.
 
-## About Laravel
+The canonical Laravel application root is this repository directory. Application code, configuration, dependencies, documentation, and tests are kept together here; do not create or maintain a nested copy of the project.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Project status
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Phase 6.2 is complete. Authentication, user administration, projects, teams, tasks, and task assignments are implemented. The database foundations for appointments, habits, mentions, and activity logs are retained for planned future phases; their APIs are not yet implemented.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+The separate React frontend has completed its Phase 1 infrastructure and Phase 2 design-system foundations. Business screens and integrations remain deferred.
 
-## Learning Laravel
+See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for the architecture, security and authorization decisions, implemented modules, completed phases, known issues, and roadmap.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Requirements
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- PHP 8.4
+- Composer
+- Node.js and npm for the configured Vite build
+- SQLite for the PHPUnit in-memory test suite; MySQL 8 for production and MySQL-specific database tests
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+## Local setup
 
-## Agentic Development
+From the repository root:
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```sh
+composer install
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Create a local `.env` from `.env.example` if needed, configure its database and mail settings, then generate the application key:
 
-## Contributing
+```sh
+php artisan key:generate
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Run migrations only against a new or intentionally selected development database:
 
-## Code of Conduct
+```sh
+php artisan migrate
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+The [frontend/](frontend/) directory contains the independent React/TypeScript application. It currently provides architecture, shared design-system components, and a development-only showcase; no business feature screens or integrations are implemented yet. See [frontend/README.md](frontend/README.md) and [frontend/docs/DESIGN_SYSTEM.md](frontend/docs/DESIGN_SYSTEM.md).
 
-## Security Vulnerabilities
+## Verification
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Run the PHPUnit suite:
 
-## License
+```sh
+php artisan test --compact
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Inspect registered application routes:
+
+```sh
+php artisan route:list --except-vendor
+```
+
+Build the configured Vite assets when the Node dependencies are installed:
+
+```sh
+npm run build
+```
+
+## Project documentation
+
+- [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) — authoritative project and architecture context
+- [AGENTS.md](AGENTS.md) — Laravel and agent development instructions
+- [CLAUDE.md](CLAUDE.md) — compatible copy of the agent instructions
+- [docs/](docs/) — API and database specifications
+- [frontend/README.md](frontend/README.md) — frontend setup, architecture, API contracts, and authentication strategy

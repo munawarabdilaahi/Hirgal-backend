@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f8fa" />
+    <meta
+      name="description"
+      content="Hirgal project management and team collaboration platform."
+    />
+    <title>Hirgal</title>
+    <script>
+      (() => {
+        const root = document.documentElement;
+        try {
+          const preference = localStorage.getItem('hirgal-theme');
+          const dark =
+            preference === 'dark' ||
+            (preference !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          root.classList.toggle('dark', dark);
+          root.style.colorScheme = dark ? 'dark' : 'light';
+        } catch {
+          const systemDark =
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
+          root.classList.toggle('dark', systemDark);
+          root.style.colorScheme = systemDark ? 'dark' : 'light';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -2,8 +2,8 @@
 
 > **Central Project Knowledge, Architectural Blueprint & Living Operational Guide**  
 > **Repository Location:** `C:\Hirgal`  
-> **Current Version:** Phase 6.2 Accepted (Task Access Hardening)  
-> **Last Audited & Updated:** 2026-11-03  
+> **Current Version:** Backend Phase 6.2 Accepted; Frontend Phase 2 Design System
+> **Last Audited & Updated:** 2026-11-04
 > **Git Baseline:** Commit `d7e0916` (Phase 6.2) & Commit `3556549` (Documentation Baseline) — Phases 6 & 6.2 recorded in Section 11
 
 ---
@@ -14,7 +14,7 @@
 **Hirgal** is an enterprise-grade Project Management and Team Collaboration Platform built as an API-first backend system. It unifies project planning, cross-functional team coordination, Kanban task workflows, calendar scheduling, personal habit tracking, user follow-up inboxes, and centralized audit logging into a modular, secure, high-performance architecture.
 
 ### 1.2 Core Product Functionality (Vision vs Current Status)
-The complete platform vision encompasses 8 functional pillars. As of Phase 5.3, these exist in two distinct states: **Implemented APIs** versus **Database Foundation Only (APIs Planned)**:
+The complete platform vision encompasses 8 functional pillars. The backend API implementation status is:
 
 1. **Identity & Access Management (`IMPLEMENTED & AUDITED`):** Token-based authentication via Laravel Sanctum, invitation-driven onboarding, granular role-based access control (RBAC), and user profile management.
 2. **User Directory (`IMPLEMENTED & AUDITED`):** Team collaboration directory exposing basic profile details with administrative metadata redacted.
@@ -92,6 +92,8 @@ The backend enforces a strict separation of concerns across dedicated architectu
 
 ## 4. Project Structure
 
+`C:\Hirgal` is the canonical repository and the only Laravel application root. Keep the application, its dependencies, documentation, and tests at this root; do not create a nested copy of the project. The redundant `Hirgal-backend/` snapshot was removed on 2026-11-04 after its tracked files and Git history were compared with this repository. It contained no unique project files; the root already held the newer Phase 6.2 implementation and documentation.
+
 ```
 C:\Hirgal
 ├── app/
@@ -125,6 +127,7 @@ C:\Hirgal
 ├── tests/
 │   ├── Feature/                  # Feature tests (Auth, Users, Projects, Teams, Tasks, Database, Security, Api)
 │   └── Unit/                     # Low-level unit tests
+├── frontend/                     # Independent React 19 / TypeScript application (Frontend Phase 2 design system)
 └── PROJECT_CONTEXT.md            # Central project context & living documentation (this file)
 ```
 
@@ -509,7 +512,7 @@ Verified directly via live runtime execution on 2026-11-03 (post-Phase 6.2; Phas
   - Phase 10: Production Readiness, Performance Optimization & Final Security Audit.
 - **Pending Audits:** None.
 - **Known Blockers:** None.
-- **Frontend Status:** **STRICTLY PROHIBITED.** No frontend code, Blade views, or SPAs may be introduced until backend APIs are complete and approved.
+- **Frontend Status:** Frontend Phases 1 and 2 foundations are implemented under `frontend/`. The responsive shell, theme system, reusable components, and development-only showcase do not implement business functionality. Feature screens and API integrations remain subject to explicit authorization and verified backend API readiness.
 
 ---
 
@@ -546,7 +549,7 @@ Verified directly via live runtime execution on 2026-11-03 (post-Phase 6.2; Phas
 
 The following rules are **permanent and non-negotiable** for all AI coding agents working on Hirgal:
 
-1. **Backend-First Development:** Do not write frontend code, React components, Vue templates, or Blade views.
+1. **Backend-First Development:** Do not write frontend feature screens or business integrations without explicit user authorization and verified backend API contracts. Frontend Phases 1 and 2 are limited to foundation, design system, and development tooling.
 2. **Verify Before Coding:** Always read `PROJECT_CONTEXT.md` and inspect actual files, routes, and tests before making modifications.
 3. **Preserve Architecture:** Adhere strictly to Actions → Services → Controllers, Form Requests, Policies, and `ApiResponse`. Never put business logic in controllers or API resources.
 4. **No Destructive Database Commands:** Never run `migrate:fresh`, `db:wipe`, or schema commands that destroy existing data.
@@ -576,3 +579,31 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 | **2026-11-02** | Phase 6 Docs | `8dc1f75` | `PROJECT_CONTEXT.md` | Recorded Phase 6 commit hash in header, Sections 11 and 12. | 260 tests | `PROJECT_CONTEXT.md` |
 | **2026-11-03** | Phase 6.1 | — | Audit Report | Independent read-only audit; CONDITIONALLY PASSED with F-1 (MEDIUM, dynamically proven) and F-2/F-3/F-4/F-6 (LOW) findings; F-5 flagged for product decision. | 260 tests | Audit report artifact |
 | **2026-11-03** | Phase 6.2 | `d7e0916` | `app/Policies/ProjectPolicy.php`, `app/Http/Requests/Api/V1/Tasks/*`, `app/Http/Controllers/Api/V1/Tasks/TaskAssignmentController.php`, `app/Services/Task/TaskService.php`, `tests/Feature/Tasks/TaskProjectSoftDeleteTest.php`, `PROJECT_CONTEXT.md` | Null-safe project scoping (soft-deleted project → 404, no TypeErrors), task listings exclude soft-deleted projects, assignee identifier validation → 422; 13 regression tests; doc corrections (5 resources, 19 cross-scope, `project_invitations` row, F-5 known issue). | 273 tests | `PROJECT_CONTEXT.md` |
+| **2026-11-04** | Project Structure Cleanup | — | Repository root, `README.md`, `PROJECT_CONTEXT.md` | Removed the redundant nested `Hirgal-backend/` snapshot after verifying all tracked files and history were represented in the canonical root; documented the single-root layout. No application behavior or future-phase assets changed. | 273 tests | `README.md`, `PROJECT_CONTEXT.md` |
+| **2026-11-04** | Frontend Phase 1 | — | `frontend/`, `README.md`, `PROJECT_CONTEXT.md` | Added an isolated React 19/TypeScript/Vite foundation with strict typing, Tailwind 4/shadcn-compatible primitives, routing/query providers, typed Axios API contracts and errors, memory-only bearer-token plumbing, tests, and setup documentation. No Laravel application files or API contracts changed. | 11 frontend tests; strict typecheck, Oxlint, and production build passed; `npm audit --omit=dev` reported 0 vulnerabilities | `frontend/README.md`, `README.md`, `PROJECT_CONTEXT.md` |
+| **2026-11-04** | Frontend Phase 2 | — | `frontend/src/components/`, `frontend/src/styles/`, `frontend/src/app/`, `frontend/docs/`, frontend docs | Added semantic light/dark/system themes, shared accessible controls and feedback/data components, responsive navigation shell, and a development-only showcase. No business API calls or backend changes. | 16 frontend tests; typecheck, Oxlint, and production build passed; development route/component absent from production assets; production dependency audit reported 0 vulnerabilities | `frontend/docs/DESIGN_SYSTEM.md`, `frontend/README.md`, `README.md`, `PROJECT_CONTEXT.md` |
+
+## 17. Frontend Foundation
+
+### 17.1 Frontend Phase 1 Status
+- **Status:** Frontend Phase 1 foundation retained; feature screens and feature API integrations remain deferred.
+- **Location:** `frontend/` is an independent Vite application. The Laravel application and its root Composer/npm manifests remain at `C:\Hirgal`.
+- **Stack:** React 19, TypeScript strict mode, Vite, Tailwind CSS 4, shadcn/ui-compatible component configuration, React Router, TanStack Query, Axios, React Hook Form, Zod, and Lucide React.
+- **Architecture:** `src/app` owns application configuration, router, and providers; `src/services/api` owns API contracts, Axios configuration, bearer-token plumbing, and normalized errors; UI primitives and feedback states live in `src/components`; future domain code belongs in `src/features/{auth,users,projects,teams,tasks}`.
+- **Backend contract:** Laravel responses use `{ success, message, data }` with optional pagination metadata, or `{ success: false, message, errors, error_code? }`. Auth uses Sanctum Bearer tokens. `GET /api/v1/auth/me` returns the authenticated user; `POST /api/v1/auth/logout` revokes the current token. Authenticated inactive accounts are rejected by middleware with 403 `ACCOUNT_NOT_ACTIVE`; inactive login attempts return 403 `FORBIDDEN`. See `frontend/README.md` and `docs/api/AUTH.md`.
+- **Credential handling:** The Phase 1 token store exists only in JavaScript memory and does not persist credentials. A reload loses the token; the token remains accessible to JavaScript while the app is running. No login flow or screens exist. Revisit persistence after evaluating an HttpOnly cookie/session design; never store bearer tokens in browser local storage by default.
+- **Routing:** `/login`, `/dashboard`, `/users`, `/projects`, `/teams`, and `/tasks` are explicit, non-functional placeholders. They make no API calls and do not imply that business features are available.
+- **UI foundation:** Phase 2 extends the Tailwind tokens and reusable accessible component foundations. See Section 17.2 and `frontend/docs/DESIGN_SYSTEM.md`.
+- **Testing:** `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` are the frontend verification commands.
+- **CORS:** Backend `config/cors.php` currently allows local origins on port 5173 (as well as port 3000). If Vite selects a different port or deployment uses another origin, update the backend CORS allowlist only with separate authorization.
+- **Out of scope:** No auth screens, dashboard, real feature screens, API feature services, backend changes, or integrations for Phase 7–9 database-only domains were added.
+
+### 17.2 Frontend Phase 2 — Design System
+- **Status:** Implemented; no business screens or real feature integrations.
+- **Visual language:** Neutral, system-first typography, restrained blue primary, semantic success/warning/error/information colors, dedicated navigation tokens, measured radius and elevation, and a consistent spacing scale.
+- **Theme:** `ThemeProvider` supports light, dark, and system preferences. It stores only the display preference under `hirgal-theme`; it does not persist authentication credentials. An early document script applies the saved/system theme before React mounts.
+- **Components:** Buttons, input/textarea/select, checkbox/radio/switch, form field/label, cards, alerts/badges/status, dialog/confirmation dialog, dropdown, popover, tooltip, tabs, toast, skeleton/spinner, empty/error states, avatar/group/user identity, table, pagination, progress, metadata, and layout primitives.
+- **Navigation:** `AppShell` composes a configuration-driven sidebar, sticky top bar, theme switcher, breadcrumb, and main region. The mobile sidebar uses an accessible modal drawer. Unimplemented destinations are visibly marked as planned and do not call the backend.
+- **Showcase:** `/dev/design-system` is registered only in Vite development mode. All data there is explicitly illustrative and static; the route makes no API requests.
+- **Documentation:** `frontend/docs/DESIGN_SYSTEM.md` documents tokens, theme, components, responsive rules, accessibility, and showcase behavior.
+- **Verification:** `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` are the frontend verification commands.
