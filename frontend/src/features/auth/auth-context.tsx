@@ -127,6 +127,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       && previousPermissionsSignature.current !== permissionsSignature
     ) {
       queryClient.removeQueries({ queryKey: ['users'] });
+      queryClient.removeQueries({ queryKey: ['projects'] });
+      queryClient.removeQueries({ queryKey: ['teams'] });
     }
 
     previousPermissionsSignature.current = permissionsSignature;

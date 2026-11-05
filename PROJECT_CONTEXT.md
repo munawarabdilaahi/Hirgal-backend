@@ -2,7 +2,7 @@
 
 > **Central Project Knowledge, Architectural Blueprint & Living Operational Guide**  
 > **Repository Location:** `C:\Hirgal`  
-> **Current Version:** Backend Phase 6.2 Accepted; Frontend Phase 4 Dashboard, User Directory & User Administration
+> **Current Version:** Backend Phase 6.2 Accepted; Frontend Phase 5 Projects & Teams Management
 > **Last Audited & Updated:** 2026-11-04
 > **Git Baseline:** Commit `d7e0916` (Phase 6.2) & Commit `3556549` (Documentation Baseline) — Phases 6 & 6.2 recorded in Section 11
 
@@ -504,7 +504,8 @@ Verified directly via live runtime execution on 2026-11-03 (post-Phase 6.2; Phas
 
 - **Latest Completed Phase:** Phase 6.2 (Task Access Hardening & Documentation Corrections).
 - **Latest Accepted Implementation:** Phase 6.2 (Commit `d7e0916`; prior baseline `77e62b4` for Phase 6).
-- **Current Development Phase:** Phase 6.2 Complete — awaiting authorization for Phase 7.
+- **Current Backend Phase:** Phase 6.2 Complete — awaiting authorization for Phase 7.
+- **Current Frontend Phase:** Phase 5 Projects & Teams Management implemented against existing backend APIs.
 - **Remaining Work:**
   - Phase 7: Appointments & Scheduling API.
   - Phase 8: Habit Tracker API.
@@ -512,7 +513,7 @@ Verified directly via live runtime execution on 2026-11-03 (post-Phase 6.2; Phas
   - Phase 10: Production Readiness, Performance Optimization & Final Security Audit.
 - **Pending Audits:** None.
 - **Known Blockers:** None.
-- **Frontend Status:** Frontend Phases 1 and 2 foundations are implemented under `frontend/`. The responsive shell, theme system, reusable components, and development-only showcase do not implement business functionality. Feature screens and API integrations remain subject to explicit authorization and verified backend API readiness.
+- **Frontend Status:** Frontend Phases 1–5 are implemented under `frontend/`: design system, authentication, dashboard/user administration, and Projects & Teams management. Task management and later modules remain deferred. Backend Phase 6.2 is unchanged.
 
 ---
 
@@ -585,6 +586,7 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 | **2026-11-05** | Frontend Phase 3.1 | `4dc6901` baseline | `frontend/` | Audited current Phase 3 auth against Laravel contracts; connected auth pages and guards to routes; fixed Radix `Button asChild` child handling and stale-request token cleanup; added auth behavior/permission/redirect coverage and authentication documentation. No Laravel files or contracts changed. | 40 frontend test cases; typecheck, lint, test, build, and production dependency audit results recorded in `frontend/docs/AUTHENTICATION.md` | `frontend/docs/AUTHENTICATION.md`, `frontend/README.md`, `PROJECT_CONTEXT.md` |
 | **2026-11-05** | Frontend Phase 4.1 | `e8b6d1f` | `frontend/` | Audited Phase 4 UI against Laravel routes, requests, resources, policies, and actions. Added React route-level page splitting with loading fallback; no backend or dependency changes. Documented the API matrix and remaining user-detail/filter interaction test gaps. | 48 tests across 10 files; typecheck, lint, build, and production dependency audit passed. Main JS entry reduced from 792.15 kB to 369.22 kB (gzip 114.68 kB); no Vite large-chunk advisory. | `frontend/docs/AUTHENTICATION.md`, `frontend/docs/DASHBOARD.md`, `frontend/docs/USER_DIRECTORY.md`, `frontend/docs/USER_ADMINISTRATION.md`, `frontend/README.md`, `PROJECT_CONTEXT.md` |
 | **2026-11-05** | Frontend Phase 4.2 | `34d97ad` | `frontend/` | Closed user detail, action, directory interaction, and query-cache coverage gaps; corrected premature API requests during debounced search and hid unauthorized System Admin-target edit controls. Removes user query data when refreshed auth permissions change. Kept self-view on `/profile`, with `/users/:userId` restricted to `users.view`. No backend or dependency changes. | 84 tests across 12 files; typecheck, lint, build, and production dependency audit passed. Entry chunk is 369.40 kB; no Vite large-chunk advisory. | Phase 4 docs, auth-context and user page tests |
+| **2026-11-05** | Frontend Phase 5 | committed locally | `frontend/` | Integrated existing project/team APIs with lazy list/detail/create/edit routes, contextual membership controls, project-team allocation, and permission-aware query invalidation. No backend files or dependencies changed. | 101 tests across 14 files; typecheck, lint, build, and npm audit passed. Main entry is 371.99 kB (115.18 kB gzip); 36 JavaScript chunks total 849.27 kB. | `frontend/docs/PROJECTS_AND_TEAMS.md`, frontend README, PROJECT_CONTEXT |
 
 ## 17. Frontend Foundation
 
@@ -595,11 +597,11 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 - **Architecture:** `src/app` owns application configuration, router, and providers; `src/services/api` owns API contracts, Axios configuration, bearer-token plumbing, and normalized errors; UI primitives and feedback states live in `src/components`; future domain code belongs in `src/features/{auth,users,projects,teams,tasks}`.
 - **Backend contract:** Laravel responses use `{ success, message, data }` with optional pagination metadata, or `{ success: false, message, errors, error_code? }`. Auth uses Sanctum Bearer tokens. `GET /api/v1/auth/me` returns the authenticated user; `POST /api/v1/auth/logout` revokes the current token. Authenticated inactive accounts are rejected by middleware with 403 `ACCOUNT_NOT_ACTIVE`; inactive login attempts return generic 403 `FORBIDDEN`. See `frontend/docs/AUTHENTICATION.md`, `frontend/README.md`, and `docs/api/AUTH.md`.
 - **Credential handling:** The Sanctum bearer token exists only in JavaScript memory and does not persist credentials. A reload loses the token; the token remains accessible to JavaScript while the app is running. The implemented login and account flows are recorded in Section 17.3. Revisit persistence only after evaluating a backend-supported HttpOnly cookie/session design; never store bearer tokens in browser local storage by default.
-- **Routing:** Frontend Phase 3.1 connects `/login`, password recovery, dashboard, profile, and password management to authentication flows. Dashboard/profile/password routes are protected. `/users`, `/projects`, `/teams`, and `/tasks` remain permission-gated placeholders and make no business API calls.
+- **Routing:** Authentication and account routes, user administration, and Phase 5 Projects/Teams routes use backend permissions and API integrations. `/tasks` remains a permission-gated placeholder.
 - **UI foundation:** Phase 2 extends the Tailwind tokens and reusable accessible component foundations. See Section 17.2 and `frontend/docs/DESIGN_SYSTEM.md`.
 - **Testing:** `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` are the frontend verification commands.
 - **CORS:** Backend `config/cors.php` currently allows local origins on port 5173 (as well as port 3000). If Vite selects a different port or deployment uses another origin, update the backend CORS allowlist only with separate authorization.
-- **Out of scope:** No real project/team/task/user feature screens, feature API services, backend changes, or integrations for Phase 7–9 database-only domains were added.
+- **Out of scope:** No task management, backend changes, or integrations for Phase 7–9 database-only domains were added.
 
 ### 17.2 Frontend Phase 2 — Design System
 - **Status:** Implemented; no business screens or real feature integrations.
@@ -621,8 +623,17 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 - **Administration:** Uses `GET /api/v1/users`, `GET /api/v1/users/{id}`, `PUT /api/v1/users/{id}`, and existing activation/deactivation actions. Role assignment is omitted because no roles-list endpoint exists. Self-status changes and protected System Admin behavior are handled in the UI while backend authorization remains authoritative.
 - **Frontend feature details:** `frontend/docs/DASHBOARD.md`, `frontend/docs/USER_DIRECTORY.md`, and `frontend/docs/USER_ADMINISTRATION.md`.
 - **Validation:** Phase 4.2 passes with 84 tests across 12 files; typecheck and lint pass. Route-level lazy loading reduced the production entry chunk from 792.15 kB to 369.40 kB (114.74 kB gzip); 27 JS chunks total 803.07 kB uncompressed (802.79 kB in Phase 4.1) and the Vite 500 kB large-chunk warning is cleared. `npm audit --omit=dev` reported zero vulnerabilities. Feature tests use mocked APIs; no live Laravel HTTP integration is claimed. Directory and details markup are covered at component level; manual viewport/theme screenshots were not captured.
-- **Implemented flows:** Login, current-user retrieval, protected routing, sign out, profile update, forgot/reset password, and change password. Feature routes for users, projects, teams, and tasks remain placeholders.
+- **Implemented flows:** Login, current-user retrieval, protected routing, sign out, profile update, forgot/reset password, change password, user directory/administration, and Projects/Teams management. Tasks remain a permission-gated placeholder.
 - **Session security:** Sanctum bearer token stays in JavaScript memory only; reload clears the session. HTTP 401 clears the token. HTTP 403 clears it only for backend error code `ACCOUNT_NOT_ACTIVE`; generic `FORBIDDEN` does not log out the user. Logout clears local auth state and TanStack Query data even if server logout fails.
 - **Permissions:** UI checks use the backend-provided effective global permission list. Global role slugs and contextual project roles are distinct. Frontend checks are not authorization; backend policies enforce private-data access and project membership.
 - **Coverage:** Authentication UI and behavior tests use mocked API methods/Axios adapters; these are not live HTTP integration tests. The local Laravel server was unavailable at `127.0.0.1:8000` during the audit. Backend request behavior was cross-checked against route, request, controller, middleware, resource, policy, seeder, and Laravel feature-test code.
 - **Verification:** Exact typecheck, lint, test, build, and `npm audit --omit=dev` outcomes are maintained in `frontend/docs/AUTHENTICATION.md`.
+
+### 17.5 Frontend Phase 5 — Projects & Teams Management
+- **Status:** Integrated with existing Laravel Phase 6 project and team APIs. No backend files, dependencies, or endpoints changed.
+- **Routes:** `/projects`, `/projects/new`, `/projects/:projectUuid`, `/projects/:projectUuid/edit`; `/teams`, `/teams/new`, `/teams/:teamUuid`, `/teams/:teamUuid/edit`. List/detail routes require `projects.view` or `teams.view`; create/update/archive/delete, roster, and allocation controls follow backend permissions and contextual roles.
+- **Projects:** Server-scoped search/status-filtered paginated listing; detail overview; create/update; confirmation-gated archive and soft-delete; project membership add/role-change/removal; allocated team listing and allocate/deallocate operations.
+- **Teams:** Server-scoped searchable paginated listing; details and roster; create/update and confirmation-gated soft delete; team roster add/role-change/removal. Team resource does not expose allocated-project data, so allocation is managed from project details.
+- **Authorization:** Global roles and project/team contextual roles stay distinct. A global Project Manager does not gain unrelated projects. Frontend checks only control affordances; backend policies enforce access, contextual authority, assignable roles, and roster invariants.
+- **Contract documentation:** `frontend/docs/PROJECTS_AND_TEAMS.md` records endpoints, payloads, resources, query fields, permission rules, and UI limitations. Restore is not exposed because soft-deleted projects are omitted from ordinary lists and details; no API lists trashed projects.
+- **Verification:** 101 frontend tests across 14 files; typecheck, lint, production build, and `npm audit` passed. Main JavaScript entry is 371.99 kB (115.18 kB gzip); 36 emitted JavaScript chunks total 849.27 kB, with no large-chunk warning. Component tests mock API services; no live Laravel HTTP or browser screenshot verification was performed.

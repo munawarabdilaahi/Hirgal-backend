@@ -33,6 +33,30 @@ const UserDetailsRoute = lazy(async () => {
   const { UserDetailsRoute: Component } = await import('@/features/users/pages/UserDetailsRoute');
   return { default: Component };
 });
+const ProjectsRoute = lazy(async () => {
+  const { ProjectsRoute: Component } = await import('@/features/projects/ProjectsRoutes');
+  return { default: Component };
+});
+const ProjectDetailsRoute = lazy(async () => {
+  const { ProjectDetailsRoute: Component } = await import('@/features/projects/ProjectsRoutes');
+  return { default: Component };
+});
+const ProjectFormRoute = lazy(async () => {
+  const { ProjectFormRoute: Component } = await import('@/features/projects/ProjectsRoutes');
+  return { default: Component };
+});
+const TeamsRoute = lazy(async () => {
+  const { TeamsRoute: Component } = await import('@/features/teams/TeamsRoutes');
+  return { default: Component };
+});
+const TeamDetailsRoute = lazy(async () => {
+  const { TeamDetailsRoute: Component } = await import('@/features/teams/TeamsRoutes');
+  return { default: Component };
+});
+const TeamFormRoute = lazy(async () => {
+  const { TeamFormRoute: Component } = await import('@/features/teams/TeamsRoutes');
+  return { default: Component };
+});
 
 function renderLazyPage(page: ReactNode) {
   return (
@@ -73,3 +97,10 @@ export function UsersPage() {
 export function UserDetailsPage() {
   return renderLazyPage(<UserDetailsRoute />);
 }
+
+export function ProjectsPage() { return renderLazyPage(<ProjectsRoute />); }
+export function ProjectDetailsPage() { return renderLazyPage(<ProjectDetailsRoute />); }
+export function ProjectFormPage() { return renderLazyPage(<ProjectFormRoute />); }
+export function TeamsPage() { return renderLazyPage(<TeamsRoute />); }
+export function TeamDetailsPage() { return renderLazyPage(<TeamDetailsRoute />); }
+export function TeamFormPage() { return renderLazyPage(<TeamFormRoute />); }

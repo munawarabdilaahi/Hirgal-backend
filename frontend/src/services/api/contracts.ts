@@ -145,3 +145,102 @@ export interface UpdateProfileRequest {
   theme_preference?: 'light' | 'dark' | 'system';
   notification_preferences?: Record<string, unknown>;
 }
+
+export type ProjectStatus = 'planning' | 'active' | 'paused' | 'completed' | 'archived';
+export type ProjectPriority = 'urgent' | 'high' | 'medium' | 'low';
+export type ProjectMemberRoleName = 'owner' | 'lead' | 'member' | 'viewer';
+export type TeamMemberRoleName = 'leader' | 'member';
+
+export interface ApiProject {
+  id: number;
+  uuid: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  status: ProjectStatus;
+  priority: ProjectPriority;
+  owner?: ApiDirectoryUser | null;
+  start_date: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  settings: Record<string, unknown> | null;
+  members_count?: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ApiTeam {
+  id: number;
+  uuid: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  leader?: ApiDirectoryUser | null;
+  members_count?: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ApiProjectMember {
+  id: number;
+  project_id: number;
+  user: ApiDirectoryUser;
+  role: ProjectMemberRoleName;
+  joined_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ApiTeamMember {
+  id: number;
+  team_id: number;
+  user: ApiDirectoryUser;
+  role: TeamMemberRoleName;
+  joined_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ProjectFilters {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  status?: ProjectStatus;
+  priority?: ProjectPriority;
+  sort_by?: 'name' | 'slug' | 'status' | 'priority' | 'start_date' | 'due_date' | 'created_at' | 'updated_at';
+  sort_direction?: 'asc' | 'desc';
+}
+
+export interface TeamFilters {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  sort_by?: 'name' | 'slug' | 'created_at' | 'updated_at';
+  sort_direction?: 'asc' | 'desc';
+}
+
+export interface SaveProjectRequest {
+  name: string;
+  description?: string | null;
+  status?: Exclude<ProjectStatus, 'archived'>;
+  priority?: ProjectPriority;
+  start_date?: string | null;
+  due_date?: string | null;
+  settings?: Record<string, unknown> | null;
+}
+
+export interface SaveTeamRequest {
+  name: string;
+  description?: string | null;
+  leader_id?: number | null;
+}
+
+export interface SaveProjectMemberRequest {
+  user_id: number;
+  role: Exclude<ProjectMemberRoleName, 'owner'>;
+}
+
+export interface SaveTeamMemberRequest {
+  user_id: number;
+  role: TeamMemberRoleName;
+}

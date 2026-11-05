@@ -127,9 +127,11 @@ describe('AuthProvider query cache', () => {
     expect(authApiMock.getCurrentUser).toHaveBeenCalledTimes(2);
   });
 
-  it('removes user data from the query cache when refreshed permissions change', async () => {
+  it('removes user, project and team data when refreshed permissions change', async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const adminListKey = userQueryKeys.administrativeList({ page: 1 });
+    const projectDetailKey = ['projects', 'detail', 'private-project'];
+    const teamRosterKey = ['teams', 'members', 'private-team'];
     setAccessToken('memory-token');
     render(
       <QueryClientProvider client={queryClient}>
@@ -144,9 +146,15 @@ describe('AuthProvider query cache', () => {
       data: [{ id: 42, email: 'private@example.test' }],
       meta: { current_page: 1, last_page: 1, per_page: 15, total: 1 },
     });
+    queryClient.setQueryData(projectDetailKey, { name: 'Private project' });
+    queryClient.setQueryData(teamRosterKey, { members: ['Private member'] });
     queryClient.setQueryData(['auth', 'me'], { ...signedInUser, permissions: [] });
 
     expect(await screen.findByText('No permissions')).toBeInTheDocument();
-    await waitFor(() => expect(queryClient.getQueryData(adminListKey)).toBeUndefined());
+    await waitFor(() => {
+      expect(queryClient.getQueryData(adminListKey)).toBeUndefined();
+      expect(queryClient.getQueryData(projectDetailKey)).toBeUndefined();
+      expect(queryClient.getQueryData(teamRosterKey)).toBeUndefined();
+    });
   });
 });
