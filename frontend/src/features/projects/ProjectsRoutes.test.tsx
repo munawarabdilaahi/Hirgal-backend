@@ -128,10 +128,25 @@ describe('Project details and form', () => {
     expect(await screen.findByRole('heading', { name: 'Created project destination' })).toBeInTheDocument();
   });
 
+  it('preserves an archived project status when editing its metadata', async () => {
+    const archivedProject = { ...project, status: 'archived' as const };
+    projectApi.get.mockResolvedValueOnce(archivedProject);
+    projectApi.members.mockResolvedValueOnce({ success: true, message: 'ok', data: [projectMember], meta: { current_page: 1, last_page: 1, per_page: 100, total: 1 } });
+    projectApi.update.mockResolvedValueOnce(archivedProject);
+    renderWithProviders(<Routes><Route path="/projects/:projectUuid/edit" element={<ProjectFormRoute />} /><Route path="/projects/:projectUuid" element={<h1>Project destination</h1>} /></Routes>, '/projects/project-uuid/edit');
+
+    expect(await screen.findByText('Archived (unchanged when editing)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(projectApi.update).toHaveBeenCalled());
+    const [, request] = projectApi.update.mock.calls[0] as [string, Record<string, unknown>];
+    expect(request).not.toHaveProperty('status');
+  });
+
   it('renders role management only for authorized project leads and invalidates after adding a member', async () => {
     projectApi.addMember.mockResolvedValue({ ...projectMember, id: 19, user: { ...project.owner, id: 8, name: 'Omar Ali' }, role: 'member' });
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
     expect(await screen.findByRole('button', { name: 'Add member' })).toBeInTheDocument();
+    await screen.findByRole('option', { name: /Omar Ali/ });
     fireEvent.change(screen.getByRole('combobox', { name: 'Select a person to add' }), { target: { value: '8' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
     await waitFor(() => expect(projectApi.addMember).toHaveBeenCalledWith('project-uuid', { user_id: 8, role: 'member' }));

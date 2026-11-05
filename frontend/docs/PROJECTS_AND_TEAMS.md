@@ -56,7 +56,7 @@ Project list search, status, and priority filters are implemented. The UI does n
 | `PUT /teams/{uuid}/members/{memberId}` | role `leader/member` | Member resource | `teams.manage` plus contextual authority; designated leader row cannot be changed. |
 | `DELETE /teams/{uuid}/members/{memberId}` | No body | Member resource | `teams.manage` plus contextual authority, or System Admin; designated leader row is protected. |
 
-Team search and pagination are implemented. Team leader and membership pickers use the first 100 results from the sanitized user directory; the API supports directory search, but the picker does not yet offer an in-form search or pagination control. The team resource has no allocated-project field and there is no team-to-project listing route; project allocation lists are available only from project details. Team membership management is included, but project roster eligibility and leadership-transfer invariants are server-validated and may return 422.
+Team search and pagination are implemented. All directory pickers use debounced server-side search and the directory paginator (`page`, `per_page=100`); the selected user remains available when search terms or pages change. Directory loading, empty, retryable error, and authorization states are presented. Project and team roster views also paginate their member endpoints. The separate project allocation picker still loads only the first 100 accessible teams and has no search/page controls. The team resource has no allocated-project field and there is no team-to-project listing route; project allocation lists are available only from project details. Project roster eligibility and team leadership invariants remain server-validated and may return 422.
 
 ## Security and error handling
 
@@ -70,8 +70,24 @@ Team search and pagination are implemented. Team leader and membership pickers u
 
 Checks run: `npm run typecheck` and `npm run lint` passed; `npm test` passed with **101 tests across 14 files**; `npm run build` passed without a Vite large-chunk warning; `npm audit` found **0 vulnerabilities**.
 
-The build emits **36 JavaScript chunks totaling 849.27 kB**. Its main entry is **371.99 kB (115.18 kB gzip)**. Phase 4.2 emitted 27 chunks totaling 803.07 kB with a 369.40 kB (114.74 kB gzip) main entry. Project/team pages are lazy-loaded.
+The Phase 5 baseline build emitted **36 JavaScript chunks totaling 849.27 kB**. Its main entry was **371.99 kB (115.18 kB gzip)**. Phase 4.2 emitted 27 chunks totaling 803.07 kB with a 369.40 kB (114.74 kB gzip) main entry. Project/team pages are lazy-loaded.
 
 No live authenticated API or browser viewport/theme screenshot verification was performed during this phase. Component tests mock API service methods; backend contracts and policy behavior were verified from Laravel routes, requests, controllers, services, actions, resources, and policies.
 
 The component tests exercise list loading/empty/error states, search/filter parameters, UUID navigation, project/team details, authorization visibility, create payloads, membership changes, allocation, confirmation, and API error paths. They mock API services and are not live HTTP integration tests. No backend or dependency changes are part of Phase 5.
+
+## Phase 5.1 verification audit
+
+- Git baseline: branch `main`, HEAD `c1bd9325908c89b9184a67b9919d2e4c4b5f1f68`; Phase 5 commit `c1bd932` exists at HEAD; the working tree was clean before audit edits; five commits ahead of `origin/main`.
+- Laravel route listing confirmed 15 project routes, 9 team routes, and the existing directory route. Contracts were cross-checked against requests, controllers, services, actions, policies, resources, and route middleware. All UI operations use existing endpoints; restore and project-task creation are not exposed here.
+- The directory endpoint accepts a maximum search length of 100 and `per_page` from 1 to 100, searches active users by name, email, job title, and department, and returns Laravel paginator metadata. Its request validator does not declare `page`, but Laravel pagination resolves the query-string page automatically. Pickers now send search/page and retain a selected user across result changes.
+- Fixed archived-project editing: archived status is displayed as unchanged and is omitted from the update payload, avoiding an accidental status change to `completed`.
+- Fixed team updates with a cleared lead selection: updates omit `leader_id` when blank because the backend update action casts null to ID 0 instead of clearing the relationship. Team creation retains the API behavior that a null/omitted lead defaults to the actor.
+- Added pagination to project and team roster views. Query keys include the roster page. Team update, member-role/removal, and project soft-delete mutations invalidate project summaries when those summaries can contain affected team data or scope.
+- Roster pagination state is tied to its route UUID and resets to page 1 when navigating directly between projects or teams.
+- Pagination and retry buttons inside forms use `type="button"`, preventing accidental submissions while paging rosters/search results or retrying directory requests.
+- Authorization review confirmed project manager global role does not grant project-wide access; project data is server-scoped to owner/member, with System Admin policy behavior explicit. Contextual owner/lead and team leader roles remain separate from global role slugs. Frontend controls are advisory; the Laravel policies remain authoritative.
+- Authentication behavior remains the existing memory-only token lifecycle: 401 clears the current token, only `ACCOUNT_NOT_ACTIVE` 403 clears it, ordinary 403 preserves the session, and logout clears query cache. User/project/team query caches are removed on permission signature change.
+- Visual browser verification was attempted, but the computer/browser host was unavailable. No live authenticated API request was made; local Laravel availability was not confirmed for this audit. No screenshots are available.
+- The separate project allocation picker remains limited to the first 100 accessible teams. Project/team edit-form contextual-role checks inspect page 1 of their roster, so a non-designated lead whose membership is beyond that page may be unable to open the edit form directly. Backend access remains enforced.
+- Final audit validation: **107 tests across 15 files passed** (baseline 101 across 14); typecheck, lint, production build, `npm audit` (0 vulnerabilities), and `git diff --check` passed. Production output: 36 JavaScript chunks totaling 850.99 kB; main entry 371.99 kB (115.17 kB gzip); no Vite large-chunk warning. Tests mock the APIs and do not establish live integration.

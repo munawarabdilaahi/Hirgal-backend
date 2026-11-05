@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TeamDetailsRoute, TeamFormRoute, TeamsRoute } from './TeamsRoutes';
 
@@ -62,9 +62,38 @@ describe('Team detail and form', () => {
     renderWithProviders(<Routes><Route path="/teams/:teamUuid" element={<TeamDetailsRoute />} /></Routes>, '/teams/team-uuid');
     expect(await screen.findByRole('heading', { name: 'Platform team' })).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Add member' })).toBeInTheDocument();
+    await screen.findByRole('option', { name: /Omar Ali/ });
     fireEvent.change(screen.getByRole('combobox', { name: 'Select a person to add' }), { target: { value: '8' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
     await waitFor(() => expect(teamApi.addMember).toHaveBeenCalledWith('team-uuid', { user_id: 8, role: 'member' }));
+  });
+
+  it('paginates long team rosters using the backend page parameter', async () => {
+    teamApi.members
+      .mockResolvedValueOnce({ success: true, message: 'ok', data: [member], meta: { current_page: 1, last_page: 2, per_page: 100, total: 101 } })
+      .mockResolvedValueOnce({ success: true, message: 'ok', data: [{ ...member, id: 12, user: { ...team.leader, id: 8, name: 'Omar Ali' }, role: 'member' }], meta: { current_page: 2, last_page: 2, per_page: 100, total: 101 } });
+    renderWithProviders(<Routes><Route path="/teams/:teamUuid" element={<TeamDetailsRoute />} /></Routes>, '/teams/team-uuid');
+    expect((await screen.findAllByText('Amina Hassan')).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }));
+    expect(await screen.findByText('Omar Ali')).toBeInTheDocument();
+    expect(teamApi.members).toHaveBeenLastCalledWith('team-uuid', 2);
+  });
+
+  it('resets roster pagination when navigating directly to another team', async () => {
+    teamApi.get.mockImplementation((uuid: string) => Promise.resolve(uuid === 'other-team' ? { ...team, uuid, name: 'Other team' } : team));
+    teamApi.members.mockImplementation((uuid: string, page = 1) => Promise.resolve({
+      success: true,
+      message: 'ok',
+      data: page === 2 ? [{ ...member, id: 12, user: { ...team.leader, id: 8, name: 'Omar Ali' }, role: 'member' }] : [member],
+      meta: { current_page: page, last_page: uuid === 'team-uuid' ? 2 : 1, per_page: 100, total: uuid === 'team-uuid' ? 101 : 1 },
+    }));
+    renderWithProviders(<><Link to="/teams/other-team">Open another team</Link><Routes><Route path="/teams/:teamUuid" element={<TeamDetailsRoute />} /></Routes></>, '/teams/team-uuid');
+    await screen.findByRole('heading', { name: 'Platform team' });
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }));
+    expect(await screen.findByText('Omar Ali')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Open another team' }));
+    expect(await screen.findByRole('heading', { name: 'Other team' })).toBeInTheDocument();
+    await waitFor(() => expect(teamApi.members).toHaveBeenLastCalledWith('other-team', 1));
   });
 
   it('creates a team using a validated server compatible payload', async () => {
@@ -77,6 +106,17 @@ describe('Team detail and form', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create team' }));
     await waitFor(() => expect(teamApi.create).toHaveBeenCalledWith({ name: 'Platform team', description: 'Platform engineering.', leader_id: 8 }));
     expect(await screen.findByRole('heading', { name: 'Created team destination' })).toBeInTheDocument();
+  });
+
+  it('does not send a null leader when an edit selection is cleared', async () => {
+    teamApi.update.mockResolvedValueOnce(team);
+    renderWithProviders(<Routes><Route path="/teams/:teamUuid/edit" element={<TeamFormRoute />} /><Route path="/teams/:teamUuid" element={<h1>Team destination</h1>} /></Routes>, '/teams/team-uuid/edit');
+    const leaderPicker = await screen.findByRole('combobox', { name: 'Team lead' });
+    fireEvent.change(leaderPicker, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(teamApi.update).toHaveBeenCalled());
+    const [, request] = teamApi.update.mock.calls[0] as [string, Record<string, unknown>];
+    expect(request).not.toHaveProperty('leader_id');
   });
 
   it('does not offer team edits without contextual team leadership', async () => {

@@ -43,6 +43,7 @@ function Pagination({
         disabled={currentPage <= 1}
         onClick={() => onPageChange(currentPage - 1)}
         size="icon"
+        type="button"
         variant="ghost"
       >
         <ChevronLeft aria-hidden="true" className="size-4" />
@@ -80,6 +81,7 @@ function Pagination({
         disabled={currentPage >= totalPages}
         onClick={() => onPageChange(currentPage + 1)}
         size="icon"
+        type="button"
         variant="ghost"
       >
         <ChevronRight aria-hidden="true" className="size-4" />
@@ -101,6 +103,7 @@ function PageButton({ currentPage, onPageChange, page }: PageButtonProps) {
       aria-label={`Go to page ${page}`}
       onClick={() => onPageChange(page)}
       size="icon"
+      type="button"
       variant={currentPage === page ? 'outline' : 'ghost'}
     >
       {page}

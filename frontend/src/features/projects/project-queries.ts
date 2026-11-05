@@ -7,7 +7,7 @@ export const projectKeys = {
   lists: () => [...projectKeys.all, 'list'] as const,
   list: (filters: ProjectFilters) => [...projectKeys.lists(), filters] as const,
   detail: (uuid: string) => [...projectKeys.all, 'detail', uuid] as const,
-  members: (uuid: string) => [...projectKeys.all, 'members', uuid] as const,
+  members: (uuid: string, page = 1) => [...projectKeys.all, 'members', uuid, page] as const,
   teams: (uuid: string) => [...projectKeys.all, 'teams', uuid] as const,
 };
 
@@ -19,8 +19,8 @@ export function useProject(uuid: string) {
   return useQuery({ queryKey: projectKeys.detail(uuid), queryFn: () => projectApi.get(uuid), enabled: Boolean(uuid) });
 }
 
-export function useProjectMembers(uuid: string) {
-  return useQuery({ queryKey: projectKeys.members(uuid), queryFn: () => projectApi.members(uuid), enabled: Boolean(uuid) });
+export function useProjectMembers(uuid: string, page = 1) {
+  return useQuery({ queryKey: projectKeys.members(uuid, page), queryFn: () => projectApi.members(uuid, page), enabled: Boolean(uuid) });
 }
 
 export function useProjectTeams(uuid: string, enabled = true) {
@@ -49,7 +49,10 @@ export function useProjectAction(action: 'archive' | 'remove') {
       await projectApi.remove(uuid);
     },
     onSuccess: async (_result, uuid) => {
-      await queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: projectKeys.all }),
+        ...(action === 'remove' ? [queryClient.invalidateQueries({ queryKey: ['teams'] })] : []),
+      ]);
       if (action === 'remove') queryClient.removeQueries({ queryKey: projectKeys.detail(uuid) });
     },
   });

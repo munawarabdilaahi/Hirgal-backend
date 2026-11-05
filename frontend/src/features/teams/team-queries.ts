@@ -7,7 +7,7 @@ export const teamKeys = {
   lists: () => [...teamKeys.all, 'list'] as const,
   list: (filters: TeamFilters) => [...teamKeys.lists(), filters] as const,
   detail: (uuid: string) => [...teamKeys.all, 'detail', uuid] as const,
-  members: (uuid: string) => [...teamKeys.all, 'members', uuid] as const,
+  members: (uuid: string, page = 1) => [...teamKeys.all, 'members', uuid, page] as const,
 };
 
 export function useTeams(filters: TeamFilters, enabled = true) {
@@ -18,8 +18,8 @@ export function useTeam(uuid: string) {
   return useQuery({ queryKey: teamKeys.detail(uuid), queryFn: () => teamApi.get(uuid), enabled: Boolean(uuid) });
 }
 
-export function useTeamMembers(uuid: string) {
-  return useQuery({ queryKey: teamKeys.members(uuid), queryFn: () => teamApi.members(uuid), enabled: Boolean(uuid) });
+export function useTeamMembers(uuid: string, page = 1) {
+  return useQuery({ queryKey: teamKeys.members(uuid, page), queryFn: () => teamApi.members(uuid, page), enabled: Boolean(uuid) });
 }
 
 export function useSaveTeam(uuid?: string) {
@@ -27,7 +27,10 @@ export function useSaveTeam(uuid?: string) {
   return useMutation({
     mutationFn: (request: SaveTeamRequest) => uuid ? teamApi.update(uuid, request) : teamApi.create(request),
     onSuccess: async (team) => {
-      await queryClient.invalidateQueries({ queryKey: teamKeys.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: teamKeys.all }),
+        ...(uuid ? [queryClient.invalidateQueries({ queryKey: ['projects'] })] : []),
+      ]);
       queryClient.setQueryData(teamKeys.detail(team.uuid), team);
     },
   });
