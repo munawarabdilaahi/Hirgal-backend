@@ -16,17 +16,19 @@ export const userQueryKeys = {
   detail: (userId: number) => [...userQueryKeys.details(), userId] as const,
 };
 
-export function useAdministrativeUsers(filters: UserListFilters) {
+export function useAdministrativeUsers(filters: UserListFilters, enabled = true) {
   return useQuery({
     queryKey: userQueryKeys.administrativeList(filters),
     queryFn: () => userApi.listUsers(filters),
+    enabled,
   });
 }
 
-export function useUserDirectory(filters: UserDirectoryFilters) {
+export function useUserDirectory(filters: UserDirectoryFilters, enabled = true) {
   return useQuery({
     queryKey: userQueryKeys.directoryList(filters),
     queryFn: () => userApi.listDirectory(filters),
+    enabled,
   });
 }
 

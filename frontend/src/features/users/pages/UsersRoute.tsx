@@ -106,7 +106,9 @@ function CollaborativeDirectory() {
     }),
     [debouncedDepartment, debouncedSearch, page, perPage],
   );
-  const directoryQuery = useUserDirectory(filters);
+  const searchFiltersAreSettled = search.trim() === debouncedSearch
+    && department.trim() === debouncedDepartment;
+  const directoryQuery = useUserDirectory(filters, searchFiltersAreSettled);
   const users = directoryQuery.data?.data ?? [];
   const meta = directoryQuery.data?.meta;
 
@@ -273,7 +275,8 @@ function AdministrativeUserList() {
     }),
     [debouncedSearch, page, perPage, role, sortBy, status],
   );
-  const usersQuery = useAdministrativeUsers(filters);
+  const searchFilterIsSettled = search.trim() === debouncedSearch;
+  const usersQuery = useAdministrativeUsers(filters, searchFilterIsSettled);
   const users = usersQuery.data?.data ?? [];
   const meta = usersQuery.data?.meta;
 

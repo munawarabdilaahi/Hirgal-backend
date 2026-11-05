@@ -50,4 +50,29 @@ describe('DashboardRoute', () => {
 
     expect(screen.getByRole('link', { name: /people & access/i })).toHaveAttribute('href', '/users');
   });
+
+  it('renders safe fallbacks for incomplete account data', () => {
+    authMock.mockReturnValue({
+      user: {
+        ...baseUser,
+        timezone: '',
+        profile: null,
+        roles: [],
+      },
+    });
+
+    render(<MemoryRouter><DashboardRoute /></MemoryRouter>);
+
+    expect(screen.getByText('Not set')).toBeInTheDocument();
+    expect(screen.getByText('No global role assigned')).toBeInTheDocument();
+    expect(screen.getByText('Add a job title or department from your profile to help teammates identify you.')).toBeInTheDocument();
+  });
+
+  it('renders no account details when no authenticated user is available', () => {
+    authMock.mockReturnValue({ user: null });
+
+    const { container } = render(<MemoryRouter><DashboardRoute /></MemoryRouter>);
+
+    expect(container).toBeEmptyDOMElement();
+  });
 });

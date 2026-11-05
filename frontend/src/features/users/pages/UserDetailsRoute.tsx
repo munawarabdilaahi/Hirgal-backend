@@ -183,6 +183,7 @@ export function UserDetailsRoute() {
   );
   const nextAction: AccountAction = person.account_status === 'active' ? 'deactivate' : 'activate';
   const isAdminTarget = isSystemAdmin(person);
+  const canEditUser = canUpdateUsers && (!isAdminTarget || actorIsSystemAdmin);
 
   const submitUserUpdate = (values: EditableUserFields) => {
     setFormError(null);
@@ -317,7 +318,7 @@ export function UserDetailsRoute() {
           </CardContent>
         </Card>
 
-        {canUpdateUsers ? (
+        {canEditUser ? (
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Edit user details</CardTitle>

@@ -8,8 +8,8 @@ The backend does not currently provide a dashboard aggregation or activity endpo
 
 ## Verified API inputs
 
-The auth provider obtains the displayed user from `GET /api/v1/auth/me` after login or session verification. The backend requires a Sanctum bearer token and an active account, and returns the `UserResource`: identity, account status, avatar, timezone, timestamps, profile, roles, and effective permissions. The dashboard does not make a duplicate request.
+The auth provider obtains the displayed user from `GET /api/v1/auth/me` after login or session verification. The backend requires a Sanctum bearer token and an active account, and returns the `UserResource`: identity, account status, avatar, timezone, timestamps, profile, roles, and effective permissions. The dashboard does not make a duplicate request. Tests cover loading through authenticated user retrieval, failed session verification and retry, and exactly one current-user request for the dashboard render.
 
 ## Access and verification
 
-The route requires an authenticated active account. API permissions control the People shortcut; backend policies remain authoritative. Dashboard component coverage verifies account data rendering and conditional shortcut visibility. Authentication tests cover current-user loading and failed verification using mocks. Tests do not claim live HTTP integration.
+The route requires an authenticated active account. API permissions control the People shortcut; backend policies remain authoritative. Dashboard component coverage verifies account data rendering, incomplete profile fallbacks, missing user behavior, and conditional shortcut visibility. Authentication tests cover current-user loading and failed verification using mocks. Tests do not claim live HTTP integration.
