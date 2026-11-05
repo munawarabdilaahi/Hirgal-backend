@@ -47,6 +47,12 @@ function ProtectedDashboard() {
   );
 }
 
+function PermissionProbe() {
+  const { user } = useAuth();
+
+  return <p>{user?.permissions?.join(',') || 'No permissions'}</p>;
+}
+
 describe('AuthProvider query cache', () => {
   beforeEach(() => {
     clearAccessToken();
@@ -119,5 +125,28 @@ describe('AuthProvider query cache', () => {
 
     expect(await screen.findByRole('heading', { name: 'Welcome, Admin Amina' })).toBeInTheDocument();
     expect(authApiMock.getCurrentUser).toHaveBeenCalledTimes(2);
+  });
+
+  it('removes user data from the query cache when refreshed permissions change', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const adminListKey = userQueryKeys.administrativeList({ page: 1 });
+    setAccessToken('memory-token');
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider><PermissionProbe /></AuthProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('users.view')).toBeInTheDocument();
+    queryClient.setQueryData(adminListKey, {
+      success: true,
+      message: 'Users loaded',
+      data: [{ id: 42, email: 'private@example.test' }],
+      meta: { current_page: 1, last_page: 1, per_page: 15, total: 1 },
+    });
+    queryClient.setQueryData(['auth', 'me'], { ...signedInUser, permissions: [] });
+
+    expect(await screen.findByText('No permissions')).toBeInTheDocument();
+    await waitFor(() => expect(queryClient.getQueryData(adminListKey)).toBeUndefined());
   });
 });

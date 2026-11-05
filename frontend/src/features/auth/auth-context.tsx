@@ -118,6 +118,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [queryClient]);
 
   const user = currentUserQuery.data ?? null;
+  const permissionsSignature = [...(user?.permissions ?? [])].sort().join('\u0000');
+  const previousPermissionsSignature = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      previousPermissionsSignature.current !== null
+      && previousPermissionsSignature.current !== permissionsSignature
+    ) {
+      queryClient.removeQueries({ queryKey: ['users'] });
+    }
+
+    previousPermissionsSignature.current = permissionsSignature;
+  }, [permissionsSignature, queryClient]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
