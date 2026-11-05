@@ -47,6 +47,14 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ) => {
     const Component = asChild ? Slot : 'button';
     const disabledProps = asChild ? {} : { disabled: disabled || loading };
+    const content = asChild ? (
+      children
+    ) : (
+      <>
+        {loading ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : null}
+        {children}
+      </>
+    );
 
     return (
       <Component
@@ -56,10 +64,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         {...props}
       >
-        {!asChild && loading ? (
-          <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-        ) : null}
-        {children}
+        {content}
       </Component>
     );
   },

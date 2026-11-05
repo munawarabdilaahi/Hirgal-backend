@@ -2,7 +2,7 @@
 
 > **Central Project Knowledge, Architectural Blueprint & Living Operational Guide**  
 > **Repository Location:** `C:\Hirgal`  
-> **Current Version:** Backend Phase 6.2 Accepted; Frontend Phase 2 Design System
+> **Current Version:** Backend Phase 6.2 Accepted; Frontend Phase 3.1 Authentication Verification
 > **Last Audited & Updated:** 2026-11-04
 > **Git Baseline:** Commit `d7e0916` (Phase 6.2) & Commit `3556549` (Documentation Baseline) — Phases 6 & 6.2 recorded in Section 11
 
@@ -582,6 +582,7 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 | **2026-11-04** | Project Structure Cleanup | — | Repository root, `README.md`, `PROJECT_CONTEXT.md` | Removed the redundant nested `Hirgal-backend/` snapshot after verifying all tracked files and history were represented in the canonical root; documented the single-root layout. No application behavior or future-phase assets changed. | 273 tests | `README.md`, `PROJECT_CONTEXT.md` |
 | **2026-11-04** | Frontend Phase 1 | — | `frontend/`, `README.md`, `PROJECT_CONTEXT.md` | Added an isolated React 19/TypeScript/Vite foundation with strict typing, Tailwind 4/shadcn-compatible primitives, routing/query providers, typed Axios API contracts and errors, memory-only bearer-token plumbing, tests, and setup documentation. No Laravel application files or API contracts changed. | 11 frontend tests; strict typecheck, Oxlint, and production build passed; `npm audit --omit=dev` reported 0 vulnerabilities | `frontend/README.md`, `README.md`, `PROJECT_CONTEXT.md` |
 | **2026-11-04** | Frontend Phase 2 | — | `frontend/src/components/`, `frontend/src/styles/`, `frontend/src/app/`, `frontend/docs/`, frontend docs | Added semantic light/dark/system themes, shared accessible controls and feedback/data components, responsive navigation shell, and a development-only showcase. No business API calls or backend changes. | 16 frontend tests; typecheck, Oxlint, and production build passed; development route/component absent from production assets; production dependency audit reported 0 vulnerabilities | `frontend/docs/DESIGN_SYSTEM.md`, `frontend/README.md`, `README.md`, `PROJECT_CONTEXT.md` |
+| **2026-11-05** | Frontend Phase 3.1 | `4dc6901` baseline | `frontend/` | Audited current Phase 3 auth against Laravel contracts; connected auth pages and guards to routes; fixed Radix `Button asChild` child handling and stale-request token cleanup; added auth behavior/permission/redirect coverage and authentication documentation. No Laravel files or contracts changed. | 40 frontend test cases; typecheck, lint, test, build, and production dependency audit results recorded in `frontend/docs/AUTHENTICATION.md` | `frontend/docs/AUTHENTICATION.md`, `frontend/README.md`, `PROJECT_CONTEXT.md` |
 
 ## 17. Frontend Foundation
 
@@ -590,13 +591,13 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 - **Location:** `frontend/` is an independent Vite application. The Laravel application and its root Composer/npm manifests remain at `C:\Hirgal`.
 - **Stack:** React 19, TypeScript strict mode, Vite, Tailwind CSS 4, shadcn/ui-compatible component configuration, React Router, TanStack Query, Axios, React Hook Form, Zod, and Lucide React.
 - **Architecture:** `src/app` owns application configuration, router, and providers; `src/services/api` owns API contracts, Axios configuration, bearer-token plumbing, and normalized errors; UI primitives and feedback states live in `src/components`; future domain code belongs in `src/features/{auth,users,projects,teams,tasks}`.
-- **Backend contract:** Laravel responses use `{ success, message, data }` with optional pagination metadata, or `{ success: false, message, errors, error_code? }`. Auth uses Sanctum Bearer tokens. `GET /api/v1/auth/me` returns the authenticated user; `POST /api/v1/auth/logout` revokes the current token. Authenticated inactive accounts are rejected by middleware with 403 `ACCOUNT_NOT_ACTIVE`; inactive login attempts return 403 `FORBIDDEN`. See `frontend/README.md` and `docs/api/AUTH.md`.
-- **Credential handling:** The Phase 1 token store exists only in JavaScript memory and does not persist credentials. A reload loses the token; the token remains accessible to JavaScript while the app is running. No login flow or screens exist. Revisit persistence after evaluating an HttpOnly cookie/session design; never store bearer tokens in browser local storage by default.
-- **Routing:** `/login`, `/dashboard`, `/users`, `/projects`, `/teams`, and `/tasks` are explicit, non-functional placeholders. They make no API calls and do not imply that business features are available.
+- **Backend contract:** Laravel responses use `{ success, message, data }` with optional pagination metadata, or `{ success: false, message, errors, error_code? }`. Auth uses Sanctum Bearer tokens. `GET /api/v1/auth/me` returns the authenticated user; `POST /api/v1/auth/logout` revokes the current token. Authenticated inactive accounts are rejected by middleware with 403 `ACCOUNT_NOT_ACTIVE`; inactive login attempts return generic 403 `FORBIDDEN`. See `frontend/docs/AUTHENTICATION.md`, `frontend/README.md`, and `docs/api/AUTH.md`.
+- **Credential handling:** The Sanctum bearer token exists only in JavaScript memory and does not persist credentials. A reload loses the token; the token remains accessible to JavaScript while the app is running. The implemented login and account flows are recorded in Section 17.3. Revisit persistence only after evaluating a backend-supported HttpOnly cookie/session design; never store bearer tokens in browser local storage by default.
+- **Routing:** Frontend Phase 3.1 connects `/login`, password recovery, dashboard, profile, and password management to authentication flows. Dashboard/profile/password routes are protected. `/users`, `/projects`, `/teams`, and `/tasks` remain permission-gated placeholders and make no business API calls.
 - **UI foundation:** Phase 2 extends the Tailwind tokens and reusable accessible component foundations. See Section 17.2 and `frontend/docs/DESIGN_SYSTEM.md`.
 - **Testing:** `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` are the frontend verification commands.
 - **CORS:** Backend `config/cors.php` currently allows local origins on port 5173 (as well as port 3000). If Vite selects a different port or deployment uses another origin, update the backend CORS allowlist only with separate authorization.
-- **Out of scope:** No auth screens, dashboard, real feature screens, API feature services, backend changes, or integrations for Phase 7–9 database-only domains were added.
+- **Out of scope:** No real project/team/task/user feature screens, feature API services, backend changes, or integrations for Phase 7–9 database-only domains were added.
 
 ### 17.2 Frontend Phase 2 — Design System
 - **Status:** Implemented; no business screens or real feature integrations.
@@ -607,3 +608,11 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 - **Showcase:** `/dev/design-system` is registered only in Vite development mode. All data there is explicitly illustrative and static; the route makes no API requests.
 - **Documentation:** `frontend/docs/DESIGN_SYSTEM.md` documents tokens, theme, components, responsive rules, accessibility, and showcase behavior.
 - **Verification:** `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` are the frontend verification commands.
+
+### 17.3 Frontend Phase 3.1 — Authentication Verification
+- **Status:** Phase 3 authentication implementation verified and integrated into routing; known authentication limitations are recorded in `frontend/docs/AUTHENTICATION.md`.
+- **Implemented flows:** Login, current-user retrieval, protected routing, sign out, profile update, forgot/reset password, and change password. Feature routes for users, projects, teams, and tasks remain placeholders.
+- **Session security:** Sanctum bearer token stays in JavaScript memory only; reload clears the session. HTTP 401 clears the token. HTTP 403 clears it only for backend error code `ACCOUNT_NOT_ACTIVE`; generic `FORBIDDEN` does not log out the user. Logout clears local auth state and TanStack Query data even if server logout fails.
+- **Permissions:** UI checks use the backend-provided effective global permission list. Global role slugs and contextual project roles are distinct. Frontend checks are not authorization; backend policies enforce private-data access and project membership.
+- **Coverage:** Authentication UI and behavior tests use mocked API methods/Axios adapters; these are not live HTTP integration tests. The local Laravel server was unavailable at `127.0.0.1:8000` during the audit. Backend request behavior was cross-checked against route, request, controller, middleware, resource, policy, seeder, and Laravel feature-test code.
+- **Verification:** Exact typecheck, lint, test, build, and `npm audit --omit=dev` outcomes are maintained in `frontend/docs/AUTHENTICATION.md`.

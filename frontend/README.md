@@ -14,7 +14,7 @@ The independent React frontend for Hirgal. The Laravel API remains at the reposi
 - React Hook Form and Zod are available for future feature forms.
 - Lucide React for icons.
 
-`src/features/` is organized by backend domain. Frontend Phases 1 and 2 provide infrastructure and design-system components only. The login, dashboard, users, projects, teams, and tasks routes remain explicit deferred placeholders and make no API calls.
+`src/features/` is organized by backend domain. Frontend Phases 1 and 2 provide infrastructure and design-system components. Phase 3 adds the working authentication, account profile, and password flows. Users, projects, teams, and tasks remain deferred feature placeholders; they do not fetch business data.
 
 ## Structure
 
@@ -64,6 +64,7 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
+npm audit --omit=dev
 ```
 
 ## Environment
@@ -82,13 +83,13 @@ The shared Axios client sends JSON headers, normalizes these errors to `ApiError
 
 ## Authentication strategy
 
-The backend issues Laravel Sanctum bearer tokens from `POST /api/v1/auth/login`; `GET /api/v1/auth/me` returns the authenticated user, roles, permissions, and profile. `POST /api/v1/auth/logout` revokes the current token, while `/auth/logout-all` revokes all tokens. Authenticated requests from an inactive account receive HTTP 403 with `ACCOUNT_NOT_ACTIVE`; login for an inactive account currently returns HTTP 403 with `FORBIDDEN`.
+The frontend implements the Laravel Sanctum auth contracts: login, current-user retrieval, logout, profile update, forgot/reset password, and change password. See [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) for request/response details, route behavior, the coverage matrix, and audited limitations. Authenticated requests from an inactive account receive HTTP 403 with `ACCOUNT_NOT_ACTIVE`; inactive login attempts receive generic HTTP 403 `FORBIDDEN`.
 
-The Phase 1 token store is memory-only. This avoids persisting bearer credentials in `localStorage` or `sessionStorage`, but a page reload clears the token and signs the user out; the token remains accessible to JavaScript while the app is running. No login flow or authentication UI is implemented. A later authentication phase should assess a backend-supported HttpOnly cookie/session design against this trade-off before choosing persistence.
+The token store remains memory-only. No bearer credentials are persisted to `localStorage` or `sessionStorage`; a page reload clears the token and signs the user out. No automatic restoration is possible with this design. A future persistence change should assess a backend-supported HttpOnly cookie/session design before implementation.
 
 ## Testing and limitations
 
-Vitest and Testing Library are configured. Tests cover API client configuration, bearer-header injection, 401 token clearing, backend error normalization, network failures, theme persistence, showcase rendering, and dialog/mobile navigation interactions.
+Vitest and Testing Library are configured. Tests cover authentication routes and forms, permission helpers, redirect safety, 401/403/inactive token handling, API error normalization, theme persistence, showcase rendering, and design-system interactions. Frontend auth tests use mocked API responses; no real HTTP integration is claimed. See [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md).
 
 Appointments, habits, mentions/follow-up, and activity-log APIs are not implemented by the backend and have no frontend integrations. User administration, projects, teams, and task routes remain placeholders until their feature phases are authorized.
 

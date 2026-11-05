@@ -96,4 +96,103 @@ describe('apiClient', () => {
     });
     expect(getAccessToken()).toBeNull();
   });
+
+  it('keeps the session for an ordinary forbidden response', async () => {
+    const adapter = async (
+      config: InternalAxiosRequestConfig,
+    ): Promise<AxiosResponse> => {
+      const response: AxiosResponse = {
+        data: {
+          success: false,
+          message: 'Forbidden.',
+          errors: null,
+          error_code: 'FORBIDDEN',
+        },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: new AxiosHeaders(),
+        config,
+      };
+
+      throw new AxiosError('Request failed', 'ERR_BAD_REQUEST', config, null, response);
+    };
+
+    setAccessToken('valid-token');
+
+    await expect(apiClient.get('/projects', { adapter })).rejects.toMatchObject({
+      status: 403,
+      code: 'FORBIDDEN',
+    });
+    expect(getAccessToken()).toBe('valid-token');
+  });
+
+  it('clears the token only for the inactive-account error code', async () => {
+    const adapter = async (
+      config: InternalAxiosRequestConfig,
+    ): Promise<AxiosResponse> => {
+      const response: AxiosResponse = {
+        data: {
+          success: false,
+          message: 'Account not active.',
+          errors: null,
+          error_code: 'ACCOUNT_NOT_ACTIVE',
+        },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: new AxiosHeaders(),
+        config,
+      };
+
+      throw new AxiosError('Request failed', 'ERR_BAD_REQUEST', config, null, response);
+    };
+
+    setAccessToken('inactive-token');
+
+    await expect(apiClient.get('/auth/me', { adapter })).rejects.toMatchObject({
+      status: 403,
+      code: 'ACCOUNT_NOT_ACTIVE',
+    });
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it('does not let a stale request clear a newer login token', async () => {
+    let requestConfig: InternalAxiosRequestConfig | undefined;
+    let rejectRequest: ((error: AxiosError) => void) | undefined;
+    let resolveStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      resolveStarted = resolve;
+    });
+    const adapter = (config: InternalAxiosRequestConfig): Promise<AxiosResponse> =>
+      new Promise((_, reject) => {
+        requestConfig = config;
+        rejectRequest = reject;
+        resolveStarted?.();
+      });
+
+    setAccessToken('old-token');
+    const requestFailure = expect(apiClient.get('/auth/me', { adapter })).rejects.toMatchObject({
+      status: 401,
+    });
+    await started;
+    setAccessToken('new-token');
+
+    const response: AxiosResponse = {
+      data: {
+        success: false,
+        message: 'Unauthenticated.',
+        errors: null,
+        error_code: 'UNAUTHENTICATED',
+      },
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: new AxiosHeaders(),
+      config: requestConfig!,
+    };
+    rejectRequest?.(
+      new AxiosError('Request failed', 'ERR_BAD_REQUEST', requestConfig, null, response),
+    );
+
+    await requestFailure;
+    expect(getAccessToken()).toBe('new-token');
+  });
 });

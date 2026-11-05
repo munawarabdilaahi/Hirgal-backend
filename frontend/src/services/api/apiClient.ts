@@ -6,6 +6,7 @@ import { clearAccessToken, getAccessToken } from '@/services/api/tokenStore';
 declare module 'axios' {
   interface AxiosRequestConfig {
     skipAuth?: boolean;
+    authToken?: string | null;
   }
 }
 
@@ -26,8 +27,10 @@ apiClient.interceptors.request.use((config) => {
 
   if (token && !config.skipAuth) {
     config.headers.set('Authorization', `Bearer ${token}`);
+    config.authToken = token;
   } else {
     config.headers.delete('Authorization');
+    config.authToken = null;
   }
 
   return config;
@@ -37,12 +40,15 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     const normalizedError = normalizeApiError(error);
+    const requestToken = axios.isAxiosError(error) ? error.config?.authToken : null;
+    const requestTokenIsCurrent = requestToken !== null && requestToken === getAccessToken();
 
-    if (normalizedError.status === 401) {
+    if (normalizedError.status === 401 && requestTokenIsCurrent) {
       clearAccessToken('unauthorized');
     } else if (
       normalizedError.status === 403 &&
-      normalizedError.code === 'ACCOUNT_NOT_ACTIVE'
+      normalizedError.code === 'ACCOUNT_NOT_ACTIVE' &&
+      requestTokenIsCurrent
     ) {
       clearAccessToken('account_inactive');
     }
