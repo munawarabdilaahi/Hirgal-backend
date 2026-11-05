@@ -21,7 +21,7 @@ import { useDebouncedValue } from '@/features/users/use-debounced-value';
 import { DirectoryUserPicker } from '@/features/users/DirectoryUserPicker';
 import { teamApi } from '@/services/api/teamApi';
 import type { ApiDirectoryUser, ApiTeam } from '@/services/api/contracts';
-import { teamKeys, useTeam, useTeamAction, useTeamMembers, useTeams, useSaveTeam } from './team-queries';
+import { teamKeys, useAllTeamMembers, useTeam, useTeamAction, useTeamMembers, useTeams, useSaveTeam } from './team-queries';
 
 const teamSchema = z.object({
   name: z.string().trim().min(1, 'Enter a team name.').max(255, 'Use 255 characters or fewer.'),
@@ -38,6 +38,19 @@ function errorMessage(error: unknown): string {
     if (status === 422) return 'The team details were rejected. Check that the leader exists and meets project roster requirements.';
   }
   return 'Hirgal could not complete this request. Check your connection and try again.';
+}
+
+function memberErrorMessage(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    if (error.status === 422) {
+      return 'The member could not be added. They must belong to every project allocated to this team. Refresh the roster and try again.';
+    }
+
+    if (error.status === 403) return 'You no longer have permission to manage this team.';
+    if (error.status === 404) return 'This team is unavailable or outside your access scope.';
+  }
+
+  return 'Hirgal could not add this member. Check your connection and try again.';
 }
 
 export function TeamsRoute() {
@@ -70,6 +83,7 @@ export function TeamDetailsRoute() {
     setMembersPageState({ teamUuid, page });
   }
   const membersQuery = useTeamMembers(teamUuid, membersPage);
+  const completeRosterQuery = useAllTeamMembers(teamUuid);
   const queryClient = useQueryClient();
   const memberMutation = useMutation({
     mutationFn: async (request: { memberId: number; role?: 'leader' | 'member'; remove?: boolean }) => {
@@ -102,7 +116,7 @@ export function TeamDetailsRoute() {
   const team = teamQuery.data;
   if (teamQuery.isPending) return <div className="flex min-h-48 items-center justify-center"><LoadingState label="Loading team" /></div>;
   if (teamQuery.isError || !team) return <ErrorState description={errorMessage(teamQuery.error)} onRetry={() => void teamQuery.refetch()} title="Team unavailable" />;
-  const contextualLeader = team.leader?.id === user?.id || membersQuery.data?.data.some((member) => member.user.id === user?.id && member.role === 'leader');
+  const contextualLeader = team.leader?.id === user?.id || completeRosterQuery.data?.some((member) => member.user.id === user?.id && member.role === 'leader');
   const canEdit = hasPermission(user, 'teams.update') && (contextualLeader || hasGlobalRole(user, 'system-admin'));
   const canDelete = hasPermission(user, 'teams.delete') || hasGlobalRole(user, 'system-admin');
   const canManageMembers = hasPermission(user, 'teams.manage') && (contextualLeader || hasGlobalRole(user, 'system-admin'));
@@ -111,9 +125,11 @@ export function TeamDetailsRoute() {
   }
   return <section aria-labelledby="team-detail-title" className="mx-auto max-w-6xl space-y-6">
     <header className="flex flex-wrap items-start justify-between gap-4"><div className="space-y-2"><Link className="text-sm text-primary hover:underline" to="/teams">Teams</Link><h1 className="text-2xl font-semibold tracking-tight" id="team-detail-title">{team.name}</h1><p className="max-w-3xl text-sm leading-6 text-muted-foreground">{team.description || 'No description provided.'}</p></div><div className="flex gap-2">{canEdit ? <Button asChild variant="outline"><Link to={`/teams/${teamUuid}/edit`}>Edit team</Link></Button> : null}{canDelete ? <Button onClick={() => setConfirmDelete(true)} variant="destructive"><Trash2 aria-hidden="true" className="size-4" />Delete</Button> : null}</div></header>
+    {completeRosterQuery.isPending ? <p className="text-sm text-muted-foreground" role="status">Checking team permissions…</p> : null}
+    {completeRosterQuery.isError ? <ErrorState description="Team permissions could not be verified. Retry before managing this team." onRetry={() => void completeRosterQuery.refetch()} title="Team permissions unavailable" /> : null}
     {remove.isError ? <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{errorMessage(remove.error)}</p> : null}
     <div className="grid gap-4 md:grid-cols-3"><Card><CardHeader><CardTitle>Team lead</CardTitle></CardHeader><CardContent>{team.leader ? <UserIdentity name={team.leader.name} detail={team.leader.email} imageUrl={team.leader.avatar_url} /> : <p className="text-sm text-muted-foreground">No lead assigned.</p>}</CardContent></Card><Card><CardHeader><CardTitle>Roster size</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold">{membersQuery.data?.meta.total ?? team.members_count ?? '—'}</p><p className="text-sm text-muted-foreground">Members returned by the team roster API</p></CardContent></Card><Card><CardHeader><CardTitle>Team workspace</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground">The team response does not include allocated project details. Project allocations are listed from a project’s detail page.</p></CardContent></Card></div>
-    <Card><CardHeader><CardTitle>Team members</CardTitle><CardDescription>Team roster roles are distinct from global account roles.</CardDescription></CardHeader><CardContent>{membersQuery.isPending ? <LoadingState label="Loading team members" /> : membersQuery.isError ? <ErrorState description={errorMessage(membersQuery.error)} onRetry={() => void membersQuery.refetch()} title="Members could not be loaded" /> : <><ul className="divide-y">{membersQuery.data?.data.map((member) => <li className="flex flex-wrap items-center justify-between gap-3 py-3" key={member.id}><UserIdentity name={member.user.name} detail={member.user.email} imageUrl={member.user.avatar_url} /><div className="flex items-center gap-2"><span className="rounded-full bg-muted px-2.5 py-1 text-xs capitalize text-muted-foreground">{member.role}</span>{canManageMembers && member.user.id !== team.leader?.id ? <><select aria-label={`Change ${member.user.name} team role`} className="h-9 rounded-md border bg-background px-2" onChange={(event) => void memberMutation.mutateAsync({ memberId: member.id, role: event.target.value as 'leader' | 'member' })} value={member.role}><option value="leader">Leader</option><option value="member">Member</option></select><Button disabled={memberMutation.isPending} onClick={() => { if (window.confirm(`Remove ${member.user.name} from this team?`)) void memberMutation.mutateAsync({ memberId: member.id, remove: true }); }} size="sm" variant="outline">Remove</Button></> : null}</div></li>)}</ul>{membersQuery.data?.meta ? <Pagination currentPage={membersQuery.data.meta.current_page} onPageChange={setMembersPage} totalPages={membersQuery.data.meta.last_page} /> : null}{canManageMembers && hasPermission(user, 'users.view_directory') ? <form className="mt-5 flex flex-wrap items-end gap-2 border-t pt-5" onSubmit={(event) => { event.preventDefault(); if (candidateUser) void addMember.mutateAsync({ user_id: candidateUser.id, role: candidateRole }).then(() => setCandidateUser(null)); }}><div className="min-w-48 flex-1"><DirectoryUserPicker ariaLabel="Select a person to add" enabled={canManageMembers} excludeIds={(membersQuery.data?.data ?? []).map((member) => member.user.id)} onSelect={setCandidateUser} selectedId={candidateUser ? String(candidateUser.id) : ''} selectedUser={candidateUser} /></div><label className="text-sm"><span className="sr-only">New team role</span><select aria-label="New team role" className="h-10 rounded-md border bg-background px-3" onChange={(event) => setCandidateRole(event.target.value as 'leader' | 'member')} value={candidateRole}><option value="member">Member</option><option value="leader">Leader</option></select></label><Button disabled={!candidateUser || addMember.isPending} type="submit">{addMember.isPending ? 'Adding…' : 'Add member'}</Button></form> : null}{canManageMembers && !hasPermission(user, 'users.view_directory') ? <p className="mt-4 text-sm text-muted-foreground">The people directory permission is required to choose a member.</p> : null}{addMember.isError || memberMutation.isError ? <p className="mt-3 text-sm text-destructive" role="alert">{errorMessage(addMember.error ?? memberMutation.error)}</p> : null}</>}</CardContent></Card>
+    <Card><CardHeader><CardTitle>Team members</CardTitle><CardDescription>Team roster roles are distinct from global account roles.</CardDescription></CardHeader><CardContent>{membersQuery.isPending ? <LoadingState label="Loading team members" /> : membersQuery.isError ? <ErrorState description={errorMessage(membersQuery.error)} onRetry={() => void membersQuery.refetch()} title="Members could not be loaded" /> : <><ul className="divide-y">{membersQuery.data?.data.map((member) => <li className="flex flex-wrap items-center justify-between gap-3 py-3" key={member.id}><UserIdentity name={member.user.name} detail={member.user.email} imageUrl={member.user.avatar_url} /><div className="flex items-center gap-2"><span className="rounded-full bg-muted px-2.5 py-1 text-xs capitalize text-muted-foreground">{member.role}</span>{canManageMembers && member.user.id !== team.leader?.id ? <><select aria-label={`Change ${member.user.name} team role`} className="h-9 rounded-md border bg-background px-2" onChange={(event) => void memberMutation.mutateAsync({ memberId: member.id, role: event.target.value as 'leader' | 'member' })} value={member.role}><option value="leader">Leader</option><option value="member">Member</option></select><Button disabled={memberMutation.isPending} onClick={() => { if (window.confirm(`Remove ${member.user.name} from this team?`)) void memberMutation.mutateAsync({ memberId: member.id, remove: true }); }} size="sm" variant="outline">Remove</Button></> : null}</div></li>)}</ul>{membersQuery.data?.meta ? <Pagination currentPage={membersQuery.data.meta.current_page} onPageChange={setMembersPage} totalPages={membersQuery.data.meta.last_page} /> : null}{canManageMembers && hasPermission(user, 'users.view_directory') ? <form className="mt-5 flex flex-wrap items-end gap-2 border-t pt-5" onSubmit={(event) => { event.preventDefault(); if (candidateUser) addMember.mutate({ user_id: candidateUser.id, role: candidateRole }, { onSuccess: () => setCandidateUser(null) }); }}><div className="min-w-48 flex-1"><DirectoryUserPicker ariaLabel="Select a person to add" enabled={canManageMembers && !completeRosterQuery.isPending && !completeRosterQuery.isError} excludeIds={(completeRosterQuery.data ?? []).map((member) => member.user.id)} onSelect={setCandidateUser} selectedId={candidateUser ? String(candidateUser.id) : ''} selectedUser={candidateUser} /></div><label className="text-sm"><span className="sr-only">New team role</span><select aria-label="New team role" className="h-10 rounded-md border bg-background px-3" onChange={(event) => setCandidateRole(event.target.value as 'leader' | 'member')} value={candidateRole}><option value="member">Member</option><option value="leader">Leader</option></select></label><Button disabled={!candidateUser || addMember.isPending || completeRosterQuery.isPending || completeRosterQuery.isError} type="submit">{addMember.isPending ? 'Adding…' : 'Add member'}</Button></form> : null}{canManageMembers && !hasPermission(user, 'users.view_directory') ? <p className="mt-4 text-sm text-muted-foreground">The people directory permission is required to choose a member.</p> : null}{addMember.isError ? <p className="mt-3 text-sm text-destructive" role="alert">{memberErrorMessage(addMember.error)}</p> : null}{memberMutation.isError ? <p className="mt-3 text-sm text-destructive" role="alert">{errorMessage(memberMutation.error)}</p> : null}</>}</CardContent></Card>
     <AlertDialog onOpenChange={(open) => { if (!open && !remove.isPending) setConfirmDelete(false); }} open={confirmDelete}>
       <AlertDialogContent>
         <AlertDialogHeader><AlertDialogTitle>Delete this team?</AlertDialogTitle><AlertDialogDescription>The team will be soft-deleted and removed from normal team access.</AlertDialogDescription></AlertDialogHeader>
@@ -129,7 +145,7 @@ export function TeamFormRoute() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const existing = useTeam(teamUuid ?? '');
-  const existingMembers = useTeamMembers(teamUuid ?? '');
+  const existingMembers = useAllTeamMembers(teamUuid ?? '');
   const save = useSaveTeam(teamUuid);
   const canChooseLeader = hasPermission(user, 'users.view_directory');
   const [leaderSelection, setLeaderSelection] = useState<{ teamUuid: string | undefined; user: ApiDirectoryUser | null } | null>(null);
@@ -145,8 +161,9 @@ export function TeamFormRoute() {
   if (teamUuid && existing.isPending) return <div className="flex min-h-48 items-center justify-center"><LoadingState label="Loading team" /></div>;
   if (teamUuid && existing.isError) return <ErrorState description={errorMessage(existing.error)} onRetry={() => void existing.refetch()} title="Team unavailable" />;
   if (teamUuid && !team) return <ErrorState description="This team is unavailable." title="Team unavailable" />;
+  if (teamUuid && existingMembers.isError) return <ErrorState description="Team permissions could not be verified. Retry before editing this team." onRetry={() => void existingMembers.refetch()} title="Team permissions unavailable" />;
   if (teamUuid && existingMembers.isPending && !existing.isPending) return <div className="flex min-h-48 items-center justify-center"><LoadingState label="Checking team access" /></div>;
-  const contextualLeader = team?.leader?.id === user?.id || existingMembers.data?.data.some((member) => member.user.id === user?.id && member.role === 'leader');
+  const contextualLeader = team?.leader?.id === user?.id || existingMembers.data?.some((member) => member.user.id === user?.id && member.role === 'leader');
   const selectedLeader = leaderSelection && leaderSelection.teamUuid === teamUuid ? leaderSelection.user : team?.leader ?? null;
   if (teamUuid && !(hasPermission(user, 'teams.update') && (contextualLeader || hasGlobalRole(user, 'system-admin')))) return <ErrorState description="Team editing requires the team update permission and contextual leadership authority." title="Editing unavailable" />;
   if (!teamUuid && !hasPermission(user, 'teams.create')) return <ErrorState description="Your account cannot create teams." title="Creation unavailable" />;

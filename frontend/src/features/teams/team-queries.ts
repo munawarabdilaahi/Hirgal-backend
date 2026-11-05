@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { teamApi } from '@/services/api/teamApi';
-import type { SaveTeamRequest, TeamFilters } from '@/services/api/contracts';
+import type { ApiTeamMember, SaveTeamRequest, TeamFilters } from '@/services/api/contracts';
 
 export const teamKeys = {
   all: ['teams'] as const,
@@ -8,6 +8,7 @@ export const teamKeys = {
   list: (filters: TeamFilters) => [...teamKeys.lists(), filters] as const,
   detail: (uuid: string) => [...teamKeys.all, 'detail', uuid] as const,
   members: (uuid: string, page = 1) => [...teamKeys.all, 'members', uuid, page] as const,
+  allMembers: (uuid: string) => [...teamKeys.all, 'all-members', uuid] as const,
 };
 
 export function useTeams(filters: TeamFilters, enabled = true) {
@@ -20,6 +21,33 @@ export function useTeam(uuid: string) {
 
 export function useTeamMembers(uuid: string, page = 1) {
   return useQuery({ queryKey: teamKeys.members(uuid, page), queryFn: () => teamApi.members(uuid, page), enabled: Boolean(uuid) });
+}
+
+export function useAllTeamMembers(uuid: string) {
+  const queryClient = useQueryClient();
+
+  return useQuery({
+    queryKey: teamKeys.allMembers(uuid),
+    queryFn: async (): Promise<ApiTeamMember[]> => {
+      const firstPage = await queryClient.fetchQuery({
+        queryKey: teamKeys.members(uuid, 1),
+        queryFn: () => teamApi.members(uuid, 1),
+      });
+      const members = [...firstPage.data];
+
+      for (let page = 2; page <= firstPage.meta.last_page; page += 1) {
+        const response = await queryClient.fetchQuery({
+          queryKey: teamKeys.members(uuid, page),
+          queryFn: () => teamApi.members(uuid, page),
+        });
+        members.push(...response.data);
+      }
+
+      return members;
+    },
+    enabled: Boolean(uuid),
+    staleTime: 30_000,
+  });
 }
 
 export function useSaveTeam(uuid?: string) {

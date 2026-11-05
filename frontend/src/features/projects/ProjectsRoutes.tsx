@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -19,11 +19,11 @@ import { useAuth } from '@/features/auth/auth-hooks';
 import { hasGlobalRole, hasPermission } from '@/features/auth/permissions';
 import { useDebouncedValue } from '@/features/users/use-debounced-value';
 import { DirectoryUserPicker } from '@/features/users/DirectoryUserPicker';
-import { projectKeys, useProject, useProjectAction, useProjectMembers, useProjectTeams, useProjects, useSaveProject } from './project-queries';
-import type { ApiDirectoryUser, ApiProject, ProjectStatus, SaveProjectRequest } from '@/services/api/contracts';
-import { projectApi } from '@/services/api/projectApi';
-import { teamApi } from '@/services/api/teamApi';
 import { teamKeys } from '@/features/teams/team-queries';
+import { ProjectTeamAllocationPicker } from './ProjectTeamAllocationPicker';
+import { projectKeys, useProject, useProjectAction, useProjectMembers, useProjectTeams, useProjects, useSaveProject } from './project-queries';
+import type { ApiDirectoryUser, ApiProject, ApiTeam, ProjectStatus, SaveProjectRequest } from '@/services/api/contracts';
+import { projectApi } from '@/services/api/projectApi';
 
 const formSchema = z.object({
   name: z.string().trim().min(1, 'Enter a project name.').max(255, 'Use 255 characters or fewer.'),
@@ -88,7 +88,6 @@ export function ProjectDetailsRoute() {
   }
   const membersQuery = useProjectMembers(projectUuid, membersPage);
   const teamsQuery = useProjectTeams(projectUuid, hasPermission(user, 'teams.view'));
-  const accessibleTeams = useQuery({ queryKey: [...teamKeys.lists(), 'allocation-picker'], queryFn: () => teamApi.list({ per_page: 100 }), enabled: hasPermission(user, 'teams.view') });
   const queryClient = useQueryClient();
   const memberMutation = useMutation({
     mutationFn: async (request: { memberId: number; role?: 'lead' | 'member' | 'viewer'; remove?: boolean }) => {
@@ -130,12 +129,16 @@ export function ProjectDetailsRoute() {
     },
   });
   const [candidateUser, setCandidateUser] = useState<ApiDirectoryUser | null>(null);
-  const [candidateTeamUuid, setCandidateTeamUuid] = useState('');
+  const [candidateTeamState, setCandidateTeamState] = useState<{ projectUuid: string; team: ApiTeam } | null>(null);
   const [candidateRole, setCandidateRole] = useState<'lead' | 'member' | 'viewer'>('member');
   const action = useProjectAction('archive');
   const remove = useProjectAction('remove');
   const [confirmAction, setConfirmAction] = useState<'archive' | 'remove' | null>(null);
   const project = projectQuery.data;
+  const candidateTeam = candidateTeamState?.projectUuid === projectUuid ? candidateTeamState.team : null;
+  function selectCandidateTeam(team: ApiTeam | null): void {
+    setCandidateTeamState(team ? { projectUuid, team } : null);
+  }
   if (projectQuery.isPending) return <div className="flex min-h-48 items-center justify-center"><LoadingState label="Loading project" /></div>;
   if (projectQuery.isError || !project) return <ErrorState description={errorMessage(projectQuery.error)} onRetry={() => void projectQuery.refetch()} title="Project unavailable" />;
   const actorRole = hasGlobalRole(user, 'system-admin') || project.owner?.id === user?.id ? 'owner' : membersQuery.data?.data.find((member) => member.user.id === user?.id)?.role;
@@ -157,7 +160,7 @@ export function ProjectDetailsRoute() {
   return <section aria-labelledby="project-detail-title" className="mx-auto max-w-6xl space-y-6">
     <header className="flex flex-wrap items-start justify-between gap-4"><div className="space-y-2"><Link className="text-sm text-primary hover:underline" to="/projects">Projects</Link><h1 className="text-2xl font-semibold tracking-tight" id="project-detail-title">{project.name}</h1><p className="max-w-3xl text-sm leading-6 text-muted-foreground">{project.description || 'No description provided.'}</p></div><div className="flex flex-wrap gap-2">{canEdit ? <Button asChild variant="outline"><Link to={`/projects/${projectUuid}/edit`}>Edit project</Link></Button> : null}{canArchive ? <Button onClick={() => setConfirmAction('archive')} variant="outline"><Archive aria-hidden="true" className="size-4" />Archive</Button> : null}{canDelete ? <Button onClick={() => setConfirmAction('remove')} variant="destructive"><Trash2 aria-hidden="true" className="size-4" />Delete</Button> : null}</div></header>
     {(action.isError || remove.isError) ? <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{errorMessage(action.error ?? remove.error)}</p> : null}
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(18rem,0.7fr)]"><Card><CardHeader><CardTitle>Project overview</CardTitle><CardDescription>Details returned by the project service.</CardDescription></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2"><Detail label="Status" value={statusLabel(project.status)} /><Detail label="Priority" value={project.priority} /><Detail label="Owner" value={project.owner?.name ?? 'Not listed'} /><Detail label="Members" value={membersQuery.data?.meta.total ?? project.members_count ?? 'Not available'} /><Detail label="Start date" value={project.start_date ?? 'Not set'} /><Detail label="Due date" value={project.due_date ?? 'Not set'} /></CardContent></Card><Card><CardHeader><CardTitle>Project teams</CardTitle><CardDescription>Teams allocated to this workspace.</CardDescription></CardHeader><CardContent className="space-y-3">{!hasPermission(user, 'teams.view') ? <p className="text-sm text-muted-foreground">Your account cannot view allocated team details.</p> : teamsQuery.isPending ? <LoadingState label="Loading project teams" /> : teamsQuery.isError ? <p className="text-sm text-muted-foreground">{errorMessage(teamsQuery.error)}</p> : teamsQuery.data?.data.length ? teamsQuery.data.data.map((team) => <div className="flex items-center justify-between gap-2 rounded-md border p-3 text-sm" key={team.uuid}><Link className="min-w-0 hover:text-primary" to={`/teams/${team.uuid}`}><span className="block truncate font-medium">{team.name}</span><span className="mt-1 block text-muted-foreground">{team.leader?.name ?? 'No team lead listed'}</span></Link>{canAllocateTeams ? <Button disabled={teamMutation.isPending} onClick={() => { if (window.confirm(`Remove ${team.name} from this project?`)) void teamMutation.mutateAsync({ teamUuid: team.uuid, remove: true }); }} size="sm" variant="outline">Remove</Button> : null}</div>) : <p className="text-sm text-muted-foreground">No teams are allocated to this project.</p>}{canAllocateTeams ? <form className="flex gap-2 border-t pt-3" onSubmit={(event) => { event.preventDefault(); if (candidateTeamUuid) void teamMutation.mutateAsync({ teamUuid: candidateTeamUuid }).then(() => setCandidateTeamUuid('')); }}><select aria-label="Select a team to allocate" className="h-10 min-w-0 flex-1 rounded-md border bg-background px-2" onChange={(event) => setCandidateTeamUuid(event.target.value)} value={candidateTeamUuid}><option value="">Choose a team</option>{(accessibleTeams.data?.data ?? []).filter((team) => !teamsQuery.data?.data.some((allocated) => allocated.uuid === team.uuid)).map((team) => <option key={team.uuid} value={team.uuid}>{team.name}</option>)}</select><Button disabled={!candidateTeamUuid || teamMutation.isPending} type="submit">Allocate</Button></form> : null}{teamMutation.isError ? <p className="text-sm text-destructive" role="alert">{errorMessage(teamMutation.error)}</p> : null}</CardContent></Card></div>
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(18rem,0.7fr)]"><Card><CardHeader><CardTitle>Project overview</CardTitle><CardDescription>Details returned by the project service.</CardDescription></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2"><Detail label="Status" value={statusLabel(project.status)} /><Detail label="Priority" value={project.priority} /><Detail label="Owner" value={project.owner?.name ?? 'Not listed'} /><Detail label="Members" value={membersQuery.data?.meta.total ?? project.members_count ?? 'Not available'} /><Detail label="Start date" value={project.start_date ?? 'Not set'} /><Detail label="Due date" value={project.due_date ?? 'Not set'} /></CardContent></Card><Card><CardHeader><CardTitle>Project teams</CardTitle><CardDescription>Teams allocated to this workspace.</CardDescription></CardHeader><CardContent className="space-y-3">{!hasPermission(user, 'teams.view') ? <p className="text-sm text-muted-foreground">Your account cannot view allocated team details.</p> : teamsQuery.isPending ? <LoadingState label="Loading project teams" /> : teamsQuery.isError ? <p className="text-sm text-muted-foreground">{errorMessage(teamsQuery.error)}</p> : teamsQuery.data?.data.length ? teamsQuery.data.data.map((team) => <div className="flex items-center justify-between gap-2 rounded-md border p-3 text-sm" key={team.uuid}><Link className="min-w-0 hover:text-primary" to={`/teams/${team.uuid}`}><span className="block truncate font-medium">{team.name}</span><span className="mt-1 block text-muted-foreground">{team.leader?.name ?? 'No team lead listed'}</span></Link>{canAllocateTeams ? <Button disabled={teamMutation.isPending} onClick={() => { if (window.confirm(`Remove ${team.name} from this project?`)) void teamMutation.mutateAsync({ teamUuid: team.uuid, remove: true }); }} size="sm" variant="outline">Remove</Button> : null}</div>) : <p className="text-sm text-muted-foreground">No teams are allocated to this project.</p>}{canAllocateTeams ? <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (candidateTeam) teamMutation.mutate({ teamUuid: candidateTeam.uuid }, { onSuccess: () => selectCandidateTeam(null) }); }}><ProjectTeamAllocationPicker allocatedTeamUuids={(teamsQuery.data?.data ?? []).map((team) => team.uuid)} enabled={canAllocateTeams} onSelect={selectCandidateTeam} selectedTeam={candidateTeam} /><Button disabled={!candidateTeam || teamMutation.isPending} type="submit">{teamMutation.isPending ? 'Allocating…' : 'Allocate team'}</Button></form> : null}{teamMutation.isError ? <p className="text-sm text-destructive" role="alert">{errorMessage(teamMutation.error)}</p> : null}</CardContent></Card></div>
     <Card><CardHeader><CardTitle>Project members</CardTitle><CardDescription>Contextual project roles, separate from global account roles.</CardDescription></CardHeader><CardContent>{membersQuery.isPending ? <LoadingState label="Loading project members" /> : membersQuery.isError ? <ErrorState description={errorMessage(membersQuery.error)} onRetry={() => void membersQuery.refetch()} title="Members could not be loaded" /> : <><ul className="divide-y">{membersQuery.data?.data.map((member) => {
       const isProjectOwner = member.user.id === project.owner?.id;
       const assignableRoles = actorRole === 'owner' ? ['lead', 'member', 'viewer'] as const : ['member', 'viewer'] as const;

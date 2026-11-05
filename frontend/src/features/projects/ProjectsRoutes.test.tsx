@@ -37,7 +37,7 @@ beforeEach(() => {
   projectApi.get.mockResolvedValue(project);
   projectApi.members.mockResolvedValue({ success: true, message: 'ok', data: [projectMember], meta: { current_page: 1, last_page: 1, per_page: 100, total: 1 } });
   projectApi.teams.mockResolvedValue({ success: true, message: 'ok', data: [] });
-  teamApi.list.mockResolvedValue({ success: true, message: 'ok', data: [], meta: { current_page: 1, last_page: 1, per_page: 100, total: 0 } });
+  teamApi.list.mockResolvedValue({ success: true, message: 'ok', data: [], meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 } });
   userApi.listDirectory.mockResolvedValue({ success: true, message: 'ok', data: [{ ...project.owner, id: 8, name: 'Omar Ali' }], meta: { current_page: 1, last_page: 1, per_page: 100, total: 1 } });
 });
 
@@ -106,14 +106,59 @@ describe('Project details and form', () => {
 
   it('allocates an eligible team using the existing project-team endpoint', async () => {
     const availableTeam = { id: 6, uuid: 'team-uuid', name: 'Platform team', slug: 'platform-team', description: null, leader: null, members_count: 1, created_at: null, updated_at: null };
-    teamApi.list.mockResolvedValue({ success: true, message: 'ok', data: [availableTeam], meta: { current_page: 1, last_page: 1, per_page: 100, total: 1 } });
+    teamApi.list.mockResolvedValue({ success: true, message: 'ok', data: [availableTeam], meta: { current_page: 1, last_page: 1, per_page: 12, total: 1 } });
     projectApi.allocateTeam.mockResolvedValue(availableTeam);
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
     await screen.findByText('No teams are allocated to this project.');
     await screen.findByRole('option', { name: 'Platform team' });
     fireEvent.change(screen.getByRole('combobox', { name: 'Select a team to allocate' }), { target: { value: 'team-uuid' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Allocate' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Allocate team' }));
     await waitFor(() => expect(projectApi.allocateTeam).toHaveBeenCalledWith('project-uuid', 'team-uuid'));
+  });
+
+  it('shows loading and empty states for accessible teams', async () => {
+    let resolveTeams: ((value: unknown) => void) | undefined;
+    teamApi.list.mockImplementationOnce(() => new Promise((resolve) => { resolveTeams = resolve; }));
+    renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+    expect(await screen.findByRole('status', { name: 'Loading available teams' })).toBeInTheDocument();
+    resolveTeams?.({ success: true, message: 'ok', data: [], meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 } });
+    expect(await screen.findByText('No available teams')).toBeInTheDocument();
+  });
+
+  it('shows a retryable error when accessible teams cannot be loaded', async () => {
+    teamApi.list.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ success: true, message: 'ok', data: [], meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 } });
+    renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+    expect(await screen.findByText('Available teams could not be loaded')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('No available teams')).toBeInTheDocument();
+  });
+
+  it('searches and paginates accessible teams while preserving the selected team', async () => {
+    const firstTeam = { id: 6, uuid: 'team-a', name: 'Platform team', slug: 'platform-team', description: null, leader: null, members_count: 1, created_at: null, updated_at: null };
+    const secondTeam = { ...firstTeam, id: 7, uuid: 'team-b', name: 'Core team', slug: 'core-team' };
+    teamApi.list.mockImplementation(async (filters: { page?: number; search?: string }) => ({
+      success: true,
+      message: 'ok',
+      data: filters.page === 2 ? [secondTeam] : [firstTeam],
+      meta: { current_page: filters.page ?? 1, last_page: filters.search ? 1 : 2, per_page: 12, total: 2 },
+    }));
+    projectApi.allocateTeam.mockResolvedValue(firstTeam);
+    renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+
+    const select = await screen.findByRole('combobox', { name: 'Select a team to allocate' });
+    await screen.findByRole('option', { name: 'Platform team' });
+    fireEvent.change(select, { target: { value: firstTeam.uuid } });
+    const nextPageButton = screen.getAllByRole('button', { name: 'Go to next page' }).find((button) => !button.hasAttribute('disabled'));
+    fireEvent.click(nextPageButton!);
+    await screen.findByRole('option', { name: 'Core team' });
+    expect(select).toHaveValue(firstTeam.uuid);
+    expect(teamApi.list).toHaveBeenLastCalledWith({ page: 2, per_page: 12 });
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search available teams' }), { target: { value: 'Core' } });
+    await waitFor(() => expect(teamApi.list).toHaveBeenLastCalledWith({ page: 1, per_page: 12, search: 'Core' }));
+    expect(select).toHaveValue(firstTeam.uuid);
+    fireEvent.click(screen.getByRole('button', { name: 'Allocate team' }));
+    await waitFor(() => expect(projectApi.allocateTeam).toHaveBeenCalledWith('project-uuid', firstTeam.uuid));
   });
 
   it('creates a validated project and navigates to its UUID route', async () => {

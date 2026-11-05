@@ -91,3 +91,43 @@ The component tests exercise list loading/empty/error states, search/filter para
 - Visual browser verification was attempted, but the computer/browser host was unavailable. No live authenticated API request was made; local Laravel availability was not confirmed for this audit. No screenshots are available.
 - The separate project allocation picker remains limited to the first 100 accessible teams. Project/team edit-form contextual-role checks inspect page 1 of their roster, so a non-designated lead whose membership is beyond that page may be unable to open the edit form directly. Backend access remains enforced.
 - Final audit validation: **107 tests across 15 files passed** (baseline 101 across 14); typecheck, lint, production build, `npm audit` (0 vulnerabilities), and `git diff --check` passed. Production output: 36 JavaScript chunks totaling 850.99 kB; main entry 371.99 kB (115.17 kB gzip); no Vite large-chunk warning. Tests mock the APIs and do not establish live integration.
+
+## Phase 5.2 remediation and verification (2026-11-05)
+
+### Allocation picker
+
+The allocation picker now uses the existing `GET /api/v1/teams` endpoint with debounced `search`, `page`, and `per_page=12` query parameters. Each query is keyed by its normalized filters through the shared team list key. Laravel's `ListTeamsRequest` validates `search` (maximum 100 characters) and `per_page` (1–100); it does not explicitly list `page`, but Laravel's paginator reads `page` from the query string. Live requests confirmed search, page metadata, and actor-scoped team results. The picker displays loading, empty, and retryable error states, resets to page one when search changes, filters already allocated teams, and retains a selected team while results change. It no longer fetches 100 teams for a single page of options.
+
+### Team contextual access and duplicate membership
+
+`TeamResource` returns the designated `leader`, but no permission or contextual-authority field exists. `TeamPolicy::hasContextualAuthority` also allows a roster member with role `leader`, or a project owner/lead on a shared allocated project, as well as a system administrator. The team resource does not expose allocated projects and there is no reverse team-to-project endpoint. To avoid missing roster leaders on later pages, the frontend reads the team's paginated membership endpoint in `per_page=100` pages and caches the complete roster for 30 seconds. Permission loading and failures keep roster-derived edit/manage controls hidden; a failed roster check has a retry state. This recognizes roster leaders on later pages and does not use global role names as contextual team roles.
+
+The remaining authorization limitation is that a project owner/lead who is not the designated team leader or a roster leader cannot be identified from the team response. The frontend therefore may hide team editing for that policy-authorized user. It does not grant editing based on incomplete data; Laravel remains authoritative for requests made outside the frontend. A future backend permission field or team-to-project relationship endpoint is needed to represent every allowed contextual path in the UI without scanning unrelated project data.
+
+Candidate exclusion now uses all known roster pages, so an existing member on a later page is not offered as a new candidate. The backend `AddTeamMemberAction` uses `firstOrCreate`, so a duplicate request returns the existing membership rather than a duplicate row or a duplicate-specific 422. The UI refreshes roster/team/project queries after successful membership mutations. A 422 from the backend is shown with the team requirement that the person belong to each allocated project. If another actor adds the selected person after the roster scan, the backend's idempotent behavior avoids a second membership row; the frontend cannot guarantee the roster remains current between requests.
+
+### API evidence and live checks
+
+Backend source reviewed: team/project list requests, services, controllers, resources, routes, policies, and membership actions. The API supports paginated project/team/member lists, server search for projects and teams, and directory search/pagination. Team list scope comes from `TeamService::listTeams`; non-admin results are limited to teams visible through leadership, roster membership, or shared project scope. `TeamResource` does not include a permission field. Team membership creation's project-roster eligibility is enforced by the backend action.
+
+Live checks used only existing seeded development accounts and read-only project/team/directory requests, apart from a member's denied empty project-create request. Laravel and MySQL were running; `php artisan db:show` confirmed MySQL connectivity for `hirgal_backend`. The frontend was listening on `[::1]:5173`; `.env.example` and the frontend fallback both point to `http://127.0.0.1:8000/api/v1`. The seeded System Admin account logged in, returned an active account with 31 effective permissions, and successfully called `/auth/me`, project/team listing and search, project detail/member/team listing, team detail/roster, and directory search. Unauthenticated team listing returned 401. A seeded ordinary member received 403 for team listing and project creation; the empty create request was denied before validation or mutation. `per_page=101` returned 422.
+
+The seeded database contained one visible project and one team, so page-two list requests returned valid empty pages. The member account was already a member of the only seeded project, so a cross-scope existing-project 404 could not be demonstrated. No successful write requests were issued; the member's empty project-create request was denied with 403 before a mutation. Project/team create/update/archive/delete/member changes and allocations were not attempted, to preserve the existing development data. Successful test sessions were logged out. Tokens left by failed local HTTP harness attempts were removed by their exact test device names from the development token table; no other tokens were removed. Login updated the seeded users' normal `last_login_at` field. Frontend component tests use mocked service calls; they are not live HTTP tests.
+
+### Browser and remaining verification
+
+Browser verification remains incomplete. `mcp__cua_repl` reported that the browser access host was unavailable. An attempt to launch an isolated headless Edge session was blocked by the execution policy. No screenshot or viewport/theme/accessibility observation was captured. Desktop (1440×900), tablet (768×1024), mobile (390×844), light/dark/system theme, keyboard/focus, dialogs, and dropdown clipping therefore remain unverified in a real browser.
+
+Regression tests cover server-side allocation search/pagination, selected-team persistence, full paginated roster candidate exclusion, later-page roster-leader controls, and useful backend eligibility errors. Full suite and build/audit results for this phase are recorded after the final validation run below.
+
+### Final validation results
+
+- Git baseline: `main` at `9cd2571`, equal to `origin/main`, clean before this phase.
+- `npm run typecheck`: passed.
+- `npm run lint`: passed with no reported issues.
+- `npm test`: passed, **113 tests across 15 files** (Phase 5.1 baseline: 107 across 15 files).
+- `npm run build`: passed; **36 JavaScript chunks totaling 854.17 kB**. Main entry: **371.99 kB (115.18 kB gzip)**. No Vite large-chunk warning.
+- `npm audit`: passed, **0 vulnerabilities**.
+- `git diff --check`: passed; Git printed only CRLF-to-LF working-copy notices for the two edited Markdown files.
+- The `testing-best-practices` skill was not installed in the local skill catalog; the repository's established Vitest and Testing Library patterns were followed.
+- No backend files, dependency manifests, or lockfiles changed.
