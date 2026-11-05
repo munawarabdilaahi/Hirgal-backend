@@ -4,11 +4,15 @@ import { LoadingState } from '@/components/feedback/LoadingState';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/features/auth/auth-hooks';
-import { hasPermission } from '@/features/auth/permissions';
+import { hasAnyPermission, hasPermission } from '@/features/auth/permissions';
 import type { ApiUser } from '@/services/api/contracts';
 
 interface RequirePermissionProps extends PropsWithChildren {
   permission: string;
+}
+
+interface RequireAnyPermissionProps extends PropsWithChildren {
+  permissions: readonly string[];
 }
 
 export function RequireAuthenticated({ children }: PropsWithChildren) {
@@ -79,6 +83,27 @@ export function RequirePermission({
   const { user } = useAuth();
 
   if (!hasPermission(user, permission)) {
+    return (
+      <section className="mx-auto max-w-2xl rounded-xl border bg-card p-8 text-center shadow-card">
+        <h1 className="text-xl font-semibold">Access unavailable</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          Your account does not have permission to open this area. If you believe this is an
+          error, contact your Hirgal administrator.
+        </p>
+      </section>
+    );
+  }
+
+  return children;
+}
+
+export function RequireAnyPermission({
+  children,
+  permissions,
+}: RequireAnyPermissionProps) {
+  const { user } = useAuth();
+
+  if (!hasAnyPermission(user, permissions)) {
     return (
       <section className="mx-auto max-w-2xl rounded-xl border bg-card p-8 text-center shadow-card">
         <h1 className="text-xl font-semibold">Access unavailable</h1>

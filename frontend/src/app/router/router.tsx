@@ -8,7 +8,9 @@ import { DesignSystemLoadingFallback } from '@/app/router/routes/DesignSystemLoa
 import { NotFoundRoute } from '@/app/router/routes/NotFoundRoute';
 import { ProtectedDeferredRoute } from '@/app/router/routes/ProtectedDeferredRoute';
 import {
+  RequireAnyPermission,
   RedirectAuthenticatedUser,
+  RequirePermission,
   RequireAuthenticated,
 } from '@/features/auth/components/AuthRouteGuards';
 import { ChangePasswordRoute } from '@/features/auth/pages/ChangePasswordRoute';
@@ -17,6 +19,8 @@ import { ForgotPasswordRoute } from '@/features/auth/pages/ForgotPasswordRoute';
 import { LoginRoute } from '@/features/auth/pages/LoginRoute';
 import { ProfileRoute } from '@/features/auth/pages/ProfileRoute';
 import { ResetPasswordRoute } from '@/features/auth/pages/ResetPasswordRoute';
+import { UsersRoute } from '@/features/users/pages/UsersRoute';
+import { UserDetailsRoute } from '@/features/users/pages/UserDetailsRoute';
 
 const routes: RouteObject[] = [
   {
@@ -45,7 +49,19 @@ const routes: RouteObject[] = [
       { path: '/change-password', element: <ChangePasswordRoute /> },
       {
         path: '/users',
-        element: <ProtectedDeferredRoute name="Users" permission="users.view_directory" />,
+        element: (
+          <RequireAnyPermission permissions={['users.view_directory', 'users.view']}>
+            <UsersRoute />
+          </RequireAnyPermission>
+        ),
+      },
+      {
+        path: '/users/:userId',
+        element: (
+          <RequirePermission permission="users.view">
+            <UserDetailsRoute />
+          </RequirePermission>
+        ),
       },
       {
         path: '/projects',

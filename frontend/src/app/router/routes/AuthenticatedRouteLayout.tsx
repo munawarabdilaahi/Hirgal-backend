@@ -3,7 +3,9 @@ import { AppShell } from '@/components/layout/app-shell';
 
 export function AuthenticatedRouteLayout() {
   const { pathname } = useLocation();
-  const breadcrumb = {
+  const breadcrumb = pathname.startsWith('/users/')
+    ? 'User details'
+    : ({
     '/dashboard': 'Dashboard',
     '/profile': 'Profile',
     '/change-password': 'Change password',
@@ -11,7 +13,7 @@ export function AuthenticatedRouteLayout() {
     '/projects': 'Projects',
     '/teams': 'Teams',
     '/tasks': 'Tasks',
-  }[pathname] ?? 'Workspace';
+      }[pathname] ?? 'Workspace');
 
   return (
     <AppShell breadcrumb={breadcrumb}>

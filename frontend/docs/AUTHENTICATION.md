@@ -32,9 +32,9 @@ Logout attempts server revocation and clears the local token and TanStack Query 
 
 ## Routing and redirects
 
-`/login` is for signed-out users. `/forgot-password` and `/reset-password` are public. `/dashboard`, `/profile`, `/change-password`, and the deferred feature routes require an authenticated active account. Visiting a protected route while signed out stores only its same-origin pathname, query, and fragment in router state. The login page validates that destination before navigating; external URLs, protocol-relative paths, and backslash paths are rejected.
+`/login` is for signed-out users. `/forgot-password` and `/reset-password` are public. `/dashboard`, `/profile`, `/change-password`, and the feature routes require an authenticated active account. Visiting a protected route while signed out stores only its same-origin pathname, query, and fragment in router state. The login page validates that destination before navigating; external URLs, protocol-relative paths, and backslash paths are rejected.
 
-The deferred `/users`, `/projects`, `/teams`, and `/tasks` routes also check the matching backend-derived global permission (`users.view_directory`, `projects.view`, `teams.view`, `tasks.view`) before rendering their placeholder. These checks only control frontend visibility. Laravel policies remain responsible for all private data and mutation authorization.
+The `/users` route requires either `users.view_directory` or `users.view`; the route presents the sanitized directory or administrative user list accordingly. `/users/:userId` requires `users.view`. These frontend checks only control route visibility. Laravel policies remain responsible for all private data and mutation authorization. Projects, teams, and tasks remain permission-gated placeholders.
 
 ## Permissions and role scope
 

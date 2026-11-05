@@ -2,7 +2,7 @@
 
 > **Central Project Knowledge, Architectural Blueprint & Living Operational Guide**  
 > **Repository Location:** `C:\Hirgal`  
-> **Current Version:** Backend Phase 6.2 Accepted; Frontend Phase 3.1 Authentication Verification
+> **Current Version:** Backend Phase 6.2 Accepted; Frontend Phase 4 Dashboard, User Directory & User Administration
 > **Last Audited & Updated:** 2026-11-04
 > **Git Baseline:** Commit `d7e0916` (Phase 6.2) & Commit `3556549` (Documentation Baseline) — Phases 6 & 6.2 recorded in Section 11
 
@@ -611,6 +611,14 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 
 ### 17.3 Frontend Phase 3.1 — Authentication Verification
 - **Status:** Phase 3 authentication implementation verified and integrated into routing; known authentication limitations are recorded in `frontend/docs/AUTHENTICATION.md`.
+
+### 17.4 Frontend Phase 4 — Dashboard, User Directory & User Administration
+- **Status:** Dashboard and the existing user APIs are integrated into the frontend. Directory access uses `users.view_directory`; administrative lists/details use `users.view`; edit and activation/deactivation controls use backend permissions. No backend files or contracts changed.
+- **Dashboard:** Uses the authenticated user payload only; no dashboard aggregate/activity API exists, so no synthetic metrics are shown.
+- **User directory:** Uses `GET /api/v1/users/directory` and the sanitized directory resource. Search, department filter, pagination, loading/error/empty/retry states are included.
+- **Administration:** Uses `GET /api/v1/users`, `GET /api/v1/users/{id}`, `PUT /api/v1/users/{id}`, and existing activation/deactivation actions. Role assignment is omitted because no roles-list endpoint exists. Self-status changes and protected System Admin behavior are handled in the UI while backend authorization remains authoritative.
+- **Frontend feature details:** `frontend/docs/DASHBOARD.md`, `frontend/docs/USER_DIRECTORY.md`, and `frontend/docs/USER_ADMINISTRATION.md`.
+- **Validation:** 48 tests across 10 files passed; typecheck and lint passed; production build succeeded with a 792.15 kB main JavaScript chunk advisory (Vite's threshold is 500 kB); production dependency audit reported zero vulnerabilities. Tests use mocks, with no live Laravel HTTP integration claimed.
 - **Implemented flows:** Login, current-user retrieval, protected routing, sign out, profile update, forgot/reset password, and change password. Feature routes for users, projects, teams, and tasks remain placeholders.
 - **Session security:** Sanctum bearer token stays in JavaScript memory only; reload clears the session. HTTP 401 clears the token. HTTP 403 clears it only for backend error code `ACCOUNT_NOT_ACTIVE`; generic `FORBIDDEN` does not log out the user. Logout clears local auth state and TanStack Query data even if server logout fails.
 - **Permissions:** UI checks use the backend-provided effective global permission list. Global role slugs and contextual project roles are distinct. Frontend checks are not authorization; backend policies enforce private-data access and project membership.

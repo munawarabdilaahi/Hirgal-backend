@@ -67,6 +67,43 @@ export interface ApiUser {
   permissions?: string[];
 }
 
+export interface ApiDirectoryUser {
+  id: number;
+  name: string;
+  email: string;
+  avatar_url: string | null;
+  timezone: string;
+  job_title: string | null;
+  department: string | null;
+}
+
+export interface ApiPaginatedResponse<TData> extends ApiSuccess<TData[]> {
+  meta: Required<ApiMeta>;
+}
+
+export interface UserListFilters {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  status?: AccountStatus;
+  role?: string;
+  sort_by?: 'id' | 'name' | 'email' | 'created_at' | 'last_login_at';
+  sort_direction?: 'asc' | 'desc';
+}
+
+export interface UserDirectoryFilters {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  department?: string;
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  email?: string;
+  timezone?: string | null;
+}
+
 export interface AuthTokenData {
   access_token: string;
   token_type: 'Bearer';

@@ -28,6 +28,7 @@ import { ThemeSwitcher } from '@/components/navigation/theme-switcher';
 import { UserMenu } from '@/components/navigation/user-menu';
 import { useAuth } from '@/features/auth/auth-hooks';
 import { hasPermission } from '@/features/auth/permissions';
+import { hasAnyPermission } from '@/features/auth/permissions';
 import { cn } from '@/lib/utils';
 
 type NavigationItemConfig = {
@@ -36,6 +37,7 @@ type NavigationItemConfig = {
   to?: string;
   status?: 'planned';
   requiredPermission?: string;
+  requiredPermissions?: readonly string[];
 };
 
 type NavigationGroupConfig = {
@@ -69,7 +71,7 @@ const navigationGroups: NavigationGroupConfig[] = [
         label: 'People & access',
         icon: Users,
         to: '/users',
-        requiredPermission: 'users.view_directory',
+        requiredPermissions: ['users.view_directory', 'users.view'],
       },
       { label: 'Activity', icon: CircleHelp, status: 'planned' },
     ],
@@ -123,7 +125,11 @@ function Sidebar({ onNavigate }: SidebarProps) {
         {navigationGroups.map((group) => {
           const visibleItems = group.items.filter((item) => {
             if (!item.requiredPermission) {
-              return true;
+              return item.requiredPermissions
+                ? user
+                  ? hasAnyPermission(user, item.requiredPermissions)
+                  : true
+                : true;
             }
 
             return user ? hasPermission(user, item.requiredPermission) : true;
