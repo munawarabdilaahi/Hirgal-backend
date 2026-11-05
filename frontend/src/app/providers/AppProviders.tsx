@@ -5,6 +5,7 @@ import { ApiError } from '@/services/api/ApiError';
 import { ThemeProvider } from '@/app/providers/ThemeProvider';
 import { useTheme } from '@/app/providers/useTheme';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { AuthProvider } from '@/features/auth/auth-context';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,7 +25,9 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <ApplicationFeedback>{children}</ApplicationFeedback>
+        <AuthProvider>
+          <ApplicationFeedback>{children}</ApplicationFeedback>
+        </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

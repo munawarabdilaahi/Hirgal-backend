@@ -43,6 +43,14 @@ export interface ApiUserProfile {
   updated_at: string | null;
 }
 
+export type GlobalRoleSlug =
+  | 'system-admin'
+  | 'project-manager'
+  | 'team-leader'
+  | 'member';
+
+export type ProjectContextRole = 'owner' | 'lead' | 'member' | 'viewer';
+
 export interface ApiUser {
   id: number;
   name: string;
@@ -69,4 +77,34 @@ export interface LoginRequest {
   email: string;
   password: string;
   device_name?: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  token: string;
+  password: string;
+  password_confirmation: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  password: string;
+  password_confirmation: string;
+  logout_other_devices?: boolean;
+}
+
+export interface UpdateProfileRequest {
+  name?: string;
+  timezone?: string | null;
+  avatar_url?: string | null;
+  phone?: string | null;
+  job_title?: string | null;
+  department?: string | null;
+  bio?: string | null;
+  theme_preference?: 'light' | 'dark' | 'system';
+  notification_preferences?: Record<string, unknown>;
 }

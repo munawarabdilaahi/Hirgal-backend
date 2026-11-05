@@ -4,12 +4,12 @@ import { cn } from '@/lib/utils';
 
 interface FormFieldProps {
   label: string;
-  description?: string;
-  error?: string;
+  description?: string | undefined;
+  error?: string | undefined;
   htmlFor: string;
   required?: boolean;
   children: (controlProps: FormControlProps) => ReactNode;
-  className?: string;
+  className?: string | undefined;
 }
 
 interface FormControlProps {

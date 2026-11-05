@@ -3,6 +3,12 @@ import { appConfig } from '@/app/config/env';
 import { normalizeApiError } from '@/services/api/normalizeApiError';
 import { clearAccessToken, getAccessToken } from '@/services/api/tokenStore';
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    skipAuth?: boolean;
+  }
+}
+
 export const apiClient = axios.create({
   baseURL: appConfig.apiBaseUrl,
   headers: {
@@ -18,7 +24,7 @@ apiClient.interceptors.request.use((config) => {
   config.headers.set('Accept', 'application/json');
   config.headers.set('Content-Type', 'application/json');
 
-  if (token) {
+  if (token && !config.skipAuth) {
     config.headers.set('Authorization', `Bearer ${token}`);
   } else {
     config.headers.delete('Authorization');
@@ -33,7 +39,12 @@ apiClient.interceptors.response.use(
     const normalizedError = normalizeApiError(error);
 
     if (normalizedError.status === 401) {
-      clearAccessToken();
+      clearAccessToken('unauthorized');
+    } else if (
+      normalizedError.status === 403 &&
+      normalizedError.code === 'ACCOUNT_NOT_ACTIVE'
+    ) {
+      clearAccessToken('account_inactive');
     }
 
     return Promise.reject(normalizedError);

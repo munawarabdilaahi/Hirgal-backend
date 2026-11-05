@@ -25,6 +25,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ThemeSwitcher } from '@/components/navigation/theme-switcher';
+import { UserMenu } from '@/components/navigation/user-menu';
+import { useAuth } from '@/features/auth/auth-hooks';
+import { hasPermission } from '@/features/auth/permissions';
 import { cn } from '@/lib/utils';
 
 type NavigationItemConfig = {
@@ -32,6 +35,7 @@ type NavigationItemConfig = {
   icon: LucideIcon;
   to?: string;
   status?: 'planned';
+  requiredPermission?: string;
 };
 
 type NavigationGroupConfig = {
@@ -45,9 +49,9 @@ const navigationGroups: NavigationGroupConfig[] = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
       { label: 'My work', icon: CheckSquare, status: 'planned' },
-      { label: 'Projects', icon: FolderKanban, to: '/projects' },
-      { label: 'Teams', icon: UsersRound, to: '/teams' },
-      { label: 'Tasks', icon: CheckSquare, to: '/tasks' },
+      { label: 'Projects', icon: FolderKanban, to: '/projects', requiredPermission: 'projects.view' },
+      { label: 'Teams', icon: UsersRound, to: '/teams', requiredPermission: 'teams.view' },
+      { label: 'Tasks', icon: CheckSquare, to: '/tasks', requiredPermission: 'tasks.view' },
     ],
   },
   {
@@ -61,7 +65,12 @@ const navigationGroups: NavigationGroupConfig[] = [
   {
     label: 'Administration',
     items: [
-      { label: 'People & access', icon: Users, to: '/users' },
+      {
+        label: 'People & access',
+        icon: Users,
+        to: '/users',
+        requiredPermission: 'users.view_directory',
+      },
       { label: 'Activity', icon: CircleHelp, status: 'planned' },
     ],
   },
@@ -87,6 +96,7 @@ interface SidebarProps {
 
 function Sidebar({ onNavigate }: SidebarProps) {
   const { pathname } = useLocation();
+  const { user } = useAuth();
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -110,13 +120,26 @@ function Sidebar({ onNavigate }: SidebarProps) {
       </div>
       <Separator className="bg-border/80" />
       <nav aria-label="Main navigation" className="flex-1 space-y-7 overflow-y-auto px-3 py-5">
-        {navigationGroups.map((group) => (
+        {navigationGroups.map((group) => {
+          const visibleItems = group.items.filter((item) => {
+            if (!item.requiredPermission) {
+              return true;
+            }
+
+            return user ? hasPermission(user, item.requiredPermission) : true;
+          });
+
+          if (visibleItems.length === 0) {
+            return null;
+          }
+
+          return (
           <section aria-label={group.label} key={group.label}>
             <h2 className="mb-2 px-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-sidebar-muted">
               {group.label}
             </h2>
             <ul className="space-y-1">
-              {group.items.map((item) => {
+              {visibleItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = item.to === pathname;
 
@@ -157,19 +180,28 @@ function Sidebar({ onNavigate }: SidebarProps) {
               })}
             </ul>
           </section>
-        ))}
+          );
+        })}
       </nav>
+      {user ? (
       <div className="p-3">
         <div className="flex items-center gap-3 rounded-lg border border-border/70 p-3">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-active text-xs font-semibold text-sidebar-active-foreground">
-            UI
+            {user.name
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part.charAt(0))
+              .join('')
+              .toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-xs font-medium">Interface preview</p>
-            <p className="truncate text-xs text-sidebar-muted">Design system</p>
+            <p className="truncate text-xs font-medium">{user.name}</p>
+            <p className="truncate text-xs text-sidebar-muted">{user.email}</p>
           </div>
         </div>
       </div>
+      ) : null}
     </div>
   );
 }
@@ -247,7 +279,10 @@ function AppShell({ breadcrumb, children }: AppShellProps) {
             </div>
             <p className="truncate text-sm font-medium sm:hidden">{breadcrumb}</p>
           </div>
-          <ThemeSwitcher />
+          <div className="flex items-center gap-2">
+            <ThemeSwitcher />
+            <UserMenu />
+          </div>
         </header>
         <main className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           {children}
