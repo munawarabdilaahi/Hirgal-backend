@@ -8,19 +8,21 @@ import { DesignSystemLoadingFallback } from '@/app/router/routes/DesignSystemLoa
 import { NotFoundRoute } from '@/app/router/routes/NotFoundRoute';
 import { ProtectedDeferredRoute } from '@/app/router/routes/ProtectedDeferredRoute';
 import {
+  ChangePasswordPage,
+  DashboardPage,
+  ForgotPasswordPage,
+  LoginPage,
+  ProfilePage,
+  ResetPasswordPage,
+  UserDetailsPage,
+  UsersPage,
+} from '@/app/router/routes/LazyPages';
+import {
   RequireAnyPermission,
   RedirectAuthenticatedUser,
   RequirePermission,
   RequireAuthenticated,
 } from '@/features/auth/components/AuthRouteGuards';
-import { ChangePasswordRoute } from '@/features/auth/pages/ChangePasswordRoute';
-import { DashboardRoute } from '@/features/auth/pages/DashboardRoute';
-import { ForgotPasswordRoute } from '@/features/auth/pages/ForgotPasswordRoute';
-import { LoginRoute } from '@/features/auth/pages/LoginRoute';
-import { ProfileRoute } from '@/features/auth/pages/ProfileRoute';
-import { ResetPasswordRoute } from '@/features/auth/pages/ResetPasswordRoute';
-import { UsersRoute } from '@/features/users/pages/UsersRoute';
-import { UserDetailsRoute } from '@/features/users/pages/UserDetailsRoute';
 
 const routes: RouteObject[] = [
   {
@@ -31,12 +33,12 @@ const routes: RouteObject[] = [
     path: '/login',
     element: (
       <RedirectAuthenticatedUser>
-        <LoginRoute />
+      <LoginPage />
       </RedirectAuthenticatedUser>
     ),
   },
-  { path: '/forgot-password', element: <ForgotPasswordRoute /> },
-  { path: '/reset-password', element: <ResetPasswordRoute /> },
+  { path: '/forgot-password', element: <ForgotPasswordPage /> },
+  { path: '/reset-password', element: <ResetPasswordPage /> },
   {
     element: (
       <RequireAuthenticated>
@@ -44,14 +46,14 @@ const routes: RouteObject[] = [
       </RequireAuthenticated>
     ),
     children: [
-      { path: '/dashboard', element: <DashboardRoute /> },
-      { path: '/profile', element: <ProfileRoute /> },
-      { path: '/change-password', element: <ChangePasswordRoute /> },
+      { path: '/dashboard', element: <DashboardPage /> },
+      { path: '/profile', element: <ProfilePage /> },
+      { path: '/change-password', element: <ChangePasswordPage /> },
       {
         path: '/users',
         element: (
           <RequireAnyPermission permissions={['users.view_directory', 'users.view']}>
-            <UsersRoute />
+            <UsersPage />
           </RequireAnyPermission>
         ),
       },
@@ -59,7 +61,7 @@ const routes: RouteObject[] = [
         path: '/users/:userId',
         element: (
           <RequirePermission permission="users.view">
-            <UserDetailsRoute />
+            <UserDetailsPage />
           </RequirePermission>
         ),
       },

@@ -105,3 +105,11 @@ npm audit --omit=dev
 - `npm run build`: passed; Vite reported the main minified JavaScript chunk at approximately 700 kB, above its 500 kB advisory threshold.
 - `npm audit --omit=dev`: passed; 0 vulnerabilities.
 - Real HTTP integration against Laravel: not run; the local server was unavailable at `127.0.0.1:8000`.
+
+## Phase 4.1 security and contract audit
+
+The current-user contract used by the dashboard is `GET /api/v1/auth/me`, behind Sanctum and active-account middleware. Profile editing uses `PUT /api/v1/auth/me/profile`, with optional `name`, `timezone`, `avatar_url`, `phone`, `job_title`, `department`, `bio`, `theme_preference`, and `notification_preferences`; Laravel validates the fields and returns `UserResource`. The profile screen submits only the editable profile fields it presents.
+
+The auth provider clears the TanStack Query client on logout and when the token transitions to cleared. This also removes the user directory and administrative user query cache after a current-session 401 or `ACCOUNT_NOT_ACTIVE`. Ordinary 403 responses preserve the token and cached identity. Account switching through the UI requires logout, which clears query data before the next login. The bearer remains memory-only.
+
+Phase 4.1 re-ran the full frontend suite (48 tests across 10 files), typecheck, lint, production build, and production dependency audit. Route-level page splitting reduced the entry chunk from 792.15 kB to 369.22 kB (gzip 245.87 to 114.68 kB); the build emits 27 JS chunks totaling 802.79 kB uncompressed and no longer emits Vite's 500 kB large-chunk warning. These frontend tests remain mocked; route listing and source inspection verified Laravel contracts, but no authenticated live HTTP exchange was performed. User detail update/action and directory filter-interaction coverage remains a documented gap in `USER_ADMINISTRATION.md` and `USER_DIRECTORY.md`.
