@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Database;
 
+use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -13,119 +14,125 @@ class MySQLCompositeConstraintTest extends TestCase
     {
         parent::setUp();
 
-        // Ensure we test against the real MySQL 8 test database
-        $this->skipIfMySQLUnavailable();
-    }
-
-    protected function skipIfMySQLUnavailable(): void
-    {
         try {
             DB::connection('mysql_test')->getPdo();
-        } catch (\Throwable $e) {
-            $this->markTestSkipped('MySQL test database unavailable: '.$e->getMessage());
+        } catch (\Throwable $exception) {
+            $this->markTestSkipped('MySQL test database unavailable: '.$exception->getMessage());
         }
     }
 
     public function test_mysql8_enforces_composite_foreign_key_on_habit_logs(): void
     {
         $conn = DB::connection('mysql_test');
+        $userIds = [];
+        $habitId = null;
 
-        // Disable and re-enable FK checks to ensure clean testing state in dedicated test DB
-        $conn->table('habit_logs')->delete();
-        $conn->table('habits')->delete();
-        $conn->table('users')->delete();
+        try {
+            $userIds[] = $this->createUser($conn, 'alice');
+            $userIds[] = $this->createUser($conn, 'bob');
+            $habitId = $conn->table('habits')->insertGetId([
+                'uuid' => (string) Str::uuid(), 'user_id' => $userIds[0], 'title' => 'Constraint test habit',
+                'frequency' => 'daily', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $logId = $conn->table('habit_logs')->insertGetId([
+                'habit_id' => $habitId, 'user_id' => $userIds[0], 'logged_date' => now()->toDateString(),
+                'status' => 'completed', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $this->assertNotNull($logId);
 
-        // Create User A and User B in MySQL
-        $userAId = $conn->table('users')->insertGetId([
-            'name' => 'User Alice',
-            'email' => 'alice@hirgal-test.local',
-            'password' => bcrypt('password'),
-            'account_status' => 'active',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $userBId = $conn->table('users')->insertGetId([
-            'name' => 'User Bob',
-            'email' => 'bob@hirgal-test.local',
-            'password' => bcrypt('password'),
-            'account_status' => 'active',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Alice creates Habit #1
-        $habitId = $conn->table('habits')->insertGetId([
-            'uuid' => (string) Str::uuid(),
-            'user_id' => $userAId,
-            'title' => "Alice's Private Habit",
-            'frequency' => 'daily',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Alice logs her own habit -> MUST SUCCEED
-        $logId = $conn->table('habit_logs')->insertGetId([
-            'habit_id' => $habitId,
-            'user_id' => $userAId,
-            'logged_date' => now()->toDateString(),
-            'status' => 'completed',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $this->assertNotNull($logId);
-
-        // Bob attempts to log against Alice's Habit using his own user_id -> MUST FAIL with MySQL Foreign Key Constraint Violation
-        $this->expectException(QueryException::class);
-
-        $conn->table('habit_logs')->insert([
-            'habit_id' => $habitId,
-            'user_id' => $userBId, // Cross-user tampering!
-            'logged_date' => now()->subDay()->toDateString(),
-            'status' => 'completed',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+            try {
+                $conn->table('habit_logs')->insert([
+                    'habit_id' => $habitId, 'user_id' => $userIds[1], 'logged_date' => now()->subDay()->toDateString(),
+                    'status' => 'completed', 'created_at' => now(), 'updated_at' => now(),
+                ]);
+                $this->fail('The composite habit/user foreign key should reject a cross-user log.');
+            } catch (QueryException) {
+                $this->assertTrue(true);
+            }
+        } finally {
+            if ($habitId !== null) {
+                $conn->table('habits')->where('id', $habitId)->delete();
+            }
+            if ($userIds !== []) {
+                $conn->table('users')->whereIn('id', $userIds)->delete();
+            }
+        }
     }
 
     public function test_mysql8_composite_foreign_key_cascades_on_habit_delete(): void
     {
         $conn = DB::connection('mysql_test');
+        $userId = $this->createUser($conn, 'cascade');
+        $habitId = null;
 
-        $userId = $conn->table('users')->insertGetId([
-            'name' => 'Cascade User',
-            'email' => 'cascade@hirgal-test.local',
-            'password' => bcrypt('password'),
+        try {
+            $habitId = $conn->table('habits')->insertGetId([
+                'uuid' => (string) Str::uuid(), 'user_id' => $userId, 'title' => 'Cascade test habit',
+                'frequency' => 'daily', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $conn->table('habit_logs')->insert([
+                'habit_id' => $habitId, 'user_id' => $userId, 'logged_date' => now()->toDateString(),
+                'status' => 'completed', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $this->assertSame(1, $conn->table('habit_logs')->where('habit_id', $habitId)->count());
+
+            $conn->table('habits')->where('id', $habitId)->delete();
+            $this->assertSame(0, $conn->table('habit_logs')->where('habit_id', $habitId)->count());
+        } finally {
+            if ($habitId !== null) {
+                $conn->table('habits')->where('id', $habitId)->delete();
+            }
+            $conn->table('users')->where('id', $userId)->delete();
+        }
+    }
+
+    public function test_mysql8_enforces_the_single_appointment_context_check(): void
+    {
+        $conn = DB::connection('mysql_test');
+        $userId = $this->createUser($conn, 'context');
+        $projectId = null;
+        $teamId = null;
+
+        try {
+            $projectId = $conn->table('projects')->insertGetId([
+                'uuid' => (string) Str::uuid(), 'name' => 'Appointment context project', 'slug' => Str::uuid(),
+                'owner_id' => $userId, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $teamId = $conn->table('teams')->insertGetId([
+                'uuid' => (string) Str::uuid(), 'name' => 'Appointment context team', 'slug' => Str::uuid(),
+                'leader_id' => $userId, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+
+            try {
+                $conn->table('appointments')->insert([
+                    'uuid' => (string) Str::uuid(), 'organizer_id' => $userId, 'project_id' => $projectId, 'team_id' => $teamId,
+                    'title' => 'Invalid multi-context appointment', 'start_time' => now(), 'end_time' => now()->addHour(),
+                    'status' => 'scheduled', 'timezone' => 'UTC', 'created_at' => now(), 'updated_at' => now(),
+                ]);
+                $this->fail('The appointment context check should reject project and team context together.');
+            } catch (QueryException) {
+                $this->assertTrue(true);
+            }
+        } finally {
+            if ($teamId !== null) {
+                $conn->table('teams')->where('id', $teamId)->delete();
+            }
+            if ($projectId !== null) {
+                $conn->table('projects')->where('id', $projectId)->delete();
+            }
+            $conn->table('users')->where('id', $userId)->delete();
+        }
+    }
+
+    private function createUser(Connection $connection, string $suffix): int
+    {
+        return (int) $connection->table('users')->insertGetId([
+            'name' => 'Constraint '.$suffix,
+            'email' => $suffix.'-'.Str::uuid().'@hirgal-test.local',
+            'password' => bcrypt('temporary-test-password'),
             'account_status' => 'active',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-
-        $habitId = $conn->table('habits')->insertGetId([
-            'uuid' => (string) Str::uuid(),
-            'user_id' => $userId,
-            'title' => 'Temporary Habit',
-            'frequency' => 'daily',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $conn->table('habit_logs')->insert([
-            'habit_id' => $habitId,
-            'user_id' => $userId,
-            'logged_date' => now()->toDateString(),
-            'status' => 'completed',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $this->assertEquals(1, $conn->table('habit_logs')->where('habit_id', $habitId)->count());
-
-        // Delete parent habit
-        $conn->table('habits')->where('id', $habitId)->delete();
-
-        // MySQL composite foreign key MUST cascade and delete the child logs
-        $this->assertEquals(0, $conn->table('habit_logs')->where('habit_id', $habitId)->count());
     }
 }

@@ -52,7 +52,8 @@ class PermissionSeeder extends Seeder
             ['name' => 'View Appointments', 'slug' => 'appointments.view', 'module' => 'appointments', 'description' => 'Can view own and invited calendar appointments.'],
             ['name' => 'Create Appointments', 'slug' => 'appointments.create', 'module' => 'appointments', 'description' => 'Can schedule new meetings and invite participants.'],
             ['name' => 'Update Appointments', 'slug' => 'appointments.update', 'module' => 'appointments', 'description' => 'Can modify scheduled meeting times and links.'],
-            ['name' => 'Delete Appointments', 'slug' => 'appointments.delete', 'module' => 'appointments', 'description' => 'Can cancel appointments.'],
+            ['name' => 'Delete Appointments', 'slug' => 'appointments.delete', 'module' => 'appointments', 'description' => 'Can soft-delete appointments separately from cancellation.'],
+            ['name' => 'View Appointments Administratively', 'slug' => 'appointments.admin.view', 'module' => 'appointments', 'description' => 'Can perform audited, read-only cross-context appointment support access.'],
 
             // Habits
             ['name' => 'Manage Habits', 'slug' => 'habits.manage', 'module' => 'habits', 'description' => 'Can create and track personal habits.'],

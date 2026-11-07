@@ -17,6 +17,9 @@ class AppointmentParticipant extends Model
         'status',
         'response_notes',
         'responded_at',
+        'removed_at',
+        'removed_by',
+        'response_history',
     ];
 
     protected function casts(): array
@@ -24,6 +27,8 @@ class AppointmentParticipant extends Model
         return [
             'status' => ParticipantStatus::class,
             'responded_at' => 'datetime',
+            'removed_at' => 'datetime',
+            'response_history' => 'array',
         ];
     }
 
@@ -35,5 +40,10 @@ class AppointmentParticipant extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function removedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'removed_by');
     }
 }

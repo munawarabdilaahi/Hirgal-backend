@@ -19,14 +19,19 @@ class Appointment extends Model
     protected $fillable = [
         'uuid',
         'organizer_id',
+        'project_id',
+        'team_id',
         'title',
         'description',
+        'timezone',
         'start_time',
         'end_time',
         'location_type',
         'meeting_link',
         'location_address',
         'status',
+        'cancelled_at',
+        'cancelled_by',
     ];
 
     protected function casts(): array
@@ -36,6 +41,7 @@ class Appointment extends Model
             'location_type' => AppointmentLocationType::class,
             'start_time' => 'datetime',
             'end_time' => 'datetime',
+            'cancelled_at' => 'datetime',
         ];
     }
 
@@ -51,6 +57,21 @@ class Appointment extends Model
     public function organizer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'organizer_id');
+    }
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     public function participants(): BelongsToMany

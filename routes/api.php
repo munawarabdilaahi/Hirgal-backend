@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Appointments\AppointmentController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\InvitationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
@@ -89,6 +90,22 @@ Route::prefix('v1')->group(function (): void {
             Route::put('/{id}', [UserController::class, 'update'])->name('api.v1.users.update');
             Route::post('/{id}/activate', [UserController::class, 'activate'])->name('api.v1.users.activate');
             Route::post('/{id}/deactivate', [UserController::class, 'deactivate'])->name('api.v1.users.deactivate');
+        });
+
+        // Appointments & scheduling (Phase 7).
+        Route::prefix('appointments')->group(function (): void {
+            Route::get('/', [AppointmentController::class, 'index'])->name('api.v1.appointments.index');
+            Route::post('/', [AppointmentController::class, 'store'])->middleware('throttle:invitations')->name('api.v1.appointments.store');
+            Route::get('/calendar', [AppointmentController::class, 'calendar'])->name('api.v1.appointments.calendar');
+            Route::post('/admin/{uuid}/view', [AppointmentController::class, 'adminShow'])->name('api.v1.appointments.admin.show');
+            Route::get('/{appointment:uuid}', [AppointmentController::class, 'show'])->name('api.v1.appointments.show');
+            Route::put('/{appointment:uuid}', [AppointmentController::class, 'update'])->name('api.v1.appointments.update');
+            Route::post('/{appointment:uuid}/cancel', [AppointmentController::class, 'cancel'])->name('api.v1.appointments.cancel');
+            Route::delete('/{appointment:uuid}', [AppointmentController::class, 'destroy'])->name('api.v1.appointments.destroy');
+            Route::get('/{appointment:uuid}/participants', [AppointmentController::class, 'participants'])->name('api.v1.appointments.participants.index');
+            Route::post('/{appointment:uuid}/participants', [AppointmentController::class, 'addParticipant'])->middleware('throttle:invitations')->name('api.v1.appointments.participants.store');
+            Route::delete('/{appointment:uuid}/participants/{user}', [AppointmentController::class, 'removeParticipant'])->whereNumber('user')->name('api.v1.appointments.participants.destroy');
+            Route::put('/{appointment:uuid}/rsvp', [AppointmentController::class, 'respond'])->name('api.v1.appointments.rsvp');
         });
 
         // User Invitation Management

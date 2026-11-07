@@ -2,9 +2,9 @@
 
 > **Central Project Knowledge, Architectural Blueprint & Living Operational Guide**  
 > **Repository Location:** `C:\Hirgal`  
-> **Current Version:** Backend Phase 6.2 Accepted; Frontend Phase 5 Projects & Teams Management
-> **Last Audited & Updated:** 2026-11-04
-> **Git Baseline:** Commit `d7e0916` (Phase 6.2) & Commit `3556549` (Documentation Baseline) — Phases 6 & 6.2 recorded in Section 11
+> **Current Version:** Backend Phase 7 Appointments & Scheduling implemented (deployment migration pending); Frontend Phase 5 Projects & Teams Management
+> **Last Audited & Updated:** 2026-11-07
+> **Implementation Baseline:** Phase 7 work based on commit `396314f`; no Phase 7 commit created
 
 ---
 
@@ -368,18 +368,28 @@ To maintain strict truth in documentation, modules are classified into three dis
 #### Cross-Cutting Phase 6 Authorization
 - **Test:** `tests/Feature/Api/V1/Phase6AuthorizationTest.php` (48 tests) verifies `401` on all Phase 6 endpoints, `403 ACCOUNT_NOT_ACTIVE` for suspended accounts, `404 RESOURCE_NOT_FOUND` across 19 cross-scope route/verb combinations, UUID-only route binding, and the standard error/success envelopes.
 
+#### Module 7: Appointments & Scheduling (Phase 7)
+- **Status:** `IMPLEMENTED` | `TESTED` (SQLite API suite and isolated MySQL schema constraint) | multi-process concurrency remains unverified.
+- **Routes:** list, calendar, create, UUID detail/update, cancel, soft-delete, participant list/invite/remove, RSVP, and audited System Admin support view under `/api/v1/appointments`.
+- **Context:** exactly one project, team, or personal context. Legacy contextless appointments migrate as personal. Project members/owner can view project appointments; team roster/leader can view team appointments; personal events are visible to organizer and active invitees. Admin cross-context access is read-only through a separate permissioned and audited endpoint.
+- **Scheduling:** RFC3339 timestamps with explicit offset plus persisted IANA timezone; UTC storage and UTC response instants. Half-open overlaps produce privacy-filtered warnings and never reject a valid write. Calendar range is capped at 90 days.
+- **Lifecycle:** scheduled, confirmed, completed, cancelled; cancellation records actor/time and is separate from soft deletion. Participant removal retains RSVP history for reinvitation.
+- **Notifications:** queued Laravel mail and database notifications after commit; generic profile `email` and `in_app` preferences are honored.
+- **Schema:** additive migration `2026_11_07_000001_extend_appointments_for_context_timezone_and_cancellation.php`; applied only to isolated `hirgal_backend_test`. The active `hirgal_backend` database has not been migrated.
+- **Docs:** [`docs/architecture/PHASE-7-APPOINTMENTS-IMPLEMENTATION.md`](docs/architecture/PHASE-7-APPOINTMENTS-IMPLEMENTATION.md), [`docs/api/APPOINTMENTS.md`](docs/api/APPOINTMENTS.md).
+- **Known limitations:** historical local-time intent cannot be proven from naive DATETIME columns; migration defaults timezone to UTC based on the UTC app configuration/seeder convention and classifies legacy scope as personal. Verify before deploying to any environment with local-time rows. Multi-process conflict-warning freshness is not proven; warnings may become stale after commit. PHPStan is not installed/configured.
+
 ---
 
 ### 8.2 Database Foundations Only (APIs NOT Implemented)
 
-> **WARNING FOR FUTURE AGENTS:** The following modules have completed database schemas, Eloquent models, factories, and seeders from Phase 4. **No API routes, controllers, or actions exist for these domains.** Do NOT attempt to query or integrate against endpoints for these modules until their respective phases are executed.
+> **WARNING FOR FUTURE AGENTS:** The following modules have completed database schemas, Eloquent models, factories, and seeders from Phase 4. **No API routes, controllers, or actions exist for the rows shown here.**
 
 | Domain Module | Database Tables | Eloquent Models | API Route Status | Planned Roadmap Phase |
 | :--- | :--- | :--- | :---: | :---: |
 | **Global RBAC Management** | `roles`, `permissions`, `role_permissions`, `user_roles` | `Role`, `Permission` | **NO API ROUTES** | Phase 5.2 (Permissions Seeded Only) |
 | **Project Invitations** | `project_invitations` | `ProjectInvitation` | **NO API ROUTES** | Deferred (Phase 6 covered projects/memberships only) |
 | **Task Comments & Attachments** | `task_comments`, `task_attachments` | `TaskComment`, `TaskAttachment` | **NO API ROUTES** | Deferred (Phase 6 covered tasks/assignments only) |
-| **Appointments & Scheduling** | `appointments`, `appointment_participants` | `Appointment`, `AppointmentParticipant` | **NO API ROUTES** | **Phase 7** |
 | **Habit Tracker** | `habits`, `habit_logs` | `Habit`, `HabitLog` | **NO API ROUTES** | **Phase 8** |
 | **Follow-Up Inbox & Mentions** | `user_mentions`, `notifications` | `UserMention` | **NO API ROUTES** | **Phase 9** |
 | **Activity Auditing & Logs** | `activity_logs` | `ActivityLog` | **NO API ROUTES** | **Phase 9** |
@@ -469,9 +479,7 @@ Verified directly via live runtime execution on 2026-11-03 (post-Phase 6.2; Phas
 
 ### 10.4 SQLite vs MySQL Testing Reality
 - **SQLite In-Memory (`:memory:`):** Executes the full feature/unit test suite (273 tests) in `phpunit.xml`.
-- **MySQL 8 (`hirgal_backend_test`):** Specifically verified by [`tests/Feature/Database/MySQLCompositeConstraintTest.php`](file:///c:/Hirgal/tests/Feature/Database/MySQLCompositeConstraintTest.php) (2 tests):
-  1. `test_mysql8_enforces_composite_foreign_key_on_habit_logs`: Validates cross-user tampering rejection on `(habit_id, user_id)`.
-  2. `test_mysql8_composite_foreign_key_cascades_on_habit_delete`: Validates cascading deletes on composite foreign keys under MySQL InnoDB.
+- **MySQL 8 (`hirgal_backend_test`):** `tests/Feature/Database/MySQLCompositeConstraintTest.php` (3 tests) verifies composite habit FK rejection/cascade plus Phase 7 project/team context XOR. These tests create and remove only unique fixtures.
 - **Pessimistic Row Locking Concurrency Status (`NOT VERIFIED` under multi-process contention):**
   - Pessimistic row locking syntax (`Role::lockForUpdate()`) is verified transactionally in `SecurityHardeningTest.php`.
   - However, **true multi-process concurrent lock contention** (two concurrent PHP processes simultaneously executing deactivation requests on MySQL) is `NOT VERIFIED` via automated concurrency tests because PHPUnit runs as a single synchronous process.
@@ -497,23 +505,25 @@ Verified directly via live runtime execution on 2026-11-03 (post-Phase 6.2; Phas
 | **Phase 6** | Projects, Teams & Tasks Management APIs | Implementation | 2026-11-02 | **ACCEPTED** | `77e62b4` | 30 endpoints, 6 policies, 21 actions, 3 services, 5 resources, 16 form requests, 158 new tests (260 total). Fixed enum-cast bug in `ProjectPolicy::contextualRole`. |
 | **Phase 6.1** | Independent Security & Implementation Audit | Read-Only Audit | 2026-11-03 | **CONDITIONALLY PASSED** | — | Re-verified 30 routes / 6 policies / invariants; identified F-1 (500 on soft-deleted-project task endpoints, MEDIUM), F-2/F-3/F-4/F-6 (LOW), F-5 flagged for product decision. |
 | **Phase 6.2** | Task Access Hardening & Doc Corrections | Security Remediation | 2026-11-03 | **ACCEPTED** | `d7e0916` | Null-safe project scoping resolves soft-deleted-project task access to 404 (F-1/F-2); task listings exclude soft-deleted projects (F-3); assignee route identifier validated → 422 (F-4); 13 regression tests (273 total); documentation counts corrected (5 resources, 19 cross-scope, `project_invitations` deferred row). |
+| **Phase 7** | Appointments & Scheduling API | Implementation | 2026-11-07 | **IMPLEMENTED; DEPLOYMENT PENDING** | — | Added project/team/personal contexts, UTC/IANA handling, warning-only conflicts, lifecycle/cancellation, RSVP and participant management, audited read-only System Admin support access, queued notifications, API docs, and tests. Migration verified only on `hirgal_backend_test`; active `hirgal_backend` remains unmigrated. Multi-process conflict freshness and PHPStan remain unverified/unavailable. |
 
 ---
 
 ## 12. Current Project Status
 
-- **Latest Completed Phase:** Phase 6.2 (Task Access Hardening & Documentation Corrections).
+- **Latest Implemented Phase:** Phase 7 is implemented in the working tree; deployment migration and permission seeding are pending.
 - **Latest Accepted Implementation:** Phase 6.2 (Commit `d7e0916`; prior baseline `77e62b4` for Phase 6).
-- **Current Backend Phase:** Phase 6.2 Complete — awaiting authorization for Phase 7.
+- **Current Backend Phase:** Phase 7 implementation complete; rollout to the active database requires operator verification.
 - **Current Frontend Phase:** Phase 5 Projects & Teams Management implemented against existing backend APIs.
 - **Remaining Work:**
-  - Phase 7: Appointments & Scheduling API.
+  - Apply the Phase 7 migration and run `PermissionSeeder`/`RolePermissionSeeder` on the intended database after confirming environment and rollout procedure.
+  - Verify multi-process conflict-warning freshness on MySQL; warnings are advisory and can become stale after commit.
   - Phase 8: Habit Tracker API.
   - Phase 9: Follow-Up Inbox, Mentions & Activity Logging.
   - Phase 10: Production Readiness, Performance Optimization & Final Security Audit.
 - **Pending Audits:** None.
 - **Known Blockers:** None.
-- **Frontend Status:** Frontend Phases 1–5 are implemented under `frontend/`: design system, authentication, dashboard/user administration, and Projects & Teams management. Task management and later modules remain deferred. Backend Phase 6.2 is unchanged.
+- **Frontend Status:** Frontend Phases 1–5 are implemented under `frontend/`: design system, authentication, dashboard/user administration, and Projects & Teams management. Appointment frontend integration remains deferred. The active backend database has not been migrated for Phase 7.
 
 ---
 
@@ -535,8 +545,8 @@ Verified directly via live runtime execution on 2026-11-03 (post-Phase 6.2; Phas
    - Teams CRUD, team rosters, multi-team project allocation with roster invariants.
    - Tasks CRUD, subtask parenting, task assignments/unassignments, status lifecycle.
    - *Deferred from original scope:* project invitations, task comments, attachments (database-only).
-2. **Phase 7: Appointments & Calendar Scheduling API**
-   - Appointments CRUD, video conferencing link integrations, participant invitations & RSVP tracking.
+2. **Phase 7: Appointments & Calendar Scheduling API** — implemented in the working tree; deployment migration pending.
+   - Project/team/personal appointments, bounded calendar queries, RSVP, cancellation, conflict warnings, and email/database notifications. Recurrence and external calendar integrations remain out of scope.
 3. **Phase 8: Habit Tracker API**
    - Habit definitions, schedules, daily logs, streak computation, composite key validation.
 4. **Phase 9: Follow-Up Inbox, Mentions & Activity Logging API**
@@ -589,6 +599,7 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 | **2026-11-05** | Frontend Phase 5 | committed locally | `frontend/` | Integrated existing project/team APIs with lazy list/detail/create/edit routes, contextual membership controls, project-team allocation, and permission-aware query invalidation. No backend files or dependencies changed. | 101 tests across 14 files; typecheck, lint, build, and npm audit passed. Main entry is 371.99 kB (115.18 kB gzip); 36 JavaScript chunks total 849.27 kB. | `frontend/docs/PROJECTS_AND_TEAMS.md`, frontend README, PROJECT_CONTEXT |
 | **2026-11-05** | Frontend Phase 5.1 | audit of `c1bd932` | `frontend/` | Verified API contracts, authorization boundaries, cache behavior, and directory pagination. Fixed archived-project status preservation, nullable team-leader update payloads, and cross-feature query invalidation; added paginated project/team rosters and server-searchable paginated directory pickers. No backend or dependency changes. | 107 frontend tests across 15 files; typecheck, lint, build, and npm audit pass. Live API and browser verification unavailable. | `frontend/docs/PROJECTS_AND_TEAMS.md` |
 | **2026-11-05** | Frontend Phase 5.2 | separate local commit | `frontend/` | Replaced the project allocation picker's first-100 fetch with server-side search/pagination and selected-team retention. Scans paginated team rosters for later-page leadership and duplicate candidate exclusion; improves backend eligibility error text. No backend or dependency changes. | 113 frontend tests across 15 files; typecheck, lint, build, npm audit, and diff check pass. Authenticated local API checks passed; browser visual checks unavailable. | `frontend/docs/PROJECTS_AND_TEAMS.md`, `PROJECT_CONTEXT.md` |
+| **2026-11-07** | Phase 7 | uncommitted | `app/Actions/Appointments/`, `app/Services/Appointment/`, `app/Http/`, `app/Policies/AppointmentPolicy.php`, `database/migrations/`, `database/seeders/`, `routes/api.php`, `tests/`, `docs/` | Implemented appointment contexts, UTC/timezone conversion, warning conflicts, lifecycle/cancellation, participant management/RSVP, audited admin view, post-commit notifications, and API documentation. Migration applied only to isolated `hirgal_backend_test`; active `hirgal_backend` unchanged. | Final suite and quality results recorded after verification. | Phase 7 API/architecture docs, `PROJECT_CONTEXT.md` |
 
 ## 17. Frontend Foundation
 

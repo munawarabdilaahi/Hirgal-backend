@@ -82,3 +82,4 @@ All API responses follow a uniform JSON structure.
 - [Authentication & Profile API](./AUTH.md)
 - [User Management API](./USERS.md)
 - [Invitation & Onboarding API](./INVITATIONS.md)
+- [Appointments & Scheduling API](./APPOINTMENTS.md)

@@ -26,7 +26,8 @@ class RolePermissionSeeder extends Seeder
         $pmRole = Role::where('slug', UserRole::ProjectManager->value)->first();
         if ($pmRole) {
             $pmPermissions = $allPermissions->filter(function (Permission $permission) {
-                return in_array($permission->module, ['projects', 'tasks', 'appointments'])
+                return in_array($permission->module, ['projects', 'tasks'])
+                    || ($permission->module === 'appointments' && ! str_starts_with($permission->slug, 'appointments.admin.'))
                     || in_array($permission->slug, [
                         'users.view',
                         'users.view_directory',

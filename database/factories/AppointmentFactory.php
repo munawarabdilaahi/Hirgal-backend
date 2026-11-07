@@ -26,8 +26,11 @@ class AppointmentFactory extends Factory
         return [
             'uuid' => (string) Str::uuid(),
             'organizer_id' => User::factory(),
+            'project_id' => null,
+            'team_id' => null,
             'title' => fake()->sentence(3).' Sync',
             'description' => fake()->paragraph(),
+            'timezone' => 'UTC',
             'start_time' => $start,
             'end_time' => $end,
             'location_type' => AppointmentLocationType::Virtual,
