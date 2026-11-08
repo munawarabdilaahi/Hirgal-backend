@@ -202,7 +202,7 @@ The platform maintains two distinct invitation lifecycles to prevent permission 
 
 #### Habit Model (`App\Models\Habit`)
 - `belongsTo(User::class)`: Habit owner.
-- `hasMany(HabitLog::class)`: Daily/weekly completion logs.
+- `hasMany(HabitLog::class)`: Daily completion logs.
 
 #### HabitLog Model (`App\Models\HabitLog`)
 - `belongsTo(Habit::class)`: Parent habit.

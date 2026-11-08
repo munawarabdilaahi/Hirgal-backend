@@ -382,7 +382,7 @@ Dedicated index table for Follow-Up Inbox tracking `@mentions` across tasks and 
 ## Domain 8: Habit Tracker (2 Tables)
 
 ### 21. `habits`
-Habits and recurring personal or team routines.
+Personal recurring habits and routines owned by a single user.
 
 | Column | Data Type | Attributes | Default | Indexes / Keys | Purpose |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -391,7 +391,7 @@ Habits and recurring personal or team routines.
 | `user_id` | `BIGINT UNSIGNED` | NOT NULL | None | FK -> `users(id)` ON DELETE CASCADE | Owner user ID |
 | `title` | `VARCHAR(255)` | NOT NULL | None | None | Habit title (e.g. 'Daily Standup', 'Code Review') |
 | `description` | `TEXT` | NULL | NULL | None | Habit goals and instructions |
-| `frequency` | `VARCHAR(50)` | NOT NULL | `'daily'` | INDEX (`habits_freq_idx`) | Frequency: `daily`, `weekly`, `custom` |
+| `frequency` | `VARCHAR(50)` | NOT NULL | `'daily'` | INDEX (`habits_freq_idx`) | Frequency: `daily`, `custom` |
 | `target_days` | `JSON` | NULL | NULL | None | Days of week array (e.g., `["mon","wed","fri"]`) |
 | `color` | `VARCHAR(20)` | NOT NULL | `'#3B82F6'` | None | Hex color code for UI visualization |
 | `is_archived` | `BOOLEAN` | NOT NULL | `FALSE` | INDEX (`habits_archived_idx`) | Archive status flag |
