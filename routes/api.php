@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\V1\Appointments\AppointmentController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\InvitationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
+use App\Http\Controllers\Api\V1\Habits\HabitController;
+use App\Http\Controllers\Api\V1\Habits\HabitLogController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\Projects\ProjectController;
 use App\Http\Controllers\Api\V1\Projects\ProjectMemberController;
@@ -106,6 +108,21 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/{appointment:uuid}/participants', [AppointmentController::class, 'addParticipant'])->middleware('throttle:invitations')->name('api.v1.appointments.participants.store');
             Route::delete('/{appointment:uuid}/participants/{user}', [AppointmentController::class, 'removeParticipant'])->whereNumber('user')->name('api.v1.appointments.participants.destroy');
             Route::put('/{appointment:uuid}/rsvp', [AppointmentController::class, 'respond'])->name('api.v1.appointments.rsvp');
+        });
+
+        // Habit Tracker (Phase 8).
+        Route::prefix('habits')->group(function (): void {
+            Route::get('/', [HabitController::class, 'index'])->name('api.v1.habits.index');
+            Route::post('/', [HabitController::class, 'store'])->name('api.v1.habits.store');
+            Route::get('/daily-overview', [HabitController::class, 'dailyOverview'])->name('api.v1.habits.daily-overview');
+            Route::get('/{uuid}', [HabitController::class, 'show'])->name('api.v1.habits.show');
+            Route::put('/{uuid}', [HabitController::class, 'update'])->name('api.v1.habits.update');
+            Route::delete('/{uuid}', [HabitController::class, 'destroy'])->name('api.v1.habits.destroy');
+            Route::post('/{uuid}/archive', [HabitController::class, 'archive'])->name('api.v1.habits.archive');
+            Route::post('/{uuid}/restore', [HabitController::class, 'restore'])->name('api.v1.habits.restore');
+            Route::get('/{uuid}/logs', [HabitLogController::class, 'index'])->name('api.v1.habits.logs.index');
+            Route::post('/{uuid}/logs', [HabitLogController::class, 'store'])->name('api.v1.habits.logs.store');
+            Route::delete('/{uuid}/logs/{date}', [HabitLogController::class, 'destroy'])->name('api.v1.habits.logs.destroy');
         });
 
         // User Invitation Management
