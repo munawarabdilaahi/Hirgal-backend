@@ -15,7 +15,11 @@ use App\Models\TeamMember;
 use App\Models\User;
 use App\Models\UserProfile;
 use App\Notifications\AppointmentNotification;
+<<<<<<< HEAD
 use Carbon\CarbonImmutable;
+=======
+use Carbon\Carbon;
+>>>>>>> a8d9dc0 (test(appointments): update API feature tests)
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\DB;
@@ -339,30 +343,38 @@ class AppointmentApiTest extends TestCase
 
     public function test_rescheduling_updates_times_and_recalculates_conflicts(): void
     {
-        $organizer = $this->userWithPermissions(['appointments.create', 'appointments.update', 'appointments.view']);
-        $this->actingAs($organizer, 'sanctum');
+        // Freeze the clock before the rescheduled end time (12:30 UTC) so the
+        // completion-transition rejection does not depend on the wall clock.
+        Carbon::setTestNow(Carbon::parse('2026-11-08 10:00:00', 'UTC'));
 
-        $first = $this->postJson('/api/v1/appointments', $this->payload([
-            'start_time' => '2026-11-08T14:00:00+03:00',
-            'end_time' => '2026-11-08T15:00:00+03:00',
-        ]))->assertCreated();
+        try {
+            $organizer = $this->userWithPermissions(['appointments.create', 'appointments.update', 'appointments.view']);
+            $this->actingAs($organizer, 'sanctum');
 
-        $second = $this->postJson('/api/v1/appointments', $this->payload([
-            'start_time' => '2026-11-08T16:00:00+03:00',
-            'end_time' => '2026-11-08T17:00:00+03:00',
-        ]))->assertCreated();
-        $secondUuid = $second->json('data.appointment.uuid');
+            $first = $this->postJson('/api/v1/appointments', $this->payload([
+                'start_time' => '2026-11-08T14:00:00+03:00',
+                'end_time' => '2026-11-08T15:00:00+03:00',
+            ]))->assertCreated();
 
-        $rescheduled = $this->putJson('/api/v1/appointments/'.$secondUuid, [
-            'start_time' => '2026-11-08T14:30:00+03:00',
-            'end_time' => '2026-11-08T15:30:00+03:00',
-        ])->assertOk();
+            $second = $this->postJson('/api/v1/appointments', $this->payload([
+                'start_time' => '2026-11-08T16:00:00+03:00',
+                'end_time' => '2026-11-08T17:00:00+03:00',
+            ]))->assertCreated();
+            $secondUuid = $second->json('data.appointment.uuid');
 
-        $rescheduled->assertJsonPath('data.conflicts.has_conflicts', true);
+            $rescheduled = $this->putJson('/api/v1/appointments/'.$secondUuid, [
+                'start_time' => '2026-11-08T14:30:00+03:00',
+                'end_time' => '2026-11-08T15:30:00+03:00',
+            ])->assertOk();
 
-        $this->putJson('/api/v1/appointments/'.$secondUuid, [
-            'status' => 'completed',
-        ])->assertUnprocessable()->assertJsonValidationErrors('status');
+            $rescheduled->assertJsonPath('data.conflicts.has_conflicts', true);
+
+            $this->putJson('/api/v1/appointments/'.$secondUuid, [
+                'status' => 'completed',
+            ])->assertUnprocessable()->assertJsonValidationErrors('status');
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_conflict_detection_nuances_half_open_and_privacy(): void
