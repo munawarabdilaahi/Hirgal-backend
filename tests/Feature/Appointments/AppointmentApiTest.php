@@ -15,6 +15,7 @@ use App\Models\TeamMember;
 use App\Models\User;
 use App\Models\UserProfile;
 use App\Notifications\AppointmentNotification;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,16 @@ use Tests\TestCase;
 class AppointmentApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * Pin the clock before the fixed 2026-11-08 fixture dates so lifecycle rules stay deterministic.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->travelTo(CarbonImmutable::parse('2026-11-01 00:00:00', 'UTC'));
+    }
 
     public function test_personal_appointment_stores_utc_time_and_returns_conflict_warnings_without_rejection(): void
     {
@@ -146,6 +157,40 @@ class AppointmentApiTest extends TestCase
         $this->postJson('/api/v1/appointments', $this->payload(['project_uuid' => $project->uuid, 'participants' => [$outsider->id]]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors('participants');
+    }
+
+    public function test_project_lead_member_can_create_project_appointment_but_plain_member_cannot(): void
+    {
+        $project = Project::factory()->create();
+        $lead = $this->userWithPermissions(['appointments.create', 'appointments.view']);
+        ProjectMember::factory()->create(['project_id' => $project->id, 'user_id' => $lead->id, 'role' => 'lead']);
+        $member = $this->userWithPermissions(['appointments.create', 'appointments.view']);
+        ProjectMember::factory()->create(['project_id' => $project->id, 'user_id' => $member->id, 'role' => 'member']);
+
+        $this->actingAs($lead, 'sanctum')
+            ->postJson('/api/v1/appointments', $this->payload(['project_uuid' => $project->uuid]))
+            ->assertCreated();
+
+        $this->actingAs($member, 'sanctum')
+            ->postJson('/api/v1/appointments', $this->payload(['project_uuid' => $project->uuid]))
+            ->assertNotFound();
+    }
+
+    public function test_team_roster_leader_can_create_team_appointment_but_plain_member_cannot(): void
+    {
+        $team = Team::factory()->create();
+        $rosterLeader = $this->userWithPermissions(['appointments.create', 'appointments.view']);
+        TeamMember::factory()->create(['team_id' => $team->id, 'user_id' => $rosterLeader->id, 'role' => 'leader']);
+        $member = $this->userWithPermissions(['appointments.create', 'appointments.view']);
+        TeamMember::factory()->create(['team_id' => $team->id, 'user_id' => $member->id, 'role' => 'member']);
+
+        $this->actingAs($rosterLeader, 'sanctum')
+            ->postJson('/api/v1/appointments', $this->payload(['team_uuid' => $team->uuid]))
+            ->assertCreated();
+
+        $this->actingAs($member, 'sanctum')
+            ->postJson('/api/v1/appointments', $this->payload(['team_uuid' => $team->uuid]))
+            ->assertNotFound();
     }
 
     public function test_calendar_requires_a_bounded_range(): void

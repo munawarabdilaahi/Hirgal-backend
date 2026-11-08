@@ -84,21 +84,31 @@ class AppointmentPolicy
             || $appointment->participantRecords()->where('user_id', $actor->id)->whereNull('removed_at')->exists();
     }
 
+    /**
+     * Determine whether the actor owns or leads the project.
+     *
+     * Eloquent's value() applies the model cast, so the role is a ProjectMemberRole enum.
+     */
     public function canCreateInProject(User $actor, int $projectId): bool
     {
         $role = ProjectMember::query()->where('project_id', $projectId)->where('user_id', $actor->id)->value('role');
         $project = Project::query()->find($projectId);
 
         return $project?->owner_id === $actor->id
-            || in_array($role, [ProjectMemberRole::Owner->value, ProjectMemberRole::Lead->value], true);
+            || in_array($role, [ProjectMemberRole::Owner, ProjectMemberRole::Lead], true);
     }
 
+    /**
+     * Determine whether the actor leads the team.
+     *
+     * Eloquent's value() applies the model cast, so the role is a TeamMemberRole enum.
+     */
     public function canCreateInTeam(User $actor, int $teamId): bool
     {
         $team = Team::query()->find($teamId);
         $role = TeamMember::query()->where('team_id', $teamId)->where('user_id', $actor->id)->value('role');
 
-        return $team?->leader_id === $actor->id || $role === TeamMemberRole::Leader->value;
+        return $team?->leader_id === $actor->id || $role === TeamMemberRole::Leader;
     }
 
     public function hasContextManagementAuthority(User $actor, Appointment $appointment): bool
