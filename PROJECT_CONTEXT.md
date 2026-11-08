@@ -2,9 +2,9 @@
 
 > **Central Project Knowledge, Architectural Blueprint & Living Operational Guide**  
 > **Repository Location:** `C:\Hirgal`  
-> **Current Version:** Backend Phase 7 Appointments & Scheduling implemented (deployment migration pending); Frontend Phase 5 Projects & Teams Management
-> **Last Audited & Updated:** 2026-11-07
-> **Implementation Baseline:** Phase 7 work based on commit `396314f`; no Phase 7 commit created
+> **Current Version:** Backend Phase 8 Habit Tracker API implemented (Phase 7 deployment migration still pending); Frontend Phase 5 Projects & Teams Management
+> **Last Audited & Updated:** 2026-11-08
+> **Implementation Baseline:** Phase 8 work is uncommitted in the working tree; no Phase 8 commit created
 
 ---
 
@@ -22,7 +22,7 @@ The complete platform vision encompasses 8 functional pillars. The backend API i
 4. **Teams & Squad Coordination (`IMPLEMENTED — PHASE 6`):** Organizational squads, member rosters, and multi-team project allocations.
 5. **Tasks & Work Management (`IMPLEMENTED — PHASE 6`):** Kanban task workflows, subtasks, task assignments, priorities, and status lifecycle. *(Comments and attachments remain database-only, deferred to a later phase.)*
 6. **Appointments & Scheduling (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 7`):** Calendar appointments, video conferencing links, and participant RSVP tracking.
-7. **Habit Tracker (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 8`):** Personal habit definitions, frequency schedules, daily check-in logging, and streak tracking.
+7. **Habit Tracker (`IMPLEMENTED — PHASE 8`):** Personal habit definitions, frequency schedules, daily check-in logging, and streak tracking.
 8. **Follow-Up Inbox & Mentions (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 9`):** Indexed `@mentions` across tasks and comments, notifications, and activity tracking.
 9. **Polymorphic Activity Auditing (`DATABASE FOUNDATION ONLY — API PLANNED FOR PHASE 9`):** Immutable audit trail recording actor identity, client IP, action type, subject entity, and change diffs.
 
@@ -379,6 +379,25 @@ To maintain strict truth in documentation, modules are classified into three dis
 - **Docs:** [`docs/architecture/PHASE-7-APPOINTMENTS-IMPLEMENTATION.md`](docs/architecture/PHASE-7-APPOINTMENTS-IMPLEMENTATION.md), [`docs/api/APPOINTMENTS.md`](docs/api/APPOINTMENTS.md).
 - **Known limitations:** historical local-time intent cannot be proven from naive DATETIME columns; migration defaults timezone to UTC based on the UTC app configuration/seeder convention and classifies legacy scope as personal. Verify before deploying to any environment with local-time rows. Multi-process conflict-warning freshness is not proven; warnings may become stale after commit. PHPStan is not installed/configured.
 
+#### Module 8: Habit Tracker (Phase 8)
+- **Status:** `IMPLEMENTED` | `TESTED` — personal, strictly private; no admin cross-user access.
+- **Main Responsibilities:** Personal habit CRUD, archive/restore lifecycle, daily/custom-weekday schedules, one check-in per habit per calendar day (upsert), backdated editing within a 30-day window, scheduled-day streak computation, daily overview matrix, per-habit log history.
+- **Routes (11):**
+  - `GET|POST /api/v1/habits`
+  - `GET /api/v1/habits/daily-overview`
+  - `GET|PUT|DELETE /api/v1/habits/{uuid}` (UUID-bound)
+  - `POST /api/v1/habits/{uuid}/archive`
+  - `POST /api/v1/habits/{uuid}/restore`
+  - `GET|POST /api/v1/habits/{uuid}/logs`
+  - `DELETE /api/v1/habits/{uuid}/logs/{date}`
+- **Models / Tables:** `Habit` (`habits`), `HabitLog` (`habit_logs`); enums `HabitFrequency` (`daily`, `custom`), `HabitLogStatus` (`completed`, `skipped`, `failed`).
+- **Policies / Permissions:** `HabitPolicy`; permission `habits.manage` (seeded to all four global roles). All queries are scoped to `user_id`; policy methods are invoked directly (no `Gate::before` System Admin bypass), so cross-user and System Admin access resolves to `404`.
+- **Approved decisions enforced:** personal ownership only; binary check-ins; one log per habit per day with upsert; `daily`/`custom` weekday frequencies only (the unimplemented `weekly` enum case was removed); streaks advance only on scheduled days, skipped days freeze, failed/missed scheduled days break; backdated logging and edits restricted to the previous 30 days (inclusive) evaluated in the user's profile timezone with UTC fallback; archival only (no pause); notifications deferred to Phase 9; strict personal privacy (no System Admin access through standard endpoints); canonical habit history start — a habit's valid tracking history begins on its creation date, so pre-creation log dates are rejected by API validation while legacy pre-creation records are preserved in storage and excluded from all statistics (current streak, longest streak, completion rate, totals).
+- **Invariants:** `habits (id, user_id)` composite unique key; `habit_logs (habit_id, user_id)` composite FK; `habit_logs (habit_id, logged_date)` unique key enforces the one-log-per-day rule at the storage engine level.
+- **Accepted performance limitation (Phase 8 remediation MEDIUM-2):** streak statistics are computed per habit with one full-log query per habit on list and daily-overview responses, bounded by page size / active habit count. Formally accepted for the current expected scale; no premature optimization is to be introduced without a measured need.
+- **Tests:** `tests/Feature/Habits/HabitApiTest.php` (29 tests) and `tests/Feature/Api/V1/Phase8AuthorizationTest.php` (34 tests) — 63 Phase 8 tests total.
+- **Docs:** this file; database specifications under `docs/database/`.
+
 ---
 
 ### 8.2 Database Foundations Only (APIs NOT Implemented)
@@ -390,7 +409,6 @@ To maintain strict truth in documentation, modules are classified into three dis
 | **Global RBAC Management** | `roles`, `permissions`, `role_permissions`, `user_roles` | `Role`, `Permission` | **NO API ROUTES** | Phase 5.2 (Permissions Seeded Only) |
 | **Project Invitations** | `project_invitations` | `ProjectInvitation` | **NO API ROUTES** | Deferred (Phase 6 covered projects/memberships only) |
 | **Task Comments & Attachments** | `task_comments`, `task_attachments` | `TaskComment`, `TaskAttachment` | **NO API ROUTES** | Deferred (Phase 6 covered tasks/assignments only) |
-| **Habit Tracker** | `habits`, `habit_logs` | `Habit`, `HabitLog` | **NO API ROUTES** | **Phase 8** |
 | **Follow-Up Inbox & Mentions** | `user_mentions`, `notifications` | `UserMention` | **NO API ROUTES** | **Phase 9** |
 | **Activity Auditing & Logs** | `activity_logs` | `ActivityLog` | **NO API ROUTES** | **Phase 9** |
 
@@ -506,24 +524,24 @@ Verified directly via live runtime execution on 2026-11-03 (post-Phase 6.2; Phas
 | **Phase 6.1** | Independent Security & Implementation Audit | Read-Only Audit | 2026-11-03 | **CONDITIONALLY PASSED** | — | Re-verified 30 routes / 6 policies / invariants; identified F-1 (500 on soft-deleted-project task endpoints, MEDIUM), F-2/F-3/F-4/F-6 (LOW), F-5 flagged for product decision. |
 | **Phase 6.2** | Task Access Hardening & Doc Corrections | Security Remediation | 2026-11-03 | **ACCEPTED** | `d7e0916` | Null-safe project scoping resolves soft-deleted-project task access to 404 (F-1/F-2); task listings exclude soft-deleted projects (F-3); assignee route identifier validated → 422 (F-4); 13 regression tests (273 total); documentation counts corrected (5 resources, 19 cross-scope, `project_invitations` deferred row). |
 | **Phase 7** | Appointments & Scheduling API | Implementation | 2026-11-07 | **IMPLEMENTED; DEPLOYMENT PENDING** | — | Added project/team/personal contexts, UTC/IANA handling, warning-only conflicts, lifecycle/cancellation, RSVP and participant management, audited read-only System Admin support access, queued notifications, API docs, and tests. Migration verified only on `hirgal_backend_test`; active `hirgal_backend` remains unmigrated. Multi-process conflict freshness and PHPStan remain unverified/unavailable. |
+| **Phase 8** | Habit Tracker API | Implementation | 2026-11-08 | **IMPLEMENTED (UNCOMMITTED)** | — | Implemented 11 personal habit endpoints (CRUD, archive/restore, daily/custom-weekday schedules, one-log-per-day upsert, 30-day backdated editing, daily overview, streaks) under strict per-user privacy with no System Admin cross-user access; removed the unapproved `weekly` frequency; hardened streak grace-day semantics for past evaluation dates; fixed Carbon 3 invalid-date handling (500 → 422); added 60 Phase 8 tests (354 total). No migrations; existing schema and constraints preserved. One pre-existing time-dependent Phase 7 appointment test was frozen with `Carbon::setTestNow` so the suite passes after 12:30 UTC. |
 
 ---
 
 ## 12. Current Project Status
 
-- **Latest Implemented Phase:** Phase 7 is implemented in the working tree; deployment migration and permission seeding are pending.
+- **Latest Implemented Phase:** Phases 7 and 8 are implemented in the working tree; both remain uncommitted, and the Phase 7 deployment migration is still pending.
 - **Latest Accepted Implementation:** Phase 6.2 (Commit `d7e0916`; prior baseline `77e62b4` for Phase 6).
-- **Current Backend Phase:** Phase 7 implementation complete; rollout to the active database requires operator verification.
+- **Current Backend Phase:** Phase 8 Habit Tracker API implemented and verified (354 tests green); Phase 7 rollout to the active database still requires operator verification.
 - **Current Frontend Phase:** Phase 5 Projects & Teams Management implemented against existing backend APIs.
 - **Remaining Work:**
-  - Apply the Phase 7 migration and run `PermissionSeeder`/`RolePermissionSeeder` on the intended database after confirming environment and rollout procedure.
+  - Apply the Phase 7 migration and run `PermissionSeeder`/`RolePermissionSeeder` on the intended database after confirming environment and rollout procedure (`habits.manage` is already included in `PermissionSeeder`).
   - Verify multi-process conflict-warning freshness on MySQL; warnings are advisory and can become stale after commit.
-  - Phase 8: Habit Tracker API.
-  - Phase 9: Follow-Up Inbox, Mentions & Activity Logging.
+  - Phase 9: Follow-Up Inbox, Mentions & Activity Logging (do not begin until Phase 8 passes independent verification).
   - Phase 10: Production Readiness, Performance Optimization & Final Security Audit.
-- **Pending Audits:** None.
+- **Pending Audits:** Phase 8 independent verification.
 - **Known Blockers:** None.
-- **Frontend Status:** Frontend Phases 1–5 are implemented under `frontend/`: design system, authentication, dashboard/user administration, and Projects & Teams management. Appointment frontend integration remains deferred. The active backend database has not been migrated for Phase 7.
+- **Frontend Status:** Frontend Phases 1–5 are implemented under `frontend/`: design system, authentication, dashboard/user administration, and Projects & Teams management. Appointment and Habit frontend integration remain deferred. The active backend database has not been migrated for Phase 7.
 
 ---
 
@@ -547,8 +565,8 @@ Verified directly via live runtime execution on 2026-11-03 (post-Phase 6.2; Phas
    - *Deferred from original scope:* project invitations, task comments, attachments (database-only).
 2. **Phase 7: Appointments & Calendar Scheduling API** — implemented in the working tree; deployment migration pending.
    - Project/team/personal appointments, bounded calendar queries, RSVP, cancellation, conflict warnings, and email/database notifications. Recurrence and external calendar integrations remain out of scope.
-3. **Phase 8: Habit Tracker API**
-   - Habit definitions, schedules, daily logs, streak computation, composite key validation.
+3. **Phase 8: Habit Tracker API** — ✅ **IMPLEMENTED (2026-11-08, uncommitted).**
+   - Habit definitions, daily/custom-weekday schedules, daily logs with one-log-per-day upsert, scheduled-day streak computation, composite key validation, 30-day backdated editing, archival lifecycle, and strict personal privacy.
 4. **Phase 9: Follow-Up Inbox, Mentions & Activity Logging API**
    - Notification dispatch, `@mentions` extraction & indexing, activity audit trail querying.
 5. **Phase 10: Production Readiness & Final Verification**
@@ -600,6 +618,7 @@ The following rules are **permanent and non-negotiable** for all AI coding agent
 | **2026-11-05** | Frontend Phase 5.1 | audit of `c1bd932` | `frontend/` | Verified API contracts, authorization boundaries, cache behavior, and directory pagination. Fixed archived-project status preservation, nullable team-leader update payloads, and cross-feature query invalidation; added paginated project/team rosters and server-searchable paginated directory pickers. No backend or dependency changes. | 107 frontend tests across 15 files; typecheck, lint, build, and npm audit pass. Live API and browser verification unavailable. | `frontend/docs/PROJECTS_AND_TEAMS.md` |
 | **2026-11-05** | Frontend Phase 5.2 | separate local commit | `frontend/` | Replaced the project allocation picker's first-100 fetch with server-side search/pagination and selected-team retention. Scans paginated team rosters for later-page leadership and duplicate candidate exclusion; improves backend eligibility error text. No backend or dependency changes. | 113 frontend tests across 15 files; typecheck, lint, build, npm audit, and diff check pass. Authenticated local API checks passed; browser visual checks unavailable. | `frontend/docs/PROJECTS_AND_TEAMS.md`, `PROJECT_CONTEXT.md` |
 | **2026-11-07** | Phase 7 | uncommitted | `app/Actions/Appointments/`, `app/Services/Appointment/`, `app/Http/`, `app/Policies/AppointmentPolicy.php`, `database/migrations/`, `database/seeders/`, `routes/api.php`, `tests/`, `docs/` | Implemented appointment contexts, UTC/timezone conversion, warning conflicts, lifecycle/cancellation, participant management/RSVP, audited admin view, post-commit notifications, and API documentation. Migration applied only to isolated `hirgal_backend_test`; active `hirgal_backend` unchanged. | Final suite and quality results recorded after verification. | Phase 7 API/architecture docs, `PROJECT_CONTEXT.md` |
+| **2026-11-08** | Phase 8 | uncommitted | `app/Actions/Habits/`, `app/Services/Habit/`, `app/Http/Controllers/Api/V1/Habits/`, `app/Http/Requests/Api/V1/Habits/`, `app/Http/Resources/Api/V1/Habit*Resource.php`, `app/Policies/HabitPolicy.php`, `app/Enums/HabitFrequency.php`, `routes/api.php`, `tests/Feature/Habits/`, `tests/Feature/Api/V1/Phase8AuthorizationTest.php`, `tests/Feature/Appointments/AppointmentApiTest.php`, `docs/database/` | Implemented the Habit Tracker API against the existing `habits`/`habit_logs` schema (no migrations): 11 endpoints for habit CRUD, archive/restore, daily overview, and log listing/upsert/deletion; `HabitStreakService` for scheduled-day streaks with skip-freeze/fail-and-miss-break semantics; `HabitPolicy` ownership enforcement; removed the unapproved `weekly` frequency; added `ListHabitsRequest`/`DailyOverviewRequest`; enforced the custom-weekday invariant on update; fixed Carbon 3 invalid-date 500s and the 30-day delete window; per-habit 30-log listing; froze one pre-existing time-dependent Phase 7 appointment test. | 354 tests / 1427 assertions green; `vendor/bin/pint --dirty` and targeted `pint --test` passed. | `PROJECT_CONTEXT.md`, `docs/database/SCHEMA.md`, `docs/database/RELATIONSHIPS.md` |
 
 ## 17. Frontend Foundation
 
