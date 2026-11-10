@@ -15,11 +15,8 @@ use App\Models\TeamMember;
 use App\Models\User;
 use App\Models\UserProfile;
 use App\Notifications\AppointmentNotification;
-<<<<<<< HEAD
-use Carbon\CarbonImmutable;
-=======
 use Carbon\Carbon;
->>>>>>> a8d9dc0 (test(appointments): update API feature tests)
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\DB;
