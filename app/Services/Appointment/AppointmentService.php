@@ -9,7 +9,6 @@ use App\Actions\Appointments\RespondToAppointmentAction;
 use App\Actions\Appointments\UpdateAppointmentAction;
 use App\Enums\AppointmentStatus;
 use App\Enums\ParticipantStatus;
-use App\Models\ActivityLog;
 use App\Models\Appointment;
 use App\Models\AppointmentParticipant;
 use App\Models\Project;
@@ -17,6 +16,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Notifications\AppointmentNotification;
 use App\Policies\AppointmentPolicy;
+use App\Services\Audit\ActivityLogger;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -32,6 +32,7 @@ class AppointmentService
         private readonly ManageAppointmentParticipantAction $participantAction,
         private readonly RespondToAppointmentAction $responseAction,
         private readonly AppointmentConflictService $conflicts,
+        private readonly ActivityLogger $activityLogger,
     ) {}
 
     /** @param array<string, mixed> $filters */
@@ -183,23 +184,19 @@ class AppointmentService
     public function auditedAdminView(User $actor, Appointment $appointment, string $reason): Appointment
     {
         abort_unless($this->policy->canAdminView($actor), 403);
-        ActivityLog::query()->create([
-            'user_id' => $actor->id,
-            'action' => 'appointment.admin.view',
-            'subject_type' => Appointment::class,
-            'subject_id' => $appointment->id,
-            'description' => 'System administrator viewed an appointment for support.',
-            'properties' => [
+        $this->activityLogger->record(
+            action: 'appointment.admin.view',
+            subject: $appointment,
+            actor: $actor,
+            description: 'System administrator viewed an appointment for support.',
+            properties: [
                 'appointment_uuid' => $appointment->uuid,
                 'context_type' => $appointment->project_id !== null ? 'project' : ($appointment->team_id !== null ? 'team' : 'personal'),
                 'context_id' => $appointment->project_id ?? $appointment->team_id,
                 'access_mode' => 'read_only',
                 'reason' => $reason,
             ],
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-            'created_at' => now(),
-        ]);
+        );
 
         return $appointment->load(['organizer', 'project', 'team', 'participantRecords' => fn ($q) => $q->whereNull('removed_at'), 'participantRecords.user']);
     }

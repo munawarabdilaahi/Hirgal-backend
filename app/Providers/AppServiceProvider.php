@@ -34,7 +34,13 @@ class AppServiceProvider extends ServiceProvider
     protected function configureRateLimiting(): void
     {
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+            // Resolve the user through the Sanctum guard explicitly: group-level
+            // throttling runs before route auth middleware, so the default guard
+            // would be unresolved here. Keys are prefixed to keep user and IP
+            // identities in distinct namespaces.
+            $userId = $request->user('sanctum')?->id;
+
+            return Limit::perMinute(60)->by($userId !== null ? 'user:'.$userId : 'ip:'.$request->ip());
         });
 
         RateLimiter::for('login', function (Request $request) {

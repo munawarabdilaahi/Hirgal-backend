@@ -28,6 +28,10 @@ return Application::configure(basePath: dirname(__DIR__))
             ForceJsonResponse::class,
         ]);
 
+        // D6: global API rate limit (60/min) applied once to every route in
+        // the "api" group. Endpoint-specific throttles remain layered on top.
+        $middleware->throttleApi('api');
+
         $middleware->alias([
             'account.active' => EnsureAccountIsActive::class,
         ]);
@@ -94,7 +98,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     message: 'Rate limit exceeded. Please slow down your requests.',
                     status: 429,
                     errorCode: 'RATE_LIMIT_EXCEEDED'
-                );
+                )->withHeaders($e->getHeaders());
             }
         });
 

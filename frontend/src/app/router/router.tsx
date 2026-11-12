@@ -11,6 +11,9 @@ import {
   ChangePasswordPage,
   DashboardPage,
   ForgotPasswordPage,
+  HabitDetailsPage,
+  HabitFormPage,
+  HabitsPage,
   LoginPage,
   ProfilePage,
   ProjectDetailsPage,
@@ -85,6 +88,22 @@ const routes: RouteObject[] = [
       { path: '/teams/new', element: <TeamFormPage /> },
       { path: '/teams/:teamUuid/edit', element: <TeamFormPage /> },
       { path: '/teams/:teamUuid', element: <RequirePermission permission="teams.view"><TeamDetailsPage /></RequirePermission> },
+      {
+        path: '/habits',
+        element: <RequirePermission permission="habits.manage"><HabitsPage /></RequirePermission>,
+      },
+      {
+        path: '/habits/new',
+        element: <RequirePermission permission="habits.manage"><HabitFormPage /></RequirePermission>,
+      },
+      {
+        path: '/habits/:habitUuid/edit',
+        element: <RequirePermission permission="habits.manage"><HabitFormPage /></RequirePermission>,
+      },
+      {
+        path: '/habits/:habitUuid',
+        element: <RequirePermission permission="habits.manage"><HabitDetailsPage /></RequirePermission>,
+      },
       {
         path: '/tasks',
         element: <ProtectedDeferredRoute name="Tasks" permission="tasks.view" />,

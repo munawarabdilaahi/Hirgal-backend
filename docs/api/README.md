@@ -60,10 +60,19 @@ All API responses follow a uniform JSON structure.
 
 | Scope | Rate Limit Quota | Key Strategy |
 | :--- | :--- | :--- |
-| **Global API** | 60 requests / minute | User ID (if authenticated) or Client IP |
+| **Global API** (`throttle:api`, Phase 9 D6) | 60 requests / minute | Authenticated: `user:{id}` (Sanctum guard); unauthenticated: `ip:{client-ip}` |
 | **Login** | 5 attempts / minute | Email + Client IP |
 | **Password Reset** | 5 requests / minute | Client IP |
 | **Invitations** | 10 requests / minute | User ID or Client IP |
+| **Register / Invitation inspect** | 10–30 requests / minute | Client IP |
+
+**D6 — Global API Rate Limiting (implemented and accepted 2026-11-10 — PASS):**
+
+- **Attachment:** the named `api` limiter is attached exactly once to the framework `api` middleware group in `bootstrap/app.php` (`$middleware->throttleApi('api')`), so every route registered in `routes/api.php` inherits it. No route carries its own `throttle:api`.
+- **Layering:** endpoint-specific limits (above) remain in place on their routes; the global and endpoint limiters count independently, and whichever exhausts first returns 429 — stricter limits are never weakened.
+- **Identity:** authenticated requests resolve the account through the `sanctum` guard inside the limiter (`user:{id}`), so counters are per-account and independent of client-supplied parameters such as `user_id`; unauthenticated requests use the trusted client IP (`ip:{ip}`). `X-Forwarded-For` is untrusted by default — deployments behind a load balancer must configure trusted proxies or all clients will share the proxy's counter.
+- **HTTP 429:** standard envelope (`success: false`, `error_code: RATE_LIMIT_EXCEEDED`, message "Rate limit exceeded. Please slow down your requests.") plus framework `Retry-After` and `X-RateLimit-*` headers.
+- **Cache infrastructure:** counters use the configured `CACHE_STORE` (default `database`, `cache` table migration shipped). Multi-server deployments must use a shared store (e.g. Redis); file/array stores keep counters per-process and are ineffective across workers.
 
 ---
 
@@ -83,3 +92,5 @@ All API responses follow a uniform JSON structure.
 - [User Management API](./USERS.md)
 - [Invitation & Onboarding API](./INVITATIONS.md)
 - [Appointments & Scheduling API](./APPOINTMENTS.md)
+- [Activity Audit API](./ACTIVITY.md)
+- [Notifications Inbox API](./NOTIFICATIONS.md)

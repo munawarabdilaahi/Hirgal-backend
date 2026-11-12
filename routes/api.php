@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Activity\ActivityLogController;
 use App\Http\Controllers\Api\V1\Appointments\AppointmentController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\InvitationController;
@@ -7,6 +8,7 @@ use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Habits\HabitController;
 use App\Http\Controllers\Api\V1\Habits\HabitLogController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\Notifications\NotificationController;
 use App\Http\Controllers\Api\V1\Projects\ProjectController;
 use App\Http\Controllers\Api\V1\Projects\ProjectMemberController;
 use App\Http\Controllers\Api\V1\Projects\ProjectTeamController;
@@ -199,6 +201,22 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/{task}', [TaskController::class, 'destroy'])->name('api.v1.tasks.destroy');
             Route::post('/{task}/assign', [TaskAssignmentController::class, 'store'])->name('api.v1.tasks.assign');
             Route::delete('/{task}/assignees/{user}', [TaskAssignmentController::class, 'destroy'])->name('api.v1.tasks.unassign');
+        });
+
+        // Activity Audit (Phase 9). Read-only; audit records are append-only
+        // and have no create/update/delete endpoints by design.
+        Route::prefix('activity-logs')->group(function (): void {
+            Route::get('/', [ActivityLogController::class, 'index'])->name('api.v1.activity-logs.index');
+            Route::get('/my', [ActivityLogController::class, 'my'])->name('api.v1.activity-logs.my');
+        });
+
+        // Notifications Inbox (Phase 9 Module B). Recipient ownership is
+        // enforced in SQL; static paths are registered before {id} routes.
+        Route::prefix('notifications')->group(function (): void {
+            Route::get('/', [NotificationController::class, 'index'])->name('api.v1.notifications.index');
+            Route::get('/unread-count', [NotificationController::class, 'unreadCount'])->name('api.v1.notifications.unread-count');
+            Route::patch('/read-all', [NotificationController::class, 'readAll'])->name('api.v1.notifications.read-all');
+            Route::patch('/{id}/read', [NotificationController::class, 'markRead'])->name('api.v1.notifications.read');
         });
     });
 });

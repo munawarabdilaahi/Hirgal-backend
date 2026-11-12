@@ -244,3 +244,104 @@ export interface SaveTeamMemberRequest {
   user_id: number;
   role: TeamMemberRoleName;
 }
+
+export type HabitFrequency = 'daily' | 'custom';
+
+export type HabitLogStatus = 'completed' | 'skipped' | 'failed';
+
+export type HabitTargetDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+export interface HabitStats {
+  current_streak: number;
+  longest_streak: number;
+  total_completed: number;
+  total_skipped: number;
+  total_failed: number;
+  completion_rate: number;
+}
+
+export interface ApiHabitLog {
+  id: number;
+  logged_date: string;
+  status: HabitLogStatus;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ApiHabit {
+  uuid: string;
+  title: string;
+  description: string | null;
+  frequency: HabitFrequency;
+  target_days: HabitTargetDay[] | null;
+  color: string | null;
+  is_archived: boolean;
+  current_streak: number | null;
+  longest_streak: number | null;
+  stats: HabitStats | null;
+  latest_logs?: ApiHabitLog[];
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ApiHabitWithoutStats {
+  uuid: string;
+  title: string;
+  description: string | null;
+  frequency: HabitFrequency;
+  target_days: HabitTargetDay[] | null;
+  color: string | null;
+  is_archived: boolean;
+  current_streak: null;
+  longest_streak: null;
+  stats: null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface HabitFilters {
+  page?: number;
+  per_page?: number;
+  is_archived?: boolean;
+  frequency?: HabitFrequency;
+}
+
+export interface HabitLogFilters {
+  page?: number;
+  per_page?: number;
+  from?: string;
+  to?: string;
+  status?: HabitLogStatus;
+}
+
+export interface SaveHabitRequest {
+  title: string;
+  description?: string | null;
+  frequency: HabitFrequency;
+  target_days?: HabitTargetDay[] | null;
+  color?: string | null;
+}
+
+export interface SaveHabitLogRequest {
+  logged_date: string;
+  status: HabitLogStatus;
+  notes?: string | null;
+}
+
+export interface HabitLogStoreResponse {
+  log: ApiHabitLog;
+  stats: HabitStats;
+}
+
+export interface ApiDailyOverviewItem {
+  habit: ApiHabit;
+  is_scheduled: boolean;
+  log: ApiHabitLog | null;
+}
+
+export interface ApiDailyOverview {
+  date: string;
+  timezone: string;
+  habits: ApiDailyOverviewItem[];
+}

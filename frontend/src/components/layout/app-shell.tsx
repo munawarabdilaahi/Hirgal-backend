@@ -60,7 +60,12 @@ const navigationGroups: NavigationGroupConfig[] = [
     label: 'Personal',
     items: [
       { label: 'Appointments', icon: CalendarDays, status: 'planned' },
-      { label: 'Habits', icon: Activity, status: 'planned' },
+      {
+        label: 'Habits',
+        icon: Activity,
+        to: '/habits',
+        requiredPermission: 'habits.manage',
+      },
       { label: 'Follow-up inbox', icon: MessageSquareText, status: 'planned' },
     ],
   },

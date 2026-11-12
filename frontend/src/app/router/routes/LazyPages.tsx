@@ -57,6 +57,18 @@ const TeamFormRoute = lazy(async () => {
   const { TeamFormRoute: Component } = await import('@/features/teams/TeamsRoutes');
   return { default: Component };
 });
+const HabitsRoute = lazy(async () => {
+  const { HabitsRoute: Component } = await import('@/features/habits/pages/HabitsRoute');
+  return { default: Component };
+});
+const HabitDetailsRoute = lazy(async () => {
+  const { HabitDetailsRoute: Component } = await import('@/features/habits/pages/HabitDetailsRoute');
+  return { default: Component };
+});
+const HabitFormRoute = lazy(async () => {
+  const { HabitFormRoute: Component } = await import('@/features/habits/pages/HabitFormRoute');
+  return { default: Component };
+});
 
 function renderLazyPage(page: ReactNode) {
   return (
@@ -104,3 +116,6 @@ export function ProjectFormPage() { return renderLazyPage(<ProjectFormRoute />);
 export function TeamsPage() { return renderLazyPage(<TeamsRoute />); }
 export function TeamDetailsPage() { return renderLazyPage(<TeamDetailsRoute />); }
 export function TeamFormPage() { return renderLazyPage(<TeamFormRoute />); }
+export function HabitsPage() { return renderLazyPage(<HabitsRoute />); }
+export function HabitDetailsPage() { return renderLazyPage(<HabitDetailsRoute />); }
+export function HabitFormPage() { return renderLazyPage(<HabitFormRoute />); }

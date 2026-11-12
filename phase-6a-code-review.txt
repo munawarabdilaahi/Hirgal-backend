@@ -1,0 +1,1997 @@
+================================================================================
+PHASE 6A (HABITS FRONTEND) - COMPLETE READ-ONLY CODE REVIEW EXPORT
+================================================================================
+Generated : 2026-11-10 23:37:47
+Repository: C:\Hirgal
+Branch    : main  (HEAD 73a035a == origin/main; nothing staged at export time)
+Scope     : Phase 6A only - unrelated Phase 9 working-tree changes excluded
+Method    : contents read from working tree; diffs via git diff (read-only)
+Guarantee : no source file modified; nothing staged, committed, or pushed
+
+FILE INVENTORY - 13 files total
+
+New files (7) - complete contents in PART A:
+  A1/7  frontend/src/services/api/habitApi.ts
+  A2/7  frontend/src/features/habits/habit-queries.ts
+  A3/7  frontend/src/features/habits/habit-validation.ts
+  A4/7  frontend/src/features/habits/pages/HabitsRoute.tsx
+  A5/7  frontend/src/features/habits/pages/HabitDetailsRoute.tsx
+  A6/7  frontend/src/features/habits/pages/HabitFormRoute.tsx
+  A7/7  frontend/src/features/habits/HabitsRoutes.test.tsx
+
+Modified files (6) - git diff in PART B:
+  B1/6  frontend/src/services/api/contracts.ts
+  B2/6  frontend/src/app/router/router.tsx
+  B3/6  frontend/src/app/router/routes/LazyPages.tsx
+  B4/6  frontend/src/app/router/routes/AuthenticatedRouteLayout.tsx
+  B5/6  frontend/src/components/layout/app-shell.tsx
+  B6/6  PROJECT_CONTEXT.md
+
+================================================================================
+PART A - NEWLY CREATED PHASE 6A FILES (7) - COMPLETE CONTENTS
+================================================================================
+
+--------------------------------------------------------------------------------
+A1/7 : frontend/src/services/api/habitApi.ts  (new file, 58 lines)
+--------------------------------------------------------------------------------
+import { apiClient } from '@/services/api/apiClient';
+import type {
+  ApiDailyOverview,
+  ApiHabit,
+  ApiHabitLog,
+  ApiPaginatedResponse,
+  ApiSuccess,
+  HabitFilters,
+  HabitLogFilters,
+  HabitLogStoreResponse,
+  SaveHabitLogRequest,
+  SaveHabitRequest,
+} from '@/services/api/contracts';
+
+export const habitApi = {
+  async list(filters: HabitFilters): Promise<ApiPaginatedResponse<ApiHabit>> {
+    const response = await apiClient.get<ApiPaginatedResponse<ApiHabit>>('/habits', { params: filters });
+    return response.data;
+  },
+  async dailyOverview(date: string): Promise<ApiDailyOverview> {
+    const response = await apiClient.get<ApiSuccess<ApiDailyOverview>>('/habits/daily-overview', { params: { date } });
+    return response.data.data;
+  },
+  async get(uuid: string): Promise<ApiHabit> {
+    const response = await apiClient.get<ApiSuccess<ApiHabit>>(`/habits/${uuid}`);
+    return response.data.data;
+  },
+  async create(request: SaveHabitRequest): Promise<ApiHabit> {
+    const response = await apiClient.post<ApiSuccess<ApiHabit>>('/habits', request);
+    return response.data.data;
+  },
+  async update(uuid: string, request: SaveHabitRequest): Promise<ApiHabit> {
+    const response = await apiClient.put<ApiSuccess<ApiHabit>>(`/habits/${uuid}`, request);
+    return response.data.data;
+  },
+  async archive(uuid: string): Promise<ApiHabit> {
+    const response = await apiClient.post<ApiSuccess<ApiHabit>>(`/habits/${uuid}/archive`);
+    return response.data.data;
+  },
+  async restore(uuid: string): Promise<ApiHabit> {
+    const response = await apiClient.post<ApiSuccess<ApiHabit>>(`/habits/${uuid}/restore`);
+    return response.data.data;
+  },
+  async remove(uuid: string): Promise<void> {
+    await apiClient.delete(`/habits/${uuid}`);
+  },
+  async logs(uuid: string, filters: HabitLogFilters): Promise<ApiPaginatedResponse<ApiHabitLog>> {
+    const response = await apiClient.get<ApiPaginatedResponse<ApiHabitLog>>(`/habits/${uuid}/logs`, { params: filters });
+    return response.data;
+  },
+  async logProgress(uuid: string, request: SaveHabitLogRequest): Promise<HabitLogStoreResponse> {
+    const response = await apiClient.post<ApiSuccess<HabitLogStoreResponse>>(`/habits/${uuid}/logs`, request);
+    return response.data.data;
+  },
+  async removeLog(uuid: string, date: string): Promise<void> {
+    await apiClient.delete(`/habits/${uuid}/logs/${date}`);
+  },
+};
+
+--------------------------------------------------------------------------------
+A2/7 : frontend/src/features/habits/habit-queries.ts  (new file, 78 lines)
+--------------------------------------------------------------------------------
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { habitApi } from '@/services/api/habitApi';
+import type { HabitFilters, HabitLogFilters, SaveHabitLogRequest, SaveHabitRequest } from '@/services/api/contracts';
+
+export const habitKeys = {
+  all: ['habits'] as const,
+  lists: () => [...habitKeys.all, 'list'] as const,
+  list: (filters: HabitFilters) => [...habitKeys.lists(), filters] as const,
+  detail: (uuid: string) => [...habitKeys.all, 'detail', uuid] as const,
+  overview: (date: string) => [...habitKeys.all, 'overview', date] as const,
+  logs: (uuid: string, filters: HabitLogFilters) => [...habitKeys.all, 'logs', uuid, filters] as const,
+};
+
+export function useHabits(filters: HabitFilters, enabled = true) {
+  return useQuery({ queryKey: habitKeys.list(filters), queryFn: () => habitApi.list(filters), enabled });
+}
+
+export function useDailyOverview(date: string, enabled = true) {
+  return useQuery({ queryKey: habitKeys.overview(date), queryFn: () => habitApi.dailyOverview(date), enabled });
+}
+
+export function useHabit(uuid: string) {
+  return useQuery({ queryKey: habitKeys.detail(uuid), queryFn: () => habitApi.get(uuid), enabled: Boolean(uuid) });
+}
+
+export function useHabitLogs(uuid: string, filters: HabitLogFilters, enabled = true) {
+  return useQuery({ queryKey: habitKeys.logs(uuid, filters), queryFn: () => habitApi.logs(uuid, filters), enabled: Boolean(uuid) && enabled });
+}
+
+export function useSaveHabit(uuid?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: SaveHabitRequest) => (uuid ? habitApi.update(uuid, request) : habitApi.create(request)),
+    onSuccess: async (habit) => {
+      await queryClient.invalidateQueries({ queryKey: habitKeys.all });
+      queryClient.setQueryData(habitKeys.detail(habit.uuid), habit);
+    },
+  });
+}
+
+export function useHabitAction(action: 'archive' | 'restore' | 'delete') {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (uuid: string) => {
+      if (action === 'archive') return habitApi.archive(uuid);
+      if (action === 'restore') return habitApi.restore(uuid);
+      await habitApi.remove(uuid);
+      return null;
+    },
+    onSuccess: async () => {
+      if (action === 'delete') {
+        await queryClient.invalidateQueries({ queryKey: habitKeys.all, refetchType: 'none' });
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: habitKeys.all });
+    },
+  });
+}
+
+export function useLogHabit(uuid: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: SaveHabitLogRequest) => habitApi.logProgress(uuid, request),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: habitKeys.all });
+    },
+  });
+}
+
+export function useRemoveHabitLog(uuid: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (date: string) => habitApi.removeLog(uuid, date),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: habitKeys.all });
+    },
+  });
+}
+
+--------------------------------------------------------------------------------
+A3/7 : frontend/src/features/habits/habit-validation.ts  (new file, 40 lines)
+--------------------------------------------------------------------------------
+import { z } from 'zod';
+
+export const HABIT_TARGET_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
+export const habitFormSchema = z
+  .object({
+    title: z.string().trim().min(1, 'Enter a habit title.').max(255, 'Use 255 characters or fewer.'),
+    description: z.string().max(1000, 'Use 1000 characters or fewer.'),
+    frequency: z.enum(['daily', 'custom']),
+    target_days: z.array(z.enum(HABIT_TARGET_DAYS)),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Choose a valid color.'),
+  })
+  .refine((values) => values.frequency !== 'custom' || values.target_days.length > 0, {
+    message: 'Custom habits require at least one weekday.',
+    path: ['target_days'],
+  });
+
+export type HabitFormValues = z.infer<typeof habitFormSchema>;
+
+export function habitTargetDayLabel(day: (typeof HABIT_TARGET_DAYS)[number]): string {
+  return day.charAt(0).toUpperCase() + day.slice(1);
+}
+
+export function habitErrorMessage(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    const status = error.status;
+    if (status === 401) return 'Your session has expired. Sign in again to continue.';
+    if (status === 403) return 'You no longer have permission to manage habits.';
+    if (status === 404) return 'This habit is unavailable or outside your access scope.';
+    if (status === 422) {
+      if ('errors' in error && typeof error.errors === 'object' && error.errors !== null) {
+        const firstMessage = Object.values(error.errors).find((value) => typeof value === 'string');
+        if (typeof firstMessage === 'string') return firstMessage;
+      }
+      return 'The habit details were rejected. Review the fields and try again.';
+    }
+    if (status === 429) return 'Too many requests. Wait a moment and try again.';
+  }
+  return 'Hirgal could not complete this request. Check your connection and try again.';
+}
+
+--------------------------------------------------------------------------------
+A4/7 : frontend/src/features/habits/pages/HabitsRoute.tsx  (new file, 448 lines)
+--------------------------------------------------------------------------------
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Activity, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { ErrorState } from '@/components/feedback/ErrorState';
+import { LoadingState } from '@/components/feedback/LoadingState';
+import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { useAuth } from '@/features/auth/auth-hooks';
+import { useDailyOverview, useHabits, useLogHabit, useRemoveHabitLog } from '../habit-queries';
+import { habitErrorMessage, habitTargetDayLabel } from '../habit-validation';
+import type {
+  ApiDailyOverviewItem,
+  ApiHabit,
+  HabitFilters,
+  HabitFrequency,
+  HabitLogStatus,
+} from '@/services/api/contracts';
+
+function localCalendarDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function todayForUser(timeZone?: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timeZone ?? 'UTC',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+  } catch {
+    return localCalendarDate(new Date());
+  }
+}
+
+function addDays(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, (day ?? 1) + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
+const logStatusBadges = {
+  completed: { status: 'complete', label: 'Completed' },
+  skipped: { status: 'pending', label: 'Skipped' },
+  failed: { status: 'blocked', label: 'Failed' },
+} as const;
+
+export function HabitsRoute() {
+  const { user } = useAuth();
+  const today = todayForUser(user?.timezone);
+  const [viewDate, setViewDate] = useState(today);
+  const [archived, setArchived] = useState(false);
+  const [frequency, setFrequency] = useState('');
+  const [page, setPage] = useState(1);
+
+  const overview = useDailyOverview(viewDate);
+  const filters: HabitFilters = {
+    page,
+    per_page: 12,
+    is_archived: archived,
+    ...(frequency ? { frequency: frequency as HabitFrequency } : {}),
+  };
+  const query = useHabits(filters);
+  const habits = query.data?.data ?? [];
+
+  return (
+    <section aria-labelledby="habits-title" className="mx-auto max-w-6xl space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-primary">Personal</p>
+          <h1 className="text-2xl font-semibold tracking-tight" id="habits-title">Habits</h1>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            Build consistent routines and record daily progress.
+          </p>
+        </div>
+        <Button asChild>
+          <Link to="/habits/new">
+            <Plus aria-hidden="true" className="size-4" />
+            New habit
+          </Link>
+        </Button>
+      </header>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Daily check-in</CardTitle>
+              <CardDescription>Record progress for each scheduled habit.</CardDescription>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                aria-label="Previous day"
+                onClick={() => setViewDate((current) => addDays(current, -1))}
+                size="icon"
+                variant="outline"
+              >
+                <ChevronLeft aria-hidden="true" className="size-4" />
+              </Button>
+              <Input
+                aria-label="Check-in date"
+                className="w-36"
+                max={today}
+                onChange={(event) => {
+                  if (event.target.value) setViewDate(event.target.value);
+                }}
+                type="date"
+                value={viewDate}
+              />
+              <Button
+                aria-label="Next day"
+                disabled={viewDate >= today}
+                onClick={() => setViewDate((current) => addDays(current, 1))}
+                size="icon"
+                variant="outline"
+              >
+                <ChevronRight aria-hidden="true" className="size-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {overview.isPending ? (
+            <LoadingState label="Loading check-in" />
+          ) : overview.isError ? (
+            <ErrorState
+              description={habitErrorMessage(overview.error)}
+              onRetry={() => void overview.refetch()}
+              title="Check-in could not be loaded"
+            />
+          ) : overview.data.habits.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No active habits to check in for this date.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {overview.data.habits.map((item) => (
+                <CheckInRow date={viewDate} item={item} key={item.habit.uuid} />
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="grid gap-3 pt-6 sm:grid-cols-2">
+          <label className="space-y-1 text-sm">
+            <span className="sr-only">Filter by archive status</span>
+            <select
+              aria-label="Filter by archive status"
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              onChange={(event) => {
+                setArchived(event.target.value === 'archived');
+                setPage(1);
+              }}
+              value={archived ? 'archived' : 'active'}
+            >
+              <option value="active">Active habits</option>
+              <option value="archived">Archived habits</option>
+            </select>
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="sr-only">Filter by frequency</span>
+            <select
+              aria-label="Filter by frequency"
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              onChange={(event) => {
+                setFrequency(event.target.value);
+                setPage(1);
+              }}
+              value={frequency}
+            >
+              <option value="">All frequencies</option>
+              <option value="daily">Daily</option>
+              <option value="custom">Custom days</option>
+            </select>
+          </label>
+        </CardContent>
+      </Card>
+
+      {query.isPending ? (
+        <div
+          aria-label="Loading habits"
+          className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+          role="status"
+        >
+          <span className="sr-only">Loading habits</span>
+          {Array.from({ length: 6 }, (_, index) => (
+            <Card aria-hidden="true" className="space-y-4 p-6" key={index}>
+              <div className="flex justify-between">
+                <Skeleton className="size-5" />
+                <Skeleton className="h-5 w-20" />
+              </div>
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+              <div className="flex justify-between pt-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : query.isError ? (
+        <ErrorState
+          description={habitErrorMessage(query.error)}
+          onRetry={() => void query.refetch()}
+          title="Habits could not be loaded"
+        />
+      ) : habits.length === 0 ? (
+        <EmptyState
+          description={
+            archived
+              ? 'Habits you archive will remain available here.'
+              : 'Create your first habit to start tracking daily progress.'
+          }
+          title="No habits found"
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {habits.map((habit) => (
+            <HabitCard habit={habit} key={habit.uuid} />
+          ))}
+        </div>
+      )}
+
+      {query.data?.meta ? (
+        <Pagination
+          currentPage={query.data.meta.current_page}
+          onPageChange={setPage}
+          totalPages={query.data.meta.last_page}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function HabitCard({ habit }: { habit: ApiHabit }) {
+  const stats = habit.stats;
+  const targetDays = (habit.target_days ?? []).map(habitTargetDayLabel).join(', ');
+
+  return (
+    <Card className="transition-shadow hover:shadow-md">
+      <CardHeader className="gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <Activity aria-hidden="true" className="size-5 text-primary" />
+          <StatusBadge
+            label={habit.is_archived ? 'Archived' : 'Active'}
+            status={habit.is_archived ? 'neutral' : 'active'}
+          />
+        </div>
+        <CardTitle>
+          <Link
+            className="hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            to={`/habits/${habit.uuid}`}
+          >
+            {habit.title}
+          </Link>
+        </CardTitle>
+        <CardDescription>{habit.description || 'No description provided.'}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="flex justify-between gap-3 text-muted-foreground">
+          <span>
+            {habit.frequency === 'daily' ? 'Every day' : `Days: ${targetDays || 'Not set'}`}
+          </span>
+          <span>{stats ? `${stats.current_streak} day streak` : 'No activity yet'}</span>
+        </div>
+        {stats ? (
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Completion rate</span>
+              <span>{stats.completion_rate}%</span>
+            </div>
+            <Progress
+              aria-label={`Completion rate for ${habit.title}`}
+              value={stats.completion_rate}
+            />
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CheckInRow({ date, item }: { date: string; item: ApiDailyOverviewItem }) {
+  const { habit, is_scheduled, log } = item;
+  const logHabit = useLogHabit(habit.uuid);
+  const removeHabitLog = useRemoveHabitLog(habit.uuid);
+  const [confirmRemoval, setConfirmRemoval] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function record(status: HabitLogStatus): Promise<void> {
+    setActionError(null);
+    try {
+      await logHabit.mutateAsync({ logged_date: date, status });
+    } catch (error) {
+      setActionError(habitErrorMessage(error));
+    }
+  }
+
+  async function confirmRemove(): Promise<void> {
+    setActionError(null);
+    try {
+      await removeHabitLog.mutateAsync(date);
+      setConfirmRemoval(false);
+    } catch (error) {
+      setActionError(habitErrorMessage(error));
+    }
+  }
+
+  const badge = log ? logStatusBadges[log.status] : null;
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="size-3 shrink-0 rounded-full"
+          style={{ backgroundColor: habit.color ?? '#94a3b8' }}
+        />
+        <div className="min-w-0">
+          <Link
+            className="text-sm font-medium hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            to={`/habits/${habit.uuid}`}
+          >
+            {habit.title}
+          </Link>
+          <p className="text-xs text-muted-foreground">
+            {!is_scheduled
+              ? 'Not scheduled on this date'
+              : badge
+                ? `Checked in for ${date}`
+                : 'Scheduled for this date'}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        {!is_scheduled ? null : badge ? (
+          <>
+            <StatusBadge label={badge.label} status={badge.status} />
+            <Button
+              aria-label={`Remove check-in for ${habit.title}`}
+              disabled={removeHabitLog.isPending}
+              onClick={() => setConfirmRemoval(true)}
+              size="sm"
+              variant="outline"
+            >
+              Remove
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              aria-label={`Mark ${habit.title} as completed`}
+              loading={logHabit.isPending}
+              onClick={() => void record('completed')}
+              size="sm"
+            >
+              Complete
+            </Button>
+            <Button
+              aria-label={`Mark ${habit.title} as skipped`}
+              disabled={logHabit.isPending}
+              onClick={() => void record('skipped')}
+              size="sm"
+              variant="outline"
+            >
+              Skip
+            </Button>
+            <Button
+              aria-label={`Mark ${habit.title} as failed`}
+              disabled={logHabit.isPending}
+              onClick={() => void record('failed')}
+              size="sm"
+              variant="outline"
+            >
+              Fail
+            </Button>
+          </>
+        )}
+      </div>
+      {actionError ? (
+        <p className="w-full text-sm text-destructive" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !removeHabitLog.isPending) setConfirmRemoval(false);
+        }}
+        open={confirmRemoval}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this check-in?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The record for {date} will be deleted and streak statistics will be recalculated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {removeHabitLog.isError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {habitErrorMessage(removeHabitLog.error)}
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button disabled={removeHabitLog.isPending} variant="outline">
+                Cancel
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                disabled={removeHabitLog.isPending}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void confirmRemove();
+                }}
+                variant="destructive"
+              >
+                {removeHabitLog.isPending ? 'Working…' : 'Remove check-in'}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </li>
+  );
+}
+
+--------------------------------------------------------------------------------
+A5/7 : frontend/src/features/habits/pages/HabitDetailsRoute.tsx  (new file, 342 lines)
+--------------------------------------------------------------------------------
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Archive, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ErrorState } from '@/components/feedback/ErrorState';
+import { LoadingState } from '@/components/feedback/LoadingState';
+import { Pagination } from '@/components/ui/pagination';
+import { Progress } from '@/components/ui/progress';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { useHabit, useHabitAction, useHabitLogs } from '../habit-queries';
+import { habitErrorMessage, habitTargetDayLabel } from '../habit-validation';
+import type { HabitLogStatus } from '@/services/api/contracts';
+
+const logStatusBadges = {
+  completed: { status: 'complete', label: 'Completed' },
+  skipped: { status: 'pending', label: 'Skipped' },
+  failed: { status: 'blocked', label: 'Failed' },
+} as const;
+
+export function HabitDetailsRoute() {
+  const { habitUuid = '' } = useParams();
+  const navigate = useNavigate();
+  const habitQuery = useHabit(habitUuid);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyStatus, setHistoryStatus] = useState('');
+  const historyQuery = useHabitLogs(
+    habitUuid,
+    {
+      page: historyPage,
+      per_page: 10,
+      ...(historyStatus ? { status: historyStatus as HabitLogStatus } : {}),
+    },
+    habitQuery.isSuccess,
+  );
+  const archive = useHabitAction('archive');
+  const restore = useHabitAction('restore');
+  const remove = useHabitAction('delete');
+  const [confirmAction, setConfirmAction] = useState<'archive' | 'restore' | 'delete' | null>(
+    null,
+  );
+  const habit = habitQuery.data;
+  const actionPending = archive.isPending || restore.isPending || remove.isPending;
+
+  async function confirm(): Promise<void> {
+    try {
+      if (confirmAction === 'archive') await archive.mutateAsync(habitUuid);
+      if (confirmAction === 'restore') await restore.mutateAsync(habitUuid);
+      if (confirmAction === 'delete') {
+        await remove.mutateAsync(habitUuid);
+        navigate('/habits');
+      }
+      setConfirmAction(null);
+    } catch {
+      return;
+    }
+  }
+
+  if (habitQuery.isPending) {
+    return (
+      <div className="flex min-h-48 items-center justify-center">
+        <LoadingState label="Loading habit" />
+      </div>
+    );
+  }
+  if (habitQuery.isError || !habit) {
+    return (
+      <ErrorState
+        description={habitErrorMessage(habitQuery.error)}
+        onRetry={() => void habitQuery.refetch()}
+        title="Habit unavailable"
+      />
+    );
+  }
+
+  const stats = habit.stats;
+
+  return (
+    <section aria-labelledby="habit-detail-title" className="mx-auto max-w-6xl space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
+          <Link className="text-sm text-primary hover:underline" to="/habits">
+            Habits
+          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="size-3 rounded-full"
+              style={{ backgroundColor: habit.color ?? '#94a3b8' }}
+            />
+            <h1 className="text-2xl font-semibold tracking-tight" id="habit-detail-title">
+              {habit.title}
+            </h1>
+            <StatusBadge
+              label={habit.is_archived ? 'Archived' : 'Active'}
+              status={habit.is_archived ? 'neutral' : 'active'}
+            />
+            <StatusBadge
+              label={habit.frequency === 'daily' ? 'Daily' : 'Custom days'}
+              status="planned"
+            />
+          </div>
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+            {habit.description || 'No description provided.'}
+          </p>
+          {habit.frequency === 'custom' && habit.target_days?.length ? (
+            <p className="text-xs text-muted-foreground">
+              Scheduled on: {habit.target_days.map(habitTargetDayLabel).join(', ')}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link to={`/habits/${habitUuid}/edit`}>Edit habit</Link>
+          </Button>
+          {habit.is_archived ? (
+            <Button onClick={() => setConfirmAction('restore')} variant="outline">
+              Restore
+            </Button>
+          ) : (
+            <Button onClick={() => setConfirmAction('archive')} variant="outline">
+              <Archive aria-hidden="true" className="size-4" />
+              Archive
+            </Button>
+          )}
+          <Button onClick={() => setConfirmAction('delete')} variant="destructive">
+            <Trash2 aria-hidden="true" className="size-4" />
+            Delete
+          </Button>
+        </div>
+      </header>
+
+      {archive.isError || restore.isError || remove.isError ? (
+        <p
+          className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+          role="alert"
+        >
+          {habitErrorMessage(archive.error ?? restore.error ?? remove.error)}
+        </p>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Current streak
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-semibold">
+              {stats ? `${stats.current_streak} days` : 'Not available'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Longest streak
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-semibold">
+              {stats ? `${stats.longest_streak} days` : 'Not available'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Completion rate
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-2xl font-semibold">
+              {stats ? `${stats.completion_rate}%` : 'Not available'}
+            </p>
+            {stats ? (
+              <Progress
+                aria-label={`Completion rate for ${habit.title}`}
+                value={stats.completion_rate}
+              />
+            ) : null}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Check-ins</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {stats ? (
+              <>
+                <p>{stats.total_completed} completed</p>
+                <p>{stats.total_skipped} skipped</p>
+                <p>{stats.total_failed} failed</p>
+              </>
+            ) : (
+              <p className="text-2xl font-semibold text-foreground">Not available</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>History</CardTitle>
+              <CardDescription>Recorded check-ins for this habit.</CardDescription>
+            </div>
+            <label className="space-y-1 text-sm">
+              <span className="sr-only">Filter history by status</span>
+              <select
+                aria-label="Filter history by status"
+                className="h-10 rounded-md border bg-background px-3 text-sm"
+                onChange={(event) => {
+                  setHistoryStatus(event.target.value);
+                  setHistoryPage(1);
+                }}
+                value={historyStatus}
+              >
+                <option value="">All statuses</option>
+                <option value="completed">Completed</option>
+                <option value="skipped">Skipped</option>
+                <option value="failed">Failed</option>
+              </select>
+            </label>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {historyQuery.isPending ? (
+            <LoadingState label="Loading history" />
+          ) : historyQuery.isError ? (
+            <ErrorState
+              description={habitErrorMessage(historyQuery.error)}
+              onRetry={() => void historyQuery.refetch()}
+              title="History could not be loaded"
+            />
+          ) : historyQuery.data.data.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No check-ins recorded for this habit yet.
+            </p>
+          ) : (
+            <>
+              <ul className="divide-y">
+                {historyQuery.data.data.map((entry) => (
+                  <li
+                    className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
+                    key={entry.id}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium">{entry.logged_date}</p>
+                      {entry.notes ? (
+                        <p className="text-muted-foreground">{entry.notes}</p>
+                      ) : null}
+                    </div>
+                    <StatusBadge
+                      label={logStatusBadges[entry.status].label}
+                      status={logStatusBadges[entry.status].status}
+                    />
+                  </li>
+                ))}
+              </ul>
+              {historyQuery.data.meta ? (
+                <Pagination
+                  currentPage={historyQuery.data.meta.current_page}
+                  onPageChange={setHistoryPage}
+                  totalPages={historyQuery.data.meta.last_page}
+                />
+              ) : null}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !actionPending) setConfirmAction(null);
+        }}
+        open={Boolean(confirmAction)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction === 'archive'
+                ? 'Archive this habit?'
+                : confirmAction === 'restore'
+                  ? 'Restore this habit?'
+                  : 'Delete this habit?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction === 'archive'
+                ? 'The habit will be hidden from daily check-ins. Its history stays available under archived habits.'
+                : confirmAction === 'restore'
+                  ? 'The habit will return to active daily check-ins.'
+                  : 'The habit and its check-in history will be permanently removed.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {archive.isError || restore.isError || remove.isError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {habitErrorMessage(archive.error ?? restore.error ?? remove.error)}
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button disabled={actionPending} variant="outline">
+                Cancel
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                disabled={actionPending}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void confirm();
+                }}
+                variant={confirmAction === 'delete' ? 'destructive' : 'default'}
+              >
+                {actionPending
+                  ? 'Working…'
+                  : confirmAction === 'archive'
+                    ? 'Archive habit'
+                    : confirmAction === 'restore'
+                      ? 'Restore habit'
+                      : 'Delete habit'}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
+  );
+}
+
+--------------------------------------------------------------------------------
+A6/7 : frontend/src/features/habits/pages/HabitFormRoute.tsx  (new file, 232 lines)
+--------------------------------------------------------------------------------
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useForm, useWatch } from 'react-hook-form';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { ErrorState } from '@/components/feedback/ErrorState';
+import { LoadingState } from '@/components/feedback/LoadingState';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useAuth } from '@/features/auth/auth-hooks';
+import { hasPermission } from '@/features/auth/permissions';
+import { useHabit, useSaveHabit } from '../habit-queries';
+import {
+  HABIT_TARGET_DAYS,
+  habitErrorMessage,
+  habitFormSchema,
+  habitTargetDayLabel,
+  type HabitFormValues,
+} from '../habit-validation';
+import type { SaveHabitRequest } from '@/services/api/contracts';
+
+export function HabitFormRoute() {
+  const { habitUuid } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const existing = useHabit(habitUuid ?? '');
+  const save = useSaveHabit(habitUuid);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const form = useForm<HabitFormValues>({
+    defaultValues: {
+      title: '',
+      description: '',
+      frequency: 'daily',
+      target_days: [],
+      color: '#3B82F6',
+    },
+  });
+  const seeded = existing.data;
+  const resetForm = form.reset;
+  const frequency = useWatch({ control: form.control, name: 'frequency' });
+  const targetDays = useWatch({ control: form.control, name: 'target_days' });
+
+  useEffect(() => {
+    if (seeded) {
+      resetForm({
+        title: seeded.title,
+        description: seeded.description ?? '',
+        frequency: seeded.frequency,
+        target_days: seeded.target_days ?? [],
+        color: seeded.color ?? '#3B82F6',
+      });
+    }
+  }, [resetForm, seeded]);
+
+  if (habitUuid && existing.isPending) {
+    return (
+      <div className="flex min-h-48 items-center justify-center">
+        <LoadingState label="Loading habit" />
+      </div>
+    );
+  }
+  if (habitUuid && existing.isError) {
+    return (
+      <ErrorState
+        description={habitErrorMessage(existing.error)}
+        onRetry={() => void existing.refetch()}
+        title="Habit unavailable"
+      />
+    );
+  }
+  if (habitUuid && !seeded) {
+    return <ErrorState description="This habit is unavailable." title="Habit unavailable" />;
+  }
+  if (!hasPermission(user, 'habits.manage')) {
+    return (
+      <ErrorState
+        description={
+          habitUuid
+            ? 'Editing habits requires the habits manage permission.'
+            : 'Your account cannot create habits.'
+        }
+        title={habitUuid ? 'Editing unavailable' : 'Creation unavailable'}
+      />
+    );
+  }
+
+  async function submit(values: HabitFormValues): Promise<void> {
+    const parsed = habitFormSchema.safeParse(values);
+    if (!parsed.success) {
+      setErrors(
+        Object.fromEntries(
+          parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]),
+        ),
+      );
+      return;
+    }
+    setErrors({});
+    const request: SaveHabitRequest = {
+      title: parsed.data.title,
+      description: parsed.data.description || null,
+      frequency: parsed.data.frequency,
+      target_days: parsed.data.target_days,
+      color: parsed.data.color,
+    };
+    try {
+      const habit = await save.mutateAsync(request);
+      navigate(`/habits/${habit.uuid}`);
+    } catch {
+      return;
+    }
+  }
+
+  return (
+    <section className="mx-auto max-w-3xl space-y-6">
+      <header>
+        <Link
+          className="text-sm text-primary hover:underline"
+          to={habitUuid ? `/habits/${habitUuid}` : '/habits'}
+        >
+          {habitUuid ? 'Back to habit' : 'Habits'}
+        </Link>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+          {habitUuid ? 'Edit habit' : 'Create habit'}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {habitUuid
+            ? 'Update the habit details supported by the habits API.'
+            : 'Define a habit and choose when it should be tracked.'}
+        </p>
+      </header>
+      <Card>
+        <CardContent className="pt-6">
+          <form
+            className="space-y-5"
+            noValidate
+            onSubmit={form.handleSubmit(submit)}
+          >
+            <Field error={errors.title} label="Habit title">
+              <Input {...form.register('title')} autoComplete="off" />
+            </Field>
+            <Field error={errors.description} label="Description">
+              <Textarea {...form.register('description')} rows={4} />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field error={errors.frequency} label="Frequency">
+                <select
+                  className="h-10 w-full rounded-md border bg-background px-3"
+                  {...form.register('frequency')}
+                >
+                  <option value="daily">Daily</option>
+                  <option value="custom">Custom days</option>
+                </select>
+              </Field>
+              <Field error={errors.color} label="Color">
+                <Input defaultValue="#3B82F6" type="color" {...form.register('color')} />
+              </Field>
+            </div>
+            {frequency === 'custom' ? (
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">
+                  Target days
+                  <span aria-hidden="true" className="ml-1 text-destructive">
+                    *
+                  </span>
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {HABIT_TARGET_DAYS.map((day) => (
+                    <label className="flex items-center gap-2 text-sm font-medium" key={day}>
+                      <Checkbox
+                        aria-label={habitTargetDayLabel(day)}
+                        checked={targetDays.includes(day)}
+                        onCheckedChange={(checked) => {
+                          const next =
+                            checked === true
+                              ? [...targetDays, day]
+                              : targetDays.filter((value) => value !== day);
+                          form.setValue('target_days', next, { shouldValidate: true });
+                        }}
+                      />
+                      {habitTargetDayLabel(day)}
+                    </label>
+                  ))}
+                </div>
+                {errors.target_days ? (
+                  <p className="text-xs text-destructive" role="alert">
+                    {errors.target_days}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {save.isError ? (
+              <p className="text-sm text-destructive" role="alert">
+                {habitErrorMessage(save.error)}
+              </p>
+            ) : null}
+            <div className="flex gap-3">
+              <Button loading={save.isPending} type="submit">
+                {habitUuid ? 'Save changes' : 'Create habit'}
+              </Button>
+              <Button asChild variant="outline">
+                <Link to={habitUuid ? `/habits/${habitUuid}` : '/habits'}>Cancel</Link>
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error: string | undefined;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block space-y-1.5 text-sm font-medium">
+      {label}
+      {children}
+      {error ? (
+        <span className="block text-xs font-normal text-destructive" role="alert">
+          {error}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+--------------------------------------------------------------------------------
+A7/7 : frontend/src/features/habits/HabitsRoutes.test.tsx  (new file, 455 lines)
+--------------------------------------------------------------------------------
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { RequirePermission } from '@/features/auth/components/AuthRouteGuards';
+import { HabitDetailsRoute } from './pages/HabitDetailsRoute';
+import { HabitFormRoute } from './pages/HabitFormRoute';
+import { HabitsRoute } from './pages/HabitsRoute';
+import type { ApiDailyOverview, ApiHabit, ApiHabitLog } from '@/services/api/contracts';
+
+const { habitApi, authState } = vi.hoisted(() => ({
+  habitApi: {
+    list: vi.fn(),
+    dailyOverview: vi.fn(),
+    get: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    archive: vi.fn(),
+    restore: vi.fn(),
+    remove: vi.fn(),
+    logs: vi.fn(),
+    logProgress: vi.fn(),
+    removeLog: vi.fn(),
+  },
+  authState: {
+    user: null as null | {
+      id: number;
+      name: string;
+      email: string;
+      account_status: 'active';
+      avatar_url: null;
+      timezone: string;
+      roles: { id: number; name: string; slug: string; description: null; is_system: boolean }[];
+      permissions: string[];
+    },
+  },
+}));
+
+vi.mock('@/services/api/habitApi', () => ({ habitApi }));
+vi.mock('@/features/auth/auth-hooks', () => ({ useAuth: () => authState }));
+
+const stats = {
+  current_streak: 5,
+  longest_streak: 12,
+  total_completed: 30,
+  total_skipped: 3,
+  total_failed: 2,
+  completion_rate: 85.7,
+};
+
+const habit: ApiHabit = {
+  uuid: 'habit-uuid',
+  title: 'Morning Meditation',
+  description: 'Ten quiet minutes.',
+  frequency: 'daily',
+  target_days: null,
+  color: '#10B981',
+  is_archived: false,
+  current_streak: 5,
+  longest_streak: 12,
+  stats,
+  created_at: null,
+  updated_at: null,
+};
+
+const logEntry: ApiHabitLog = {
+  id: 1,
+  logged_date: '2026-11-10',
+  status: 'completed',
+  notes: 'Felt great',
+  created_at: null,
+  updated_at: null,
+};
+
+function overviewWith(log: ApiHabitLog | null, isScheduled = true): ApiDailyOverview {
+  return {
+    date: '2026-11-10',
+    timezone: 'UTC',
+    habits: [{ habit, is_scheduled: isScheduled, log }],
+  };
+}
+
+function renderWithProviders(ui: React.ReactNode, initialEntry = '/') {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialEntry]}>{ui}</MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  authState.user = {
+    id: 7,
+    name: 'Amina Hassan',
+    email: 'amina@example.test',
+    account_status: 'active',
+    avatar_url: null,
+    timezone: 'UTC',
+    roles: [
+      { id: 1, name: 'System Admin', slug: 'system-admin', description: null, is_system: true },
+    ],
+    permissions: ['habits.manage'],
+  };
+  habitApi.list.mockResolvedValue({
+    success: true,
+    message: 'ok',
+    data: [habit],
+    meta: { current_page: 1, last_page: 1, per_page: 12, total: 1 },
+  });
+  habitApi.dailyOverview.mockResolvedValue(overviewWith(null));
+  habitApi.get.mockResolvedValue(habit);
+  habitApi.create.mockResolvedValue(habit);
+  habitApi.update.mockResolvedValue(habit);
+  habitApi.archive.mockResolvedValue({ ...habit, is_archived: true });
+  habitApi.restore.mockResolvedValue(habit);
+  habitApi.remove.mockResolvedValue(undefined);
+  habitApi.logs.mockResolvedValue({
+    success: true,
+    message: 'ok',
+    data: [logEntry],
+    meta: { current_page: 1, last_page: 1, per_page: 10, total: 1 },
+  });
+  habitApi.logProgress.mockResolvedValue({ log: logEntry, stats });
+  habitApi.removeLog.mockResolvedValue(undefined);
+});
+
+describe('HabitsRoute', () => {
+  it('renders authorized habits, the daily check-in and the create action', async () => {
+    renderWithProviders(<HabitsRoute />);
+    const habitLinks = await screen.findAllByRole('link', { name: 'Morning Meditation' });
+    expect(habitLinks[0]).toHaveAttribute('href', '/habits/habit-uuid');
+    expect(screen.getByRole('link', { name: 'New habit' })).toHaveAttribute('href', '/habits/new');
+    expect(await screen.findByRole('heading', { name: 'Daily check-in' })).toBeInTheDocument();
+    expect(screen.getByText('5 day streak')).toBeInTheDocument();
+    expect(
+      screen.getByRole('progressbar', { name: 'Completion rate for Morning Meditation' }),
+    ).toBeInTheDocument();
+    expect(habitApi.list).toHaveBeenCalledWith({ page: 1, per_page: 12, is_archived: false });
+  });
+
+  it('shows loading, empty, error and retry states', async () => {
+    let resolveList: ((value: unknown) => void) | undefined;
+    habitApi.list.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+    renderWithProviders(<HabitsRoute />);
+    expect(screen.getByRole('status', { name: 'Loading habits' })).toBeInTheDocument();
+    resolveList?.({
+      success: true,
+      message: 'ok',
+      data: [],
+      meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 },
+    });
+    expect(await screen.findByText('No habits found')).toBeInTheDocument();
+
+    habitApi.list.mockRejectedValueOnce(new Error('network'));
+    const view = renderWithProviders(<HabitsRoute />);
+    expect(await screen.findByText('Habits could not be loaded')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(habitApi.list).toHaveBeenCalledTimes(3));
+    view.unmount();
+  });
+
+  it('submits supported archive and frequency filters', async () => {
+    renderWithProviders(<HabitsRoute />);
+    await screen.findAllByRole('link', { name: 'Morning Meditation' });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by archive status' }), {
+      target: { value: 'archived' },
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by frequency' }), {
+      target: { value: 'daily' },
+    });
+    await waitFor(() =>
+      expect(habitApi.list).toHaveBeenLastCalledWith({
+        page: 1,
+        per_page: 12,
+        is_archived: true,
+        frequency: 'daily',
+      }),
+    );
+  });
+
+  it('blocks the page without the habits manage permission', async () => {
+    authState.user!.permissions = ['projects.view'];
+    renderWithProviders(
+      <RequirePermission permission="habits.manage">
+        <HabitsRoute />
+      </RequirePermission>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Access unavailable' })).toBeInTheDocument();
+    expect(habitApi.list).not.toHaveBeenCalled();
+    expect(habitApi.dailyOverview).not.toHaveBeenCalled();
+  });
+
+  it('records a completed check-in for the selected date', async () => {
+    habitApi.dailyOverview
+      .mockResolvedValueOnce(overviewWith(null))
+      .mockResolvedValue(overviewWith(logEntry));
+    renderWithProviders(<HabitsRoute />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Mark Morning Meditation as completed' }),
+    );
+    await waitFor(() =>
+      expect(habitApi.logProgress).toHaveBeenCalledWith('habit-uuid', {
+        logged_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        status: 'completed',
+      }),
+    );
+    expect(await screen.findByText('Completed')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Remove check-in for Morning Meditation' }),
+    ).toBeInTheDocument();
+  });
+
+  it('removes a check-in after confirmation', async () => {
+    habitApi.dailyOverview
+      .mockResolvedValueOnce(overviewWith(logEntry))
+      .mockResolvedValue(overviewWith(null));
+    renderWithProviders(<HabitsRoute />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Remove check-in for Morning Meditation' }),
+    );
+    expect(await screen.findByText('Remove this check-in?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove check-in' }));
+    await waitFor(() =>
+      expect(habitApi.removeLog).toHaveBeenCalledWith(
+        'habit-uuid',
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      ),
+    );
+  });
+
+  it('hides check-in actions for habits not scheduled on the date', async () => {
+    habitApi.dailyOverview.mockResolvedValue(overviewWith(null, false));
+    renderWithProviders(<HabitsRoute />);
+    expect(await screen.findByText('Not scheduled on this date')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Mark Morning Meditation as completed' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Mark Morning Meditation as skipped' }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('HabitFormRoute', () => {
+  it('creates a validated habit and navigates to its route', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/habits/new" element={<HabitFormRoute />} />
+        <Route path="/habits/:habitUuid" element={<h1>Habit destination</h1>} />
+      </Routes>,
+      '/habits/new',
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Create habit' }));
+    expect(await screen.findByText('Enter a habit title.')).toBeInTheDocument();
+    fireEvent.change(document.querySelector('[name="title"]')!, {
+      target: { value: 'Read 20 pages' },
+    });
+    fireEvent.change(document.querySelector('[name="description"]')!, {
+      target: { value: 'Before bed.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create habit' }));
+    await waitFor(() =>
+      expect(habitApi.create).toHaveBeenCalledWith({
+        title: 'Read 20 pages',
+        description: 'Before bed.',
+        frequency: 'daily',
+        target_days: [],
+        color: expect.stringMatching(/^#3b82f6$/i),
+      }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Habit destination' })).toBeInTheDocument();
+  });
+
+  it('requires a weekday for custom habits before creating', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/habits/new" element={<HabitFormRoute />} />
+      </Routes>,
+      '/habits/new',
+    );
+    await screen.findByRole('button', { name: 'Create habit' });
+    fireEvent.change(document.querySelector('[name="title"]')!, {
+      target: { value: 'Gym Workout' },
+    });
+    fireEvent.change(document.querySelector('[name="frequency"]')!, {
+      target: { value: 'custom' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create habit' }));
+    expect(
+      await screen.findByText('Custom habits require at least one weekday.'),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mon' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create habit' }));
+    await waitFor(() =>
+      expect(habitApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ frequency: 'custom', target_days: ['mon'] }),
+      ),
+    );
+  });
+
+  it('prefills an existing habit and saves edits', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/habits/:habitUuid/edit" element={<HabitFormRoute />} />
+        <Route path="/habits/:habitUuid" element={<h1>Habit destination</h1>} />
+      </Routes>,
+      '/habits/habit-uuid/edit',
+    );
+    expect(await screen.findByDisplayValue('Morning Meditation')).toBeInTheDocument();
+    fireEvent.change(document.querySelector('[name="title"]')!, {
+      target: { value: 'Evening Meditation' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(habitApi.update).toHaveBeenCalledWith('habit-uuid', {
+        title: 'Evening Meditation',
+        description: 'Ten quiet minutes.',
+        frequency: 'daily',
+        target_days: [],
+        color: '#10B981',
+      }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Habit destination' })).toBeInTheDocument();
+  });
+
+  it('blocks creation without the habits manage permission', () => {
+    authState.user!.permissions = ['projects.view'];
+    renderWithProviders(
+      <Routes>
+        <Route path="/habits/new" element={<HabitFormRoute />} />
+      </Routes>,
+      '/habits/new',
+    );
+    expect(screen.getByRole('heading', { name: 'Creation unavailable' })).toBeInTheDocument();
+    expect(habitApi.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('HabitDetailsRoute', () => {
+  it('loads habit details with streak statistics', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} />
+      </Routes>,
+      '/habits/habit-uuid',
+    );
+    expect(
+      await screen.findByRole('heading', { name: 'Morning Meditation' }),
+    ).toBeInTheDocument();
+    expect(habitApi.get).toHaveBeenCalledWith('habit-uuid');
+    expect(await screen.findByText('5 days')).toBeInTheDocument();
+    expect(screen.getByText('12 days')).toBeInTheDocument();
+    expect(screen.getByText('85.7%')).toBeInTheDocument();
+    expect(screen.getByText('30 completed')).toBeInTheDocument();
+    expect(
+      screen.getByRole('progressbar', { name: 'Completion rate for Morning Meditation' }),
+    ).toBeInTheDocument();
+  });
+
+  it('filters habit history by status', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} />
+      </Routes>,
+      '/habits/habit-uuid',
+    );
+    expect(await screen.findByText('2026-11-10')).toBeInTheDocument();
+    expect(screen.getByText('Felt great')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter history by status' }), {
+      target: { value: 'completed' },
+    });
+    await waitFor(() =>
+      expect(habitApi.logs).toHaveBeenLastCalledWith(
+        'habit-uuid',
+        expect.objectContaining({ status: 'completed' }),
+      ),
+    );
+  });
+
+  it('requires confirmation before archiving', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} />
+      </Routes>,
+      '/habits/habit-uuid',
+    );
+    await screen.findByRole('heading', { name: 'Morning Meditation' });
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }));
+    expect(habitApi.archive).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Archive habit' }));
+    await waitFor(() => expect(habitApi.archive).toHaveBeenCalledWith('habit-uuid'));
+  });
+
+  it('deletes a habit after confirmation and returns to the list', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} />
+        <Route path="/habits" element={<h1>Habits destination</h1>} />
+      </Routes>,
+      '/habits/habit-uuid',
+    );
+    await screen.findByRole('heading', { name: 'Morning Meditation' });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(habitApi.remove).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete habit' }));
+    await waitFor(() => expect(habitApi.remove).toHaveBeenCalledWith('habit-uuid'));
+    expect(
+      await screen.findByRole('heading', { name: 'Habits destination' }),
+    ).toBeInTheDocument();
+  });
+
+  it('surfaces a cross-scope error when the habit is not found', async () => {
+    habitApi.get.mockRejectedValueOnce({ status: 404 });
+    renderWithProviders(
+      <Routes>
+        <Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} />
+      </Routes>,
+      '/habits/other',
+    );
+    expect(
+      await screen.findByText('This habit is unavailable or outside your access scope.'),
+    ).toBeInTheDocument();
+    expect(habitApi.logs).not.toHaveBeenCalled();
+  });
+
+  it('shows a loading state while the habit loads', async () => {
+    let resolveGet: ((value: unknown) => void) | undefined;
+    habitApi.get.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveGet = resolve;
+        }),
+    );
+    renderWithProviders(
+      <Routes>
+        <Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} />
+      </Routes>,
+      '/habits/habit-uuid',
+    );
+    expect(screen.getByRole('status', { name: 'Loading habit' })).toBeInTheDocument();
+    resolveGet?.(habit);
+    expect(
+      await screen.findByRole('heading', { name: 'Morning Meditation' }),
+    ).toBeInTheDocument();
+  });
+});
+
+================================================================================
+PART B - MODIFIED PHASE 6A FILES (6) - GIT DIFF
+================================================================================
+B1-B5: complete git diff - these five files contain Phase 6A changes only.
+B6   : PROJECT_CONTEXT.md - git diff filtered to Phase 6A lines only; the full
+       diff is +87/-16 and also contains unrelated Phase 9 documentation edits
+       which are excluded here per the export rules.
+
+--------------------------------------------------------------------------------
+B1/6 : frontend/src/services/api/contracts.ts  (git diff complete, +86/-0)
+--------------------------------------------------------------------------------
+diff --git a/frontend/src/services/api/contracts.ts b/frontend/src/services/api/contracts.ts
+index 63dbb42..a473cd7 100644
+--- a/frontend/src/services/api/contracts.ts
++++ b/frontend/src/services/api/contracts.ts
+@@ -244,3 +244,89 @@ export interface SaveTeamMemberRequest {
+   user_id: number;
+   role: TeamMemberRoleName;
+ }
++
++export type HabitFrequency = 'daily' | 'custom';
++
++export type HabitLogStatus = 'completed' | 'skipped' | 'failed';
++
++export type HabitTargetDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
++
++export interface HabitStats {
++  current_streak: number;
++  longest_streak: number;
++  total_completed: number;
++  total_skipped: number;
++  total_failed: number;
++  completion_rate: number;
++}
++
++export interface ApiHabitLog {
++  id: number;
++  logged_date: string;
++  status: HabitLogStatus;
++  notes: string | null;
++  created_at: string | null;
++  updated_at: string | null;
++}
++
++export interface ApiHabit {
++  uuid: string;
++  title: string;
++  description: string | null;
++  frequency: HabitFrequency;
++  target_days: HabitTargetDay[] | null;
++  color: string | null;
++  is_archived: boolean;
++  current_streak: number | null;
++  longest_streak: number | null;
++  stats: HabitStats | null;
++  latest_logs?: ApiHabitLog[];
++  created_at: string | null;
++  updated_at: string | null;
++}
++
++export interface HabitFilters {
++  page?: number;
++  per_page?: number;
++  is_archived?: boolean;
++  frequency?: HabitFrequency;
++}
++
++export interface HabitLogFilters {
++  page?: number;
++  per_page?: number;
++  from?: string;
++  to?: string;
++  status?: HabitLogStatus;
++}
++
++export interface SaveHabitRequest {
++  title: string;
++  description?: string | null;
++  frequency: HabitFrequency;
++  target_days?: HabitTargetDay[] | null;
++  color?: string | null;
++}
++
++export interface SaveHabitLogRequest {
++  logged_date: string;
++  status: HabitLogStatus;
++  notes?: string | null;
++}
++
++export interface HabitLogStoreResponse {
++  log: ApiHabitLog;
++  stats: HabitStats;
++}
++
++export interface ApiDailyOverviewItem {
++  habit: ApiHabit;
++  is_scheduled: boolean;
++  log: ApiHabitLog | null;
++}
++
++export interface ApiDailyOverview {
++  date: string;
++  timezone: string;
++  habits: ApiDailyOverviewItem[];
++}
+
+--------------------------------------------------------------------------------
+B2/6 : frontend/src/app/router/router.tsx  (git diff complete, +13/-0)
+--------------------------------------------------------------------------------
+diff --git a/frontend/src/app/router/router.tsx b/frontend/src/app/router/router.tsx
+index 276a8c6..fa8d9e8 100644
+--- a/frontend/src/app/router/router.tsx
++++ b/frontend/src/app/router/router.tsx
+@@ -11,6 +11,9 @@ import {
+   ChangePasswordPage,
+   DashboardPage,
+   ForgotPasswordPage,
++  HabitDetailsPage,
++  HabitFormPage,
++  HabitsPage,
+   LoginPage,
+   ProfilePage,
+   ProjectDetailsPage,
+@@ -85,6 +88,16 @@ const routes: RouteObject[] = [
+       { path: '/teams/new', element: <TeamFormPage /> },
+       { path: '/teams/:teamUuid/edit', element: <TeamFormPage /> },
+       { path: '/teams/:teamUuid', element: <RequirePermission permission="teams.view"><TeamDetailsPage /></RequirePermission> },
++      {
++        path: '/habits',
++        element: <RequirePermission permission="habits.manage"><HabitsPage /></RequirePermission>,
++      },
++      { path: '/habits/new', element: <HabitFormPage /> },
++      { path: '/habits/:habitUuid/edit', element: <HabitFormPage /> },
++      {
++        path: '/habits/:habitUuid',
++        element: <RequirePermission permission="habits.manage"><HabitDetailsPage /></RequirePermission>,
++      },
+       {
+         path: '/tasks',
+         element: <ProtectedDeferredRoute name="Tasks" permission="tasks.view" />,
+
+--------------------------------------------------------------------------------
+B3/6 : frontend/src/app/router/routes/LazyPages.tsx  (git diff complete, +15/-0)
+--------------------------------------------------------------------------------
+diff --git a/frontend/src/app/router/routes/LazyPages.tsx b/frontend/src/app/router/routes/LazyPages.tsx
+index 48781ad..39b581b 100644
+--- a/frontend/src/app/router/routes/LazyPages.tsx
++++ b/frontend/src/app/router/routes/LazyPages.tsx
+@@ -57,6 +57,18 @@ const TeamFormRoute = lazy(async () => {
+   const { TeamFormRoute: Component } = await import('@/features/teams/TeamsRoutes');
+   return { default: Component };
+ });
++const HabitsRoute = lazy(async () => {
++  const { HabitsRoute: Component } = await import('@/features/habits/pages/HabitsRoute');
++  return { default: Component };
++});
++const HabitDetailsRoute = lazy(async () => {
++  const { HabitDetailsRoute: Component } = await import('@/features/habits/pages/HabitDetailsRoute');
++  return { default: Component };
++});
++const HabitFormRoute = lazy(async () => {
++  const { HabitFormRoute: Component } = await import('@/features/habits/pages/HabitFormRoute');
++  return { default: Component };
++});
+ 
+ function renderLazyPage(page: ReactNode) {
+   return (
+@@ -104,3 +116,6 @@ export function ProjectFormPage() { return renderLazyPage(<ProjectFormRoute />);
+ export function TeamsPage() { return renderLazyPage(<TeamsRoute />); }
+ export function TeamDetailsPage() { return renderLazyPage(<TeamDetailsRoute />); }
+ export function TeamFormPage() { return renderLazyPage(<TeamFormRoute />); }
++export function HabitsPage() { return renderLazyPage(<HabitsRoute />); }
++export function HabitDetailsPage() { return renderLazyPage(<HabitDetailsRoute />); }
++export function HabitFormPage() { return renderLazyPage(<HabitFormRoute />); }
+
+--------------------------------------------------------------------------------
+B4/6 : frontend/src/app/router/routes/AuthenticatedRouteLayout.tsx  (git diff complete, +6/-1)
+--------------------------------------------------------------------------------
+diff --git a/frontend/src/app/router/routes/AuthenticatedRouteLayout.tsx b/frontend/src/app/router/routes/AuthenticatedRouteLayout.tsx
+index cbcd8dc..690fab4 100644
+--- a/frontend/src/app/router/routes/AuthenticatedRouteLayout.tsx
++++ b/frontend/src/app/router/routes/AuthenticatedRouteLayout.tsx
+@@ -5,7 +5,11 @@ export function AuthenticatedRouteLayout() {
+   const { pathname } = useLocation();
+   const breadcrumb = pathname.startsWith('/users/')
+     ? 'User details'
+-    : ({
++    : pathname.startsWith('/habits/') && pathname !== '/habits/new' && !pathname.endsWith('/edit')
++      ? 'Habit details'
++      : pathname.startsWith('/habits/') && (pathname === '/habits/new' || pathname.endsWith('/edit'))
++        ? 'Habit editor'
++        : ({
+     '/dashboard': 'Dashboard',
+     '/profile': 'Profile',
+     '/change-password': 'Change password',
+@@ -13,6 +17,7 @@ export function AuthenticatedRouteLayout() {
+     '/projects': 'Projects',
+     '/teams': 'Teams',
+     '/tasks': 'Tasks',
++    '/habits': 'Habits',
+       }[pathname] ?? 'Workspace');
+ 
+   return (
+
+--------------------------------------------------------------------------------
+B5/6 : frontend/src/components/layout/app-shell.tsx  (git diff complete, +6/-1)
+--------------------------------------------------------------------------------
+diff --git a/frontend/src/components/layout/app-shell.tsx b/frontend/src/components/layout/app-shell.tsx
+index e074e5d..2d53168 100644
+--- a/frontend/src/components/layout/app-shell.tsx
++++ b/frontend/src/components/layout/app-shell.tsx
+@@ -60,7 +60,12 @@ const navigationGroups: NavigationGroupConfig[] = [
+     label: 'Personal',
+     items: [
+       { label: 'Appointments', icon: CalendarDays, status: 'planned' },
+-      { label: 'Habits', icon: Activity, status: 'planned' },
++      {
++        label: 'Habits',
++        icon: Activity,
++        to: '/habits',
++        requiredPermission: 'habits.manage',
++      },
+       { label: 'Follow-up inbox', icon: MessageSquareText, status: 'planned' },
+     ],
+   },
+
+--------------------------------------------------------------------------------
+B6/6 : PROJECT_CONTEXT.md  (git diff - Phase 6A lines only; full diff +87/-16 mixed with Phase 9)
+--------------------------------------------------------------------------------
+NOTE: The full PROJECT_CONTEXT.md diff mixes Phase 6A edits with Phase 9 docs.
+Only Phase 6A diff lines are exported below. Excluded hunks: header Current
+Version line (one atomic line carrying both Phase 6A and Phase 9 status text),
+sections 1.2, 6.4, 8.1 Modules 9/10, 8.2 table, 10.2, 11 milestone rows, 14.
+Included: section 12 "Current Frontend Phase", section 12 "Frontend Status",
+section 16 Phase 6A change-history row, and section 17.6 (complete hunk).
+Lines below are verbatim from git diff; hunk headers omitted for mixed hunks.
+
+diff --git a/PROJECT_CONTEXT.md b/PROJECT_CONTEXT.md
+index 41c20f1..ad3b4ed 100644
+--- a/PROJECT_CONTEXT.md
++++ b/PROJECT_CONTEXT.md
+ ## 12. Current Project Status
+-- **Current Frontend Phase:** Phase 5 Projects & Teams Management implemented against existing backend APIs.
++- **Current Frontend Phase:** Phase 6A Habits Frontend implemented against the accepted Phase 8 Habit Tracker API (list + daily check-in, details + history, create/edit). No backend files, routes, contracts, or dependencies changed. Implemented and verified with the frontend quality gates only — no independent review or Product Owner acceptance recorded.
+-- **Frontend Status:** Frontend Phases 1–5 are implemented under `frontend/`: design system, authentication, dashboard/user administration, and Projects & Teams management. Appointment and Habit frontend integration remain deferred. The active backend database has not been migrated for Phase 7.
++- **Frontend Status:** Frontend Phases 1–5 plus Phase 6A (Habits) are implemented under `frontend/`: design system, authentication, dashboard/user administration, Projects & Teams management, and the Habits list/daily check-in/details/history/edit flows against the accepted Phase 8 API. Appointment frontend integration remains deferred. The active backend database has not been migrated for Phase 7.
+@@ -641,6 +697,11 @@ ## 16. Change History
++| **2026-11-10** | Frontend Phase 6A (Habits) | uncommitted | `frontend/src/services/api/contracts.ts`, `frontend/src/services/api/habitApi.ts`, `frontend/src/features/habits/`, `frontend/src/app/router/router.tsx`, `frontend/src/app/router/routes/LazyPages.tsx`, `frontend/src/app/router/routes/AuthenticatedRouteLayout.tsx`, `frontend/src/components/layout/app-shell.tsx`, `PROJECT_CONTEXT.md` | Integrated the accepted Phase 8 Habit Tracker API into the frontend: typed habit contracts (`ApiHabit`, `ApiHabitLog`, `HabitStats`, `ApiDailyOverview`, filters/requests), `habitApi` covering all 11 habit endpoints, React Query hooks with `['habits']`-prefix invalidation, Zod habit form validation (title/description/frequency/weekday/color + custom-weekday rule), Habits list page with archive/frequency filters, pagination, streak/completion-rate cards, and a daily check-in card (timezone-aware date navigation, complete/skip/fail logging, confirmation-gated check-in removal, scheduled-day awareness), details page with streak/completion/totals stat cards, paginated status-filterable history, and confirmation-gated archive/restore/delete, create/edit form with custom-weekday checkbox selection, `habits.manage`-guarded routes (`/habits`, `/habits/new`, `/habits/:habitUuid`, `/habits/:habitUuid/edit`) and enabled sidebar entry, plus breadcrumbs. No backend files, routes, contracts, or dependencies changed. | 130 frontend tests across 16 files (17 new in `HabitsRoutes.test.tsx`); typecheck PASS; lint PASS (0 warnings); build PASS (three lazy habit chunks emitted); `npm audit --omit=dev` 0 vulnerabilities | `PROJECT_CONTEXT.md` (header, §12, §16, §17.6) |
+@@ -692,3 +753,13 @@ ### 17.5 Frontend Phase 5 — Projects & Teams Management
+ - **Authorization:** Global roles and project/team contextual roles stay distinct. A global Project Manager does not gain unrelated projects. Frontend checks only control affordances; backend policies enforce access, contextual authority, assignable roles, and roster invariants.
+ - **Contract documentation:** `frontend/docs/PROJECTS_AND_TEAMS.md` records endpoints, payloads, resources, query fields, permission rules, and UI limitations. Restore is not exposed because soft-deleted projects are omitted from ordinary lists and details; no API lists trashed projects.
+ - **Verification:** Phase 5.1 had 107 tests across 15 files. Phase 5.2 has 113 tests across 15 files. Its live API checks and browser verification limitation are documented in `frontend/docs/PROJECTS_AND_TEAMS.md`. The frontend cannot infer project-owner/lead authority over an allocated team because the team resource omits allocated projects and permission data; Laravel policies remain authoritative.
++
++### 17.6 Frontend Phase 6A — Habits
++- **Status:** Implemented 2026-11-10 against the accepted Phase 8 Habit Tracker API; uncommitted; frontend quality gates green. No independent review or Product Owner acceptance has been recorded for this phase. No backend files, routes, contracts, schemas, or dependencies changed.
++- **Routes:** `/habits` (list + daily check-in), `/habits/new`, `/habits/:habitUuid`, `/habits/:habitUuid/edit`. List and details routes are wrapped in `RequirePermission permission="habits.manage"`; the form performs the same check in-component (matching the Projects/Teams form pattern). The sidebar Habits entry is enabled under Personal with `requiredPermission: 'habits.manage'` (all seeded roles hold this permission). Breadcrumbs resolve to Habits / Habit details / Habit editor.
++- **List & daily check-in:** Archive-status and frequency filters, server pagination, habit cards with color, frequency/target-day labels, current streak, and a 0–100 `completion_rate` progress bar. The check-in card supports timezone-aware date navigation (previous/next day, date input capped at today in the user's timezone), renders each habit from `GET /habits/daily-overview` with its scheduled/logged state, and offers Complete/Skip/Fail actions (POST logs upsert) plus a confirmation-gated Remove (DELETE logs by date). Loading, empty, error, and retry states cover both queries.
++- **Details:** Habit header with Active/Archived and Daily/Custom badges, confirmation-gated Archive/Restore and Delete (delete returns to `/habits`), four stat cards (current streak, longest streak, completion rate with progress bar, completed/skipped/failed totals), and a paginated history table with a status filter. The history query only enables after the habit detail loads successfully, so a 404 does not produce a second failing request.
++- **Create/edit:** Zod-validated form (title ≤255, description ≤1000, frequency `daily|custom`, custom weekday checkbox group requiring ≥1 day, hex color). Edit prefills from `GET /habits/{uuid}` and submits `PUT`; create submits `POST` and navigates to the new detail route. Server 422 messages surface inline.
++- **Contract:** Consumes the accepted Phase 8 endpoints unchanged: `GET /habits`, `GET /habits/daily-overview?date=`, `GET/PUT/DELETE /habits/{uuid}`, `POST /habits/{uuid}/archive|restore`, `GET/POST /habits/{uuid}/logs`, `DELETE /habits/{uuid}/logs/{date}`. Known contract nuances handled in the UI: archive/restore responses omit `stats`, so mutations invalidate and refetch the detail; `completion_rate` is a 0–100 float; habit list supports only `is_archived`/`frequency`/pagination filters (no server-side search exists).
++- **Limitations:** tests mock the `habitApi` module (component/behavior coverage, not live HTTP integration); browser/visual verification was not captured; "today" is computed from the authenticated user's timezone via `Intl` while the backend evaluates schedules/streaks in the profile timezone — around midnight a date may briefly disagree until the backend rejects or re-scopes it (422 messages are surfaced); log backdating rules (≤30 days, no future dates) are backend-enforced only; color input values normalize to lowercase hex (browser behavior) and are sent as-is.
++- **Verification (2026-11-10):** 130 frontend tests across 16 files (17 new in `frontend/src/features/habits/HabitsRoutes.test.tsx` covering list states, filters, permission guard, check-in record/remove/scheduled logic, form validation/create/edit/permission, details stats/history filter/archive/delete/404/loading); `npm run typecheck` PASS; `npm run lint` PASS (0 warnings); `npm run test` PASS; `npm run build` PASS (lazy chunks emitted for the three habit routes); `npm audit --omit=dev` 0 vulnerabilities.
+
+================================================================================
+PART C - CONFIRMATION MANIFEST (13 PHASE 6A FILES)
+================================================================================
+[1/13]  frontend/src/services/api/habitApi.ts  - INCLUDED (complete content, PART A)
+[2/13]  frontend/src/features/habits/habit-queries.ts  - INCLUDED (complete content, PART A)
+[3/13]  frontend/src/features/habits/habit-validation.ts  - INCLUDED (complete content, PART A)
+[4/13]  frontend/src/features/habits/pages/HabitsRoute.tsx  - INCLUDED (complete content, PART A)
+[5/13]  frontend/src/features/habits/pages/HabitDetailsRoute.tsx  - INCLUDED (complete content, PART A)
+[6/13]  frontend/src/features/habits/pages/HabitFormRoute.tsx  - INCLUDED (complete content, PART A)
+[7/13]  frontend/src/features/habits/HabitsRoutes.test.tsx  - INCLUDED (complete content, PART A)
+[8/13]  frontend/src/services/api/contracts.ts  - INCLUDED (complete git diff, PART B)
+[9/13]  frontend/src/app/router/router.tsx  - INCLUDED (complete git diff, PART B)
+[10/13]  frontend/src/app/router/routes/LazyPages.tsx  - INCLUDED (complete git diff, PART B)
+[11/13]  frontend/src/app/router/routes/AuthenticatedRouteLayout.tsx  - INCLUDED (complete git diff, PART B)
+[12/13]  frontend/src/components/layout/app-shell.tsx  - INCLUDED (complete git diff, PART B)
+[13/13]  PROJECT_CONTEXT.md  - INCLUDED (Phase 6A diff lines, PART B)
+
+Section markers found: A 7/7, B 6/6
+RESULT: ALL 13 FILES INCLUDED - EXPORT COMPLETE.
+End of export.

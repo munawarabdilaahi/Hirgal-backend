@@ -5,7 +5,11 @@ export function AuthenticatedRouteLayout() {
   const { pathname } = useLocation();
   const breadcrumb = pathname.startsWith('/users/')
     ? 'User details'
-    : ({
+    : pathname.startsWith('/habits/') && pathname !== '/habits/new' && !pathname.endsWith('/edit')
+      ? 'Habit details'
+      : pathname.startsWith('/habits/') && (pathname === '/habits/new' || pathname.endsWith('/edit'))
+        ? 'Habit editor'
+        : ({
     '/dashboard': 'Dashboard',
     '/profile': 'Profile',
     '/change-password': 'Change password',
@@ -13,6 +17,7 @@ export function AuthenticatedRouteLayout() {
     '/projects': 'Projects',
     '/teams': 'Teams',
     '/tasks': 'Tasks',
+    '/habits': 'Habits',
       }[pathname] ?? 'Workspace');
 
   return (
