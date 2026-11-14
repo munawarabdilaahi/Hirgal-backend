@@ -114,7 +114,7 @@ export function Dashboard({ user, frontendUrl = '' }: { user: ApiUser; frontendU
             </Button>
             {canViewPeople ? (
               <Button asChild className="justify-between" variant="outline">
-                <Link reloadDocument={Boolean(frontendUrl)} to={`${frontendUrl}/users`}>
+                <Link reloadDocument={Boolean(frontendUrl)} to="/users">
                   <span className="inline-flex items-center gap-2">
                     <UsersRound aria-hidden="true" className="size-4" />
                     People &amp; access

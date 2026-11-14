@@ -1,7 +1,9 @@
 import { router } from '@inertiajs/react';
+import { useQuery } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from '@/components/layout/app-shell';
 import { AuthContext } from '@/features/auth/auth-context-state';
+import { RequireAnyPermission, RequirePermission } from '@/features/auth/components/AuthRouteGuards';
 import { ProjectDetailsRoute, ProjectFormRoute, ProjectsRoute } from '@/features/projects/ProjectsRoutes';
 import { TeamDetailsRoute, TeamFormRoute, TeamsRoute } from '@/features/teams/TeamsRoutes';
 import { TasksRoute } from '@/features/tasks/TasksRoute';
@@ -10,24 +12,34 @@ import { HabitsRoute } from '@/features/habits/pages/HabitsRoute';
 import { HabitFormRoute } from '@/features/habits/pages/HabitFormRoute';
 import { HabitDetailsRoute } from '@/features/habits/pages/HabitDetailsRoute';
 import { ActivityRoute, NotificationsRoute } from '@/features/follow-up/FollowUpRoutes';
+import { UsersRoute } from '@/features/users/pages/UsersRoute';
+import { UserDetailsRoute } from '@/features/users/pages/UserDetailsRoute';
 import { enableWebSession } from '@/services/api/apiClient';
+import { authApi, authQueryKey } from '@/services/api/authApi';
 import type { ApiUser } from '@/services/api/contracts';
 
 enableWebSession();
 
 export default function Workspace({ user, frontendUrl }: { user: ApiUser; frontendUrl: string }) {
+  const { data: cachedUser } = useQuery({
+    queryKey: authQueryKey,
+    queryFn: authApi.getCurrentUser,
+    enabled: false,
+    initialData: user,
+  });
+  const currentUser = cachedUser.id === user.id ? cachedUser : user;
   const logout = () => router.post('/logout', {}, { replace: true });
-  const session = { user, frontendUrl, logout };
+  const session = { user: currentUser, frontendUrl, logout };
   const auth = {
-    user,
+    user: currentUser,
     hasSession: true,
     isAuthenticated: true,
     isInitializing: false,
     sessionError: null,
     sessionMessage: null,
-    login: async () => user,
+    login: async () => currentUser,
     logout: async () => { logout(); },
-    retrySession: async () => user,
+    retrySession: async () => currentUser,
   };
 
   return (
@@ -47,7 +59,9 @@ function WorkspaceRoutes({ session }: { session: { user: ApiUser; frontendUrl: s
         : pathname === '/appointments' ? 'Appointments'
           : pathname === '/notifications' ? 'Follow-up inbox'
             : pathname === '/activity' ? 'Activity'
-              : pathname === '/my-work' ? 'My work' : 'Tasks';
+              : pathname.startsWith('/users/') ? 'User details'
+                : pathname === '/users' ? 'People & access'
+                  : pathname === '/my-work' ? 'My work' : 'Tasks';
 
   return (
     <AppShell breadcrumb={breadcrumb} session={session}>
@@ -69,6 +83,8 @@ function WorkspaceRoutes({ session }: { session: { user: ApiUser; frontendUrl: s
         <Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} />
         <Route path="/notifications" element={<NotificationsRoute />} />
         <Route path="/activity" element={<ActivityRoute />} />
+        <Route path="/users" element={<RequireAnyPermission permissions={['users.view_directory', 'users.view']}><UsersRoute /></RequireAnyPermission>} />
+        <Route path="/users/:userId" element={<RequirePermission permission="users.view"><UserDetailsRoute /></RequirePermission>} />
       </Routes>
     </AppShell>
   );

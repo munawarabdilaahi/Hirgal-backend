@@ -9,6 +9,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Appointment;
 use App\Models\Habit;
 use App\Models\Task;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -49,6 +50,8 @@ Route::middleware(HandleInertiaRequests::class)->group(function (): void {
         Route::get('/habits/{habitUuid}', WorkspaceController::class)->can('viewAny', Habit::class)->name('habits.show');
         Route::get('/notifications', WorkspaceController::class)->name('notifications.index');
         Route::get('/activity', WorkspaceController::class)->name('activity.index');
+        Route::get('/users', WorkspaceController::class)->can('viewDirectory', User::class)->name('users.index');
+        Route::get('/users/{userId}', WorkspaceController::class)->can('viewAny', User::class)->name('users.show');
     });
 
     Route::middleware('auth')->group(function (): void {
