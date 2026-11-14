@@ -5,6 +5,10 @@ import { AuthContext } from '@/features/auth/auth-context-state';
 import { ProjectDetailsRoute, ProjectFormRoute, ProjectsRoute } from '@/features/projects/ProjectsRoutes';
 import { TeamDetailsRoute, TeamFormRoute, TeamsRoute } from '@/features/teams/TeamsRoutes';
 import { TasksRoute } from '@/features/tasks/TasksRoute';
+import { AppointmentsRoute } from '@/features/appointments/AppointmentsRoute';
+import { HabitsRoute } from '@/features/habits/pages/HabitsRoute';
+import { HabitFormRoute } from '@/features/habits/pages/HabitFormRoute';
+import { HabitDetailsRoute } from '@/features/habits/pages/HabitDetailsRoute';
 import { enableWebSession } from '@/services/api/apiClient';
 import type { ApiUser } from '@/services/api/contracts';
 
@@ -38,7 +42,9 @@ function WorkspaceRoutes({ session }: { session: { user: ApiUser; frontendUrl: s
   const { pathname } = useLocation();
   const breadcrumb = pathname.startsWith('/projects') ? 'Projects'
     : pathname.startsWith('/teams') ? 'Teams'
-      : pathname === '/my-work' ? 'My work' : 'Tasks';
+      : pathname.startsWith('/habits') ? 'Habits'
+        : pathname === '/appointments' ? 'Appointments'
+          : pathname === '/my-work' ? 'My work' : 'Tasks';
 
   return (
     <AppShell breadcrumb={breadcrumb} session={session}>
@@ -53,6 +59,11 @@ function WorkspaceRoutes({ session }: { session: { user: ApiUser; frontendUrl: s
         <Route path="/teams/:teamUuid" element={<TeamDetailsRoute />} />
         <Route path="/tasks" element={<TasksRoute />} />
         <Route path="/my-work" element={<TasksRoute assignedToMe />} />
+        <Route path="/appointments" element={<AppointmentsRoute />} />
+        <Route path="/habits" element={<HabitsRoute />} />
+        <Route path="/habits/new" element={<HabitFormRoute />} />
+        <Route path="/habits/:habitUuid/edit" element={<HabitFormRoute />} />
+        <Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} />
       </Routes>
     </AppShell>
   );

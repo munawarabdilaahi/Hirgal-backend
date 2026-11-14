@@ -6,6 +6,8 @@ use App\Http\Controllers\Web\ProfileController;
 use App\Http\Controllers\Web\SessionController;
 use App\Http\Controllers\Web\WorkspaceController;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\Appointment;
+use App\Models\Habit;
 use App\Models\Task;
 use Illuminate\Support\Facades\Route;
 
@@ -40,6 +42,11 @@ Route::middleware(HandleInertiaRequests::class)->group(function (): void {
         Route::get('/teams/{team}', WorkspaceController::class)->name('teams.show');
         Route::get('/tasks', WorkspaceController::class)->can('viewAny', Task::class)->name('tasks.index');
         Route::get('/my-work', WorkspaceController::class)->can('viewAny', Task::class)->name('my-work.index');
+        Route::get('/appointments', WorkspaceController::class)->can('viewAny', Appointment::class)->name('appointments.index');
+        Route::get('/habits', WorkspaceController::class)->can('viewAny', Habit::class)->name('habits.index');
+        Route::get('/habits/new', WorkspaceController::class)->can('viewAny', Habit::class)->name('habits.create');
+        Route::get('/habits/{habitUuid}/edit', WorkspaceController::class)->can('viewAny', Habit::class)->name('habits.edit');
+        Route::get('/habits/{habitUuid}', WorkspaceController::class)->can('viewAny', Habit::class)->name('habits.show');
     });
 
     Route::middleware('auth')->group(function (): void {
