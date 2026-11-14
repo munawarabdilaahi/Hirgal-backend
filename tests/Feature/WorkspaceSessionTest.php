@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Models\Appointment;
+use App\Models\Habit;
 use App\Models\Project;
 use App\Models\Role;
 use App\Models\Task;
@@ -134,6 +136,70 @@ class WorkspaceSessionTest extends TestCase
         Auth::forgetGuards();
         $this->putJson('/api/v1/tasks/'.$otherTask->uuid, ['title' => 'Updated task'])
             ->assertOk()->assertJsonPath('data.title', 'Updated task');
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_appointment_and_habit_pages_require_an_active_session_and_permission(): void
+    {
+        $this->withoutVite();
+        $paths = ['/appointments', '/habits', '/habits/new', '/habits/example', '/habits/example/edit'];
+        foreach ($paths as $path) {
+            $this->get($path)->assertRedirectToRoute('login');
+        }
+
+        $user = User::factory()->create();
+        foreach ($paths as $path) {
+            $this->actingAs($user)->get($path)->assertForbidden();
+        }
+
+        $this->seed([RoleSeeder::class, PermissionSeeder::class, RolePermissionSeeder::class]);
+        $user->roles()->attach(Role::where('slug', UserRole::Member->value)->firstOrFail());
+        $user->unsetRelation('roles');
+        foreach ($paths as $path) {
+            $this->actingAs($user)->get($path)->assertInertia(fn (Assert $page) => $page
+                ->component('Workspace', false)
+                ->where('user.id', $user->id));
+        }
+    }
+
+    public function test_session_appointment_and_habit_requests_respect_ownership(): void
+    {
+        $this->seed([RoleSeeder::class, PermissionSeeder::class, RolePermissionSeeder::class]);
+        $user = User::factory()->create();
+        $user->roles()->attach(Role::where('slug', UserRole::ProjectManager->value)->firstOrFail());
+        $appointment = Appointment::factory()->create(['organizer_id' => $user->id]);
+        $foreignAppointment = Appointment::factory()->create();
+        $habit = Habit::factory()->create(['user_id' => $user->id]);
+        $foreignHabit = Habit::factory()->create();
+
+        $login = $this->post('/login', ['email' => $user->email, 'password' => 'password']);
+        $cookie = $login->getCookie(config('session.cookie'));
+        Auth::forgetGuards();
+
+        $this->withCookie($cookie->getName(), $cookie->getValue())
+            ->withHeader('Referer', config('app.url').'/appointments')
+            ->withHeader('X-Hirgal-Session', '1')
+            ->getJson('/api/v1/appointments/'.$appointment->uuid)->assertOk()
+            ->assertJsonPath('data.uuid', $appointment->uuid);
+        Auth::forgetGuards();
+        $this->getJson('/api/v1/appointments/'.$foreignAppointment->uuid)->assertNotFound();
+        Auth::forgetGuards();
+        $this->getJson('/api/v1/habits/'.$foreignHabit->uuid)->assertNotFound();
+        Auth::forgetGuards();
+        $this->postJson('/api/v1/habits/'.$habit->uuid.'/logs', [
+            'logged_date' => now('UTC')->toDateString(),
+            'status' => 'completed',
+        ])->assertOk()->assertJsonPath('data.log.status', 'completed');
+        Auth::forgetGuards();
+        $this->postJson('/api/v1/appointments', [
+            'title' => 'Session appointment',
+            'timezone' => 'UTC',
+            'start_time' => now('UTC')->addDays(30)->format('Y-m-d\TH:i:s\Z'),
+            'end_time' => now('UTC')->addDays(30)->addHour()->format('Y-m-d\TH:i:s\Z'),
+        ])->assertCreated()->assertJsonPath('data.appointment.title', 'Session appointment');
+
+        $this->assertDatabaseHas('habit_logs', ['habit_id' => $habit->id, 'user_id' => $user->id, 'status' => 'completed']);
+        $this->assertDatabaseHas('appointments', ['title' => 'Session appointment', 'organizer_id' => $user->id]);
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 }

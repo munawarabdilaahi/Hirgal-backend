@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppProviders } from '@/app/providers/AppProviders';
 import { apiClient } from '@/services/api/apiClient';
+import { habitApi } from '@/services/api/habitApi';
 import type { ApiUser } from '@/services/api/contracts';
 import Workspace from './Workspace';
 
@@ -18,6 +19,44 @@ const user = {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('session workspace appointments and habits', () => {
+  it('opens the appointments calendar through the session workspace', async () => {
+    window.history.replaceState(null, '', '/appointments');
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: { data: [], meta: { current_page: 1, last_page: 1, total: 0, per_page: 15 } },
+    });
+
+    render(<AppProviders><Workspace user={{ ...user, permissions: ['appointments.view'] }} frontendUrl="https://legacy.example" /></AppProviders>);
+
+    expect(await screen.findByText('No appointments in this range.')).toBeInTheDocument();
+    expect(get).toHaveBeenCalledWith('/appointments/calendar', expect.any(Object));
+    expect(screen.getByRole('link', { name: 'Appointments' })).toHaveAttribute('href', '/appointments');
+  });
+
+  it('opens the habits list and navigates to the new habit form', async () => {
+    window.history.replaceState(null, '', '/habits');
+    const list = vi.spyOn(habitApi, 'list').mockResolvedValue({
+      success: true,
+      message: 'ok',
+      data: [],
+      meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 },
+    });
+    const overview = vi.spyOn(habitApi, 'dailyOverview').mockResolvedValue({
+      date: '2026-11-14', timezone: 'UTC', habits: [],
+    });
+
+    render(<AppProviders><Workspace user={{ ...user, permissions: ['habits.manage'] }} frontendUrl="https://legacy.example" /></AppProviders>);
+
+    expect(await screen.findByText('No habits found')).toBeInTheDocument();
+    expect(list).toHaveBeenCalled();
+    expect(overview).toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: 'Habits' })).toHaveAttribute('href', '/habits');
+    fireEvent.click(screen.getByRole('link', { name: 'New habit' }));
+    expect(await screen.findByRole('heading', { name: 'Create habit' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/habits/new');
+  });
 });
 
 describe('session workspace tasks', () => {
