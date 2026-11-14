@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\ProfileController;
 use App\Http\Controllers\Web\SessionController;
 use App\Http\Controllers\Web\WorkspaceController;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\Task;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -37,6 +38,8 @@ Route::middleware(HandleInertiaRequests::class)->group(function (): void {
         Route::get('/teams/new', WorkspaceController::class)->name('teams.create');
         Route::get('/teams/{team}/edit', WorkspaceController::class)->name('teams.edit');
         Route::get('/teams/{team}', WorkspaceController::class)->name('teams.show');
+        Route::get('/tasks', WorkspaceController::class)->can('viewAny', Task::class)->name('tasks.index');
+        Route::get('/my-work', WorkspaceController::class)->can('viewAny', Task::class)->name('my-work.index');
     });
 
     Route::middleware('auth')->group(function (): void {

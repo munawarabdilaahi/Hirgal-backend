@@ -178,7 +178,7 @@ function Sidebar({ onNavigate, session }: SidebarProps) {
                         }
                         onClick={onNavigate}
                         reloadDocument={Boolean(session)}
-                        to={session && !['/dashboard', '/projects', '/teams'].includes(item.to) ? `${session.frontendUrl}${item.to}` : item.to}
+                        to={session && !['/dashboard', '/projects', '/teams', '/tasks', '/my-work'].includes(item.to) ? `${session.frontendUrl}${item.to}` : item.to}
                       >
                         <Icon aria-hidden="true" className="size-4 shrink-0" />
                         <span className="flex-1 truncate">{item.label}</span>

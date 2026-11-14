@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Models\Project;
 use App\Models\Role;
+use App\Models\Task;
+use App\Models\TaskAssignment;
 use App\Models\Team;
 use App\Models\User;
 use Database\Seeders\PermissionSeeder;
@@ -76,5 +78,62 @@ class WorkspaceSessionTest extends TestCase
         $this->withToken($user->createToken('api')->plainTextToken)
             ->getJson('/api/v1/projects/'.$project->uuid)
             ->assertOk()->assertJsonPath('data.uuid', $project->uuid);
+    }
+
+    public function test_task_pages_require_an_active_session_and_task_view_permission(): void
+    {
+        $this->withoutVite();
+        foreach (['/tasks', '/my-work'] as $path) {
+            $this->get($path)->assertRedirectToRoute('login');
+        }
+
+        $user = User::factory()->create();
+        foreach (['/tasks', '/my-work'] as $path) {
+            $this->actingAs($user)->get($path)->assertForbidden();
+        }
+
+        $this->seed([RoleSeeder::class, PermissionSeeder::class, RolePermissionSeeder::class]);
+        $user->roles()->attach(Role::where('slug', UserRole::Member->value)->firstOrFail());
+        $user->unsetRelation('roles');
+        foreach (['/tasks', '/my-work'] as $path) {
+            $this->actingAs($user)->get($path)->assertInertia(fn (Assert $page) => $page
+                ->component('Workspace', false)
+                ->where('user.id', $user->id));
+        }
+    }
+
+    public function test_session_task_requests_respect_project_scope_and_assignment_filter(): void
+    {
+        $this->seed([RoleSeeder::class, PermissionSeeder::class, RolePermissionSeeder::class]);
+        $user = User::factory()->create();
+        $user->roles()->attach(Role::where('slug', UserRole::ProjectManager->value)->firstOrFail());
+        $project = Project::factory()->create(['owner_id' => $user->id]);
+        $assignedTask = Task::factory()->create(['project_id' => $project->id, 'creator_id' => $user->id]);
+        $otherTask = Task::factory()->create(['project_id' => $project->id, 'creator_id' => $user->id]);
+        $foreignTask = Task::factory()->create();
+        TaskAssignment::factory()->create([
+            'task_id' => $assignedTask->id,
+            'user_id' => $user->id,
+            'assigned_by' => $user->id,
+        ]);
+
+        $login = $this->post('/login', ['email' => $user->email, 'password' => 'password']);
+        $cookie = $login->getCookie(config('session.cookie'));
+        Auth::forgetGuards();
+
+        $this->withCookie($cookie->getName(), $cookie->getValue())
+            ->withHeader('Referer', config('app.url').'/my-work')
+            ->withHeader('X-Hirgal-Session', '1')
+            ->getJson('/api/v1/tasks?assignee='.$user->id)
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.uuid', $assignedTask->uuid);
+
+        Auth::forgetGuards();
+        $this->getJson('/api/v1/tasks/'.$foreignTask->uuid)->assertNotFound();
+        Auth::forgetGuards();
+        $this->putJson('/api/v1/tasks/'.$otherTask->uuid, ['title' => 'Updated task'])
+            ->assertOk()->assertJsonPath('data.title', 'Updated task');
+        $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 }
