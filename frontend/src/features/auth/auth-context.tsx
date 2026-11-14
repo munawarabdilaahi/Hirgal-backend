@@ -117,7 +117,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return user;
   }, [queryClient]);
 
-  const user = currentUserQuery.data ?? null;
+  const user = token !== null ? currentUserQuery.data ?? null : null;
   const permissionsSignature = [...(user?.permissions ?? [])].sort().join('\u0000');
   const previousPermissionsSignature = useRef<string | null>(null);
 
