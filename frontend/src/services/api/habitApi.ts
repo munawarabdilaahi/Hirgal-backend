@@ -15,7 +15,10 @@ import type {
 
 export const habitApi = {
   async list(filters: HabitFilters): Promise<ApiPaginatedResponse<ApiHabit>> {
-    const response = await apiClient.get<ApiPaginatedResponse<ApiHabit>>('/habits', { params: filters });
+    const { is_archived, ...params } = filters;
+    const response = await apiClient.get<ApiPaginatedResponse<ApiHabit>>('/habits', {
+      params: { ...params, is_archived: is_archived === undefined ? undefined : Number(is_archived) },
+    });
     return response.data;
   },
   async dailyOverview(date: string): Promise<ApiDailyOverview> {

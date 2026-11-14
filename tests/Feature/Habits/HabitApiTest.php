@@ -33,6 +33,19 @@ class HabitApiTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_invalid_legacy_profile_timezone_uses_utc(): void
+    {
+        $user = $this->userWithPermissions(['habits.manage']);
+        $user->update(['timezone' => 'Invalid/Legacy']);
+        Carbon::setTestNow(Carbon::parse('2026-11-08 23:55:00', 'UTC'));
+        $this->actingAs($user->fresh(), 'sanctum');
+
+        $this->getJson('/api/v1/auth/me')->assertOk()->assertJsonPath('data.timezone', 'UTC');
+        $this->getJson('/api/v1/habits/daily-overview')
+            ->assertOk()
+            ->assertJsonPath('data.date', '2026-11-08');
+    }
+
     public function test_authenticated_user_can_create_daily_and_custom_weekday_habits(): void
     {
         $user = $this->userWithPermissions(['habits.manage']);

@@ -4,8 +4,10 @@ namespace App\Models;
 
 use App\Enums\AccountStatus;
 use Database\Factories\UserFactory;
+use DateTimeZone;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -41,6 +43,16 @@ class User extends Authenticatable
     public function profile(): HasOne
     {
         return $this->hasOne(UserProfile::class);
+    }
+
+    /** @return Attribute<string, never> */
+    protected function timezone(): Attribute
+    {
+        return Attribute::get(static fn (?string $value): string => in_array(
+            $value,
+            DateTimeZone::listIdentifiers(DateTimeZone::ALL_WITH_BC),
+            true
+        ) ? $value : 'UTC');
     }
 
     public function roles(): BelongsToMany
