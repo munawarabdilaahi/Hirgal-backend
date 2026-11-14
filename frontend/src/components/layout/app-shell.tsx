@@ -178,7 +178,7 @@ function Sidebar({ onNavigate, session }: SidebarProps) {
                         }
                         onClick={onNavigate}
                         reloadDocument={Boolean(session)}
-                        to={session && item.to !== '/dashboard' ? `${session.frontendUrl}${item.to}` : item.to}
+                        to={session && !['/dashboard', '/projects', '/teams'].includes(item.to) ? `${session.frontendUrl}${item.to}` : item.to}
                       >
                         <Icon aria-hidden="true" className="size-4 shrink-0" />
                         <span className="flex-1 truncate">{item.label}</span>
@@ -229,14 +229,15 @@ function Sidebar({ onNavigate, session }: SidebarProps) {
 
 interface BreadcrumbsProps {
   current: string;
+  session?: boolean;
 }
 
-function Breadcrumbs({ current }: BreadcrumbsProps) {
+function Breadcrumbs({ current, session = false }: BreadcrumbsProps) {
   return (
     <nav aria-label="Breadcrumb">
       <ol className="flex items-center gap-2 text-sm">
         <li>
-          <Link className="text-muted-foreground hover:text-foreground" to="/dashboard">
+          <Link className="text-muted-foreground hover:text-foreground" reloadDocument={session} to="/dashboard">
             Workspace
           </Link>
         </li>
@@ -297,7 +298,7 @@ function AppShell({ breadcrumb, children, session }: AppShellProps) {
               </DialogContent>
             </Dialog>
             <div className="hidden min-w-0 sm:block">
-              <Breadcrumbs current={breadcrumb} />
+              <Breadcrumbs current={breadcrumb} session={Boolean(session)} />
             </div>
             <p className="truncate text-sm font-medium sm:hidden">{breadcrumb}</p>
           </div>
