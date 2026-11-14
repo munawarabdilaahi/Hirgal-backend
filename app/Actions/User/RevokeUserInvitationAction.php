@@ -4,6 +4,7 @@ namespace App\Actions\User;
 
 use App\Enums\InvitationStatus;
 use App\Models\UserInvitation;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class RevokeUserInvitationAction
@@ -16,16 +17,18 @@ class RevokeUserInvitationAction
      */
     public function execute(UserInvitation $invitation): UserInvitation
     {
-        if ($invitation->status === InvitationStatus::Accepted) {
-            throw ValidationException::withMessages([
-                'invitation' => ['Cannot revoke an invitation that has already been accepted.'],
-            ]);
-        }
+        return DB::transaction(function () use ($invitation): UserInvitation {
+            $invitation = UserInvitation::query()->lockForUpdate()->findOrFail($invitation->id);
 
-        $invitation->update([
-            'status' => InvitationStatus::Revoked,
-        ]);
+            if ($invitation->status === InvitationStatus::Accepted) {
+                throw ValidationException::withMessages([
+                    'invitation' => ['Cannot revoke an invitation that has already been accepted.'],
+                ]);
+            }
 
-        return $invitation->fresh(['role', 'inviter']);
+            $invitation->update(['status' => InvitationStatus::Revoked]);
+
+            return $invitation->load(['role', 'inviter']);
+        });
     }
 }

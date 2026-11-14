@@ -12,6 +12,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class InvitationAcceptanceTest extends TestCase
@@ -29,7 +30,7 @@ class InvitationAcceptanceTest extends TestCase
         $inviter = User::factory()->create();
         $role = Role::where('slug', UserRole::Member->value)->first();
 
-        $rawToken = 'valid-invitation-token-12345';
+        $rawToken = Str::random(64);
         $hashed = hash('sha256', $rawToken);
 
         $invitation = UserInvitation::create([
@@ -41,7 +42,7 @@ class InvitationAcceptanceTest extends TestCase
             'expires_at' => now()->addDays(7),
         ]);
 
-        $response = $this->getJson('/api/v1/invitations/'.$rawToken);
+        $response = $this->postJson('/api/v1/invitations/inspect', ['token' => $rawToken]);
 
         $response->assertOk()
             ->assertJsonPath('data.email', 'invitee@hirgal.local')
@@ -56,7 +57,7 @@ class InvitationAcceptanceTest extends TestCase
         $inviter = User::factory()->create();
         $leadRole = Role::where('slug', UserRole::TeamLeader->value)->first();
 
-        $rawToken = 'team-leader-invitation-token';
+        $rawToken = Str::random(64);
         $hashed = hash('sha256', $rawToken);
 
         $invitation = UserInvitation::create([
@@ -68,7 +69,8 @@ class InvitationAcceptanceTest extends TestCase
             'expires_at' => now()->addDays(7),
         ]);
 
-        $response = $this->postJson('/api/v1/invitations/'.$rawToken.'/accept', [
+        $response = $this->postJson('/api/v1/invitations/accept', [
+            'token' => $rawToken,
             'name' => 'Sarah Leader',
             'password' => 'SecurePassword123!',
             'password_confirmation' => 'SecurePassword123!',
@@ -107,7 +109,7 @@ class InvitationAcceptanceTest extends TestCase
         $inviter = User::factory()->create();
         $role = Role::where('slug', UserRole::Member->value)->first();
 
-        $rawToken = 'already-accepted-token';
+        $rawToken = Str::random(64);
         $hashed = hash('sha256', $rawToken);
 
         UserInvitation::create([
@@ -120,7 +122,8 @@ class InvitationAcceptanceTest extends TestCase
             'accepted_at' => now()->subDay(),
         ]);
 
-        $response = $this->postJson('/api/v1/invitations/'.$rawToken.'/accept', [
+        $response = $this->postJson('/api/v1/invitations/accept', [
+            'token' => $rawToken,
             'name' => 'Used Token User',
             'password' => 'SecurePassword123!',
             'password_confirmation' => 'SecurePassword123!',
@@ -135,7 +138,7 @@ class InvitationAcceptanceTest extends TestCase
         $inviter = User::factory()->create();
         $role = Role::where('slug', UserRole::Member->value)->first();
 
-        $rawToken = 'expired-token';
+        $rawToken = Str::random(64);
         $hashed = hash('sha256', $rawToken);
 
         $invitation = UserInvitation::create([
@@ -147,7 +150,8 @@ class InvitationAcceptanceTest extends TestCase
             'expires_at' => now()->subHours(2),
         ]);
 
-        $response = $this->postJson('/api/v1/invitations/'.$rawToken.'/accept', [
+        $response = $this->postJson('/api/v1/invitations/accept', [
+            'token' => $rawToken,
             'name' => 'Late User',
             'password' => 'SecurePassword123!',
             'password_confirmation' => 'SecurePassword123!',
@@ -164,7 +168,7 @@ class InvitationAcceptanceTest extends TestCase
         $inviter = User::factory()->create();
         $role = Role::where('slug', UserRole::Member->value)->first();
 
-        $rawToken = 'revoked-token';
+        $rawToken = Str::random(64);
         $hashed = hash('sha256', $rawToken);
 
         UserInvitation::create([
@@ -176,7 +180,8 @@ class InvitationAcceptanceTest extends TestCase
             'expires_at' => now()->addDays(5),
         ]);
 
-        $response = $this->postJson('/api/v1/invitations/'.$rawToken.'/accept', [
+        $response = $this->postJson('/api/v1/invitations/accept', [
+            'token' => $rawToken,
             'name' => 'Revoked User',
             'password' => 'SecurePassword123!',
             'password_confirmation' => 'SecurePassword123!',

@@ -43,6 +43,24 @@ class UserInvitationManagementTest extends TestCase
         $this->member->roles()->attach($this->memberRole->id);
     }
 
+    public function test_invitation_roles_follow_dispatch_permissions(): void
+    {
+        $this->getJson('/api/v1/invitations/roles')->assertUnauthorized();
+        $this->actingAs($this->member, 'sanctum')
+            ->getJson('/api/v1/invitations/roles')->assertForbidden();
+
+        $manager = User::factory()->create();
+        $manager->roles()->attach(Role::where('slug', UserRole::ProjectManager->value)->firstOrFail());
+        $this->actingAs($manager, 'sanctum')->getJson('/api/v1/invitations/roles')
+            ->assertOk()
+            ->assertJsonFragment(['slug' => UserRole::Member->value])
+            ->assertJsonMissing(['slug' => UserRole::SystemAdmin->value]);
+
+        $this->actingAs($this->admin, 'sanctum')->getJson('/api/v1/invitations/roles')
+            ->assertOk()
+            ->assertJsonFragment(['slug' => UserRole::SystemAdmin->value]);
+    }
+
     public function test_system_admin_can_list_invitations(): void
     {
         UserInvitation::factory()->count(3)->create(['invited_by' => $this->admin->id]);

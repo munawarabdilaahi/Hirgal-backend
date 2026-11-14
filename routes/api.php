@@ -62,11 +62,7 @@ Route::prefix('v1')->group(function (): void {
             ->middleware('throttle:30,1')
             ->name('api.v1.invitations.inspect');
 
-        Route::get('/{token}', [InvitationController::class, 'show'])
-            ->middleware('throttle:30,1')
-            ->name('api.v1.invitations.show');
-
-        Route::post('/{token}/accept', [InvitationController::class, 'accept'])
+        Route::post('/accept', [InvitationController::class, 'accept'])
             ->middleware('throttle:10,1')
             ->name('api.v1.invitations.accept');
     });
@@ -130,13 +126,15 @@ Route::prefix('v1')->group(function (): void {
         // User Invitation Management
         Route::prefix('invitations')->group(function (): void {
             Route::get('/', [UserInvitationController::class, 'index'])->name('api.v1.invitations.index');
+            Route::get('/roles', [UserInvitationController::class, 'roles'])->name('api.v1.invitations.roles');
             Route::post('/', [UserInvitationController::class, 'store'])
                 ->middleware('throttle:invitations')
                 ->name('api.v1.invitations.store');
             Route::post('/{id}/resend', [UserInvitationController::class, 'resend'])
+                ->whereNumber('id')
                 ->middleware('throttle:invitations')
                 ->name('api.v1.invitations.resend');
-            Route::delete('/{id}', [UserInvitationController::class, 'destroy'])->name('api.v1.invitations.destroy');
+            Route::delete('/{id}', [UserInvitationController::class, 'destroy'])->whereNumber('id')->name('api.v1.invitations.destroy');
         });
 
         /*

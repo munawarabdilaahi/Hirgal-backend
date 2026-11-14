@@ -10,8 +10,7 @@
 | Method | Endpoint | Auth Required | Permission | Description |
 | :--- | :--- | :---: | :--- | :--- |
 | `POST` | `/api/v1/invitations/inspect` | No | None | Inspect invitation details using token in JSON body (Preferred). |
-| `GET` | `/api/v1/invitations/{token}` | No | None | [Deprecated] Inspect invitation details using token in URL path. |
-| `POST` | `/api/v1/invitations/{token}/accept` | No | None | Accept invitation, create user, assign role, and activate account. |
+| `POST` | `/api/v1/invitations/accept` | No | None | Accept invitation, create user, assign role, and activate account. |
 | `GET` | `/api/v1/invitations` | Yes | `users.invite` | List pending and processed invitations with pagination. |
 | `POST` | `/api/v1/invitations` | Yes | `users.invite` | Dispatch a new invitation email with 7-day expiration. |
 | `POST` | `/api/v1/invitations/{id}/resend` | Yes | `users.invite` | Refresh token, renew 7-day expiration, and resend invitation. |
@@ -28,7 +27,7 @@
 2. **Invitation Management Protection:**
    - Resending (`POST /invitations/{id}/resend`) or revoking (`DELETE /invitations/{id}`) an invitation for a `System Admin` role requires the actor to be a `System Admin`.
 3. **Frontend Integration (SEC-08):**
-   - Invitation emails generate action links directed to the frontend client SPA (`config('app.frontend_url') . '/invitations/accept?token=...'`).
+   - Invitation emails generate action links directed to the frontend client SPA (`config('app.frontend_url') . '/invitations/accept#token=...'`).
 
 ---
 
@@ -42,13 +41,13 @@ Raw Token Generated: Str::random(64)
       │
       ├───> Stored in DB: SHA-256 Hash (`token_hash`)
       │
-      └───> Dispatched via Email: Frontend URL (https://app.../invitations/accept?token=...)
+      └───> Dispatched via Email: Frontend URL (https://app.../invitations/accept#token=...)
                   │
                   ▼
 [Frontend Inspects Token via POST /invitations/inspect with body { token }]
                   │
                   ▼
-[Recipient Submits Raw Token to /invitations/{token}/accept]
+[Recipient Submits Raw Token to /invitations/accept]
       │
       ▼
 Engine hashes incoming token: SHA-256(raw_token)
@@ -102,44 +101,14 @@ Query: WHERE token_hash = ? AND status = 'pending' AND expires_at > now()
 
 ---
 
-### 4.2 Legacy Inspect Invitation Token (Deprecated)
-- **Route:** `GET /api/v1/invitations/{token}`
-- **Rate Limit:** 30 requests / minute
-- **Headers Returned:** `Deprecation: true`
-
-#### Success Response (200 OK)
-```json
-{
-  "success": true,
-  "message": "Invitation details verified.",
-  "data": {
-    "id": 5,
-    "email": "sarah.lead@hirgal.local",
-    "status": "pending",
-    "expires_at": "2026-11-07T12:00:00Z",
-    "role": {
-      "id": 3,
-      "name": "Team Leader",
-      "slug": "team-leader"
-    },
-    "inviter": {
-      "id": 1,
-      "name": "System Administrator",
-      "email": "admin@hirgal.local"
-    }
-  }
-}
-```
-
----
-
-### 3.2 Accept Invitation
-- **Route:** `POST /api/v1/invitations/{token}/accept`
+### 4.2 Accept Invitation
+- **Route:** `POST /api/v1/invitations/accept`
 - **Rate Limit:** 10 requests / minute
 
 #### Request Body
 ```json
 {
+  "token": "<raw-invitation-token>",
   "name": "Sarah Smith",
   "password": "SecurePassword123!",
   "password_confirmation": "SecurePassword123!",

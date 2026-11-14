@@ -305,7 +305,7 @@ class SecurityHardeningTest extends TestCase
             ->assertJsonValidationErrors(['token']);
     }
 
-    public function test_sec_04_legacy_get_invitation_route_sets_deprecation_header(): void
+    public function test_sec_04_invitation_token_routes_are_removed(): void
     {
         $admin = $this->createUserWithRole($this->adminRole);
         $rawToken = Str::random(64);
@@ -321,8 +321,11 @@ class SecurityHardeningTest extends TestCase
 
         $response = $this->getJson("/api/v1/invitations/{$rawToken}");
 
-        $response->assertStatus(200)
-            ->assertHeader('Deprecation', 'true');
+        $response->assertNotFound();
+        $this->postJson("/api/v1/invitations/{$rawToken}/accept")->assertNotFound();
+        $this->deleteJson('/api/v1/invitations/not-a-number')->assertNotFound();
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/v1/invitations/'.str_repeat('9', 25).'/resend')->assertNotFound();
     }
 
     // ==========================================

@@ -41,7 +41,10 @@ class InvitationService
         }
 
         if ($invitation->expires_at->isPast()) {
-            $invitation->update(['status' => InvitationStatus::Expired]);
+            UserInvitation::query()->whereKey($invitation->id)
+                ->where('token_hash', $tokenHash)
+                ->where('status', InvitationStatus::Pending->value)
+                ->update(['status' => InvitationStatus::Expired->value]);
 
             throw ValidationException::withMessages([
                 'token' => ['This invitation has expired. Please request a new invitation.'],

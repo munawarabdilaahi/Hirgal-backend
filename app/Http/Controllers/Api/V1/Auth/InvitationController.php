@@ -32,24 +32,11 @@ class InvitationController extends Controller
     }
 
     /**
-     * Inspect and verify an invitation token prior to acceptance (Deprecated: Use POST /inspect).
-     */
-    public function show(string $token): JsonResponse
-    {
-        $invitation = $this->invitationService->getInvitationByToken($token);
-
-        return ApiResponse::success(
-            data: new UserInvitationResource($invitation),
-            message: 'Invitation details verified.'
-        )->header('Deprecation', 'true');
-    }
-
-    /**
      * Accept an invitation, set password, and create user account.
      */
-    public function accept(AcceptInvitationRequest $request, string $token): JsonResponse
+    public function accept(AcceptInvitationRequest $request): JsonResponse
     {
-        $result = $this->invitationService->acceptInvitation($token, $request->validated());
+        $result = $this->invitationService->acceptInvitation($request->validated('token'), $request->validated());
 
         return ApiResponse::success(
             data: new AuthTokenResource($result['token'], $result['user']),

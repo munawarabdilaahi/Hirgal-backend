@@ -25,38 +25,36 @@ class AcceptInvitationAction
     {
         $tokenHash = hash('sha256', $rawToken);
 
-        $invitation = UserInvitation::with('role')
-            ->where('token_hash', $tokenHash)
-            ->first();
+        $result = DB::transaction(function () use ($tokenHash, $data): ?array {
+            $invitation = UserInvitation::query()
+                ->where('token_hash', $tokenHash)
+                ->lockForUpdate()
+                ->first();
 
-        if (! $invitation) {
-            throw ValidationException::withMessages([
-                'token' => ['Invalid invitation token.'],
-            ]);
-        }
+            if (! $invitation) {
+                throw ValidationException::withMessages([
+                    'token' => ['Invalid invitation token.'],
+                ]);
+            }
 
-        if ($invitation->status !== InvitationStatus::Pending) {
-            throw ValidationException::withMessages([
-                'token' => ["This invitation has already been {$invitation->status->value}."],
-            ]);
-        }
+            if ($invitation->status !== InvitationStatus::Pending) {
+                throw ValidationException::withMessages([
+                    'token' => ["This invitation has already been {$invitation->status->value}."],
+                ]);
+            }
 
-        if ($invitation->expires_at->isPast()) {
-            $invitation->update(['status' => InvitationStatus::Expired]);
+            if ($invitation->expires_at->isPast()) {
+                $invitation->update(['status' => InvitationStatus::Expired]);
 
-            throw ValidationException::withMessages([
-                'token' => ['This invitation has expired. Please request a new invitation.'],
-            ]);
-        }
+                return null;
+            }
 
-        // Verify that no account with this email already exists
-        if (User::where('email', $invitation->email)->exists()) {
-            throw ValidationException::withMessages([
-                'email' => ['An account with this email address already exists.'],
-            ]);
-        }
+            if (User::where('email', $invitation->email)->exists()) {
+                throw ValidationException::withMessages([
+                    'email' => ['An account with this email address already exists.'],
+                ]);
+            }
 
-        return DB::transaction(function () use ($invitation, $data) {
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $invitation->email,
@@ -88,5 +86,13 @@ class AcceptInvitationAction
                 'token' => $token,
             ];
         });
+
+        if ($result === null) {
+            throw ValidationException::withMessages([
+                'token' => ['This invitation has expired. Please request a new invitation.'],
+            ]);
+        }
+
+        return $result;
     }
 }

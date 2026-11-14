@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1\User;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\User\CreateInvitationRequest;
 use App\Http\Resources\Api\V1\UserInvitationResource;
+use App\Models\Role;
 use App\Models\UserInvitation;
 use App\Services\User\UserInvitationService;
 use App\Support\ApiResponse;
@@ -40,6 +42,18 @@ class UserInvitationController extends Controller
         );
     }
 
+    public function roles(Request $request): JsonResponse
+    {
+        Gate::authorize('create', UserInvitation::class);
+
+        $roles = Role::query()
+            ->when(! $request->user()->isSystemAdmin(), fn ($query) => $query->where('slug', '!=', UserRole::SystemAdmin->value))
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug']);
+
+        return ApiResponse::success(data: $roles, message: 'Invitation roles retrieved successfully.');
+    }
+
     /**
      * Dispatch an invitation to onboard a new user.
      */
@@ -66,9 +80,9 @@ class UserInvitationController extends Controller
     /**
      * Resend an outstanding invitation with a fresh token.
      */
-    public function resend(Request $request, int $id): JsonResponse
+    public function resend(Request $request, string $id): JsonResponse
     {
-        $invitation = UserInvitation::findOrFail($id);
+        $invitation = $this->findInvitation($id);
 
         Gate::authorize('resend', $invitation);
 
@@ -89,9 +103,9 @@ class UserInvitationController extends Controller
     /**
      * Revoke a pending invitation.
      */
-    public function destroy(Request $request, int $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
-        $invitation = UserInvitation::findOrFail($id);
+        $invitation = $this->findInvitation($id);
 
         Gate::authorize('delete', $invitation);
 
@@ -101,5 +115,13 @@ class UserInvitationController extends Controller
             data: new UserInvitationResource($revoked),
             message: 'Invitation revoked successfully.'
         );
+    }
+
+    private function findInvitation(string $id): UserInvitation
+    {
+        $validatedId = filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        abort_if($validatedId === false, Response::HTTP_NOT_FOUND);
+
+        return UserInvitation::findOrFail($validatedId);
     }
 }
