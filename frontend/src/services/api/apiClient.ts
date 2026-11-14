@@ -19,13 +19,23 @@ export const apiClient = axios.create({
   withCredentials: false,
 });
 
+let usesWebSession = false;
+
+export function enableWebSession(): void {
+  usesWebSession = true;
+  apiClient.defaults.baseURL = '/api/v1';
+}
+
 apiClient.interceptors.request.use((config) => {
   const token = getAccessToken();
 
   config.headers.set('Accept', 'application/json');
   config.headers.set('Content-Type', 'application/json');
+  if (usesWebSession) {
+    config.headers.set('X-Hirgal-Session', '1');
+  }
 
-  if (token && !config.skipAuth) {
+  if (token && !config.skipAuth && !usesWebSession) {
     config.headers.set('Authorization', `Bearer ${token}`);
     config.authToken = token;
   } else {
@@ -40,6 +50,9 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     const normalizedError = normalizeApiError(error);
+    if (usesWebSession && (normalizedError.status === 401 || normalizedError.code === 'ACCOUNT_NOT_ACTIVE')) {
+      window.location.assign('/login');
+    }
     const requestToken = axios.isAxiosError(error) ? error.config?.authToken : null;
     const requestTokenIsCurrent = requestToken !== null && requestToken === getAccessToken();
 
