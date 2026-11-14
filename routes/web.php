@@ -47,6 +47,8 @@ Route::middleware(HandleInertiaRequests::class)->group(function (): void {
         Route::get('/habits/new', WorkspaceController::class)->can('viewAny', Habit::class)->name('habits.create');
         Route::get('/habits/{habitUuid}/edit', WorkspaceController::class)->can('viewAny', Habit::class)->name('habits.edit');
         Route::get('/habits/{habitUuid}', WorkspaceController::class)->can('viewAny', Habit::class)->name('habits.show');
+        Route::get('/notifications', WorkspaceController::class)->name('notifications.index');
+        Route::get('/activity', WorkspaceController::class)->name('activity.index');
     });
 
     Route::middleware('auth')->group(function (): void {

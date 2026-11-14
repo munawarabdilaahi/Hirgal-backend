@@ -9,6 +9,7 @@ import { AppointmentsRoute } from '@/features/appointments/AppointmentsRoute';
 import { HabitsRoute } from '@/features/habits/pages/HabitsRoute';
 import { HabitFormRoute } from '@/features/habits/pages/HabitFormRoute';
 import { HabitDetailsRoute } from '@/features/habits/pages/HabitDetailsRoute';
+import { ActivityRoute, NotificationsRoute } from '@/features/follow-up/FollowUpRoutes';
 import { enableWebSession } from '@/services/api/apiClient';
 import type { ApiUser } from '@/services/api/contracts';
 
@@ -44,7 +45,9 @@ function WorkspaceRoutes({ session }: { session: { user: ApiUser; frontendUrl: s
     : pathname.startsWith('/teams') ? 'Teams'
       : pathname.startsWith('/habits') ? 'Habits'
         : pathname === '/appointments' ? 'Appointments'
-          : pathname === '/my-work' ? 'My work' : 'Tasks';
+          : pathname === '/notifications' ? 'Follow-up inbox'
+            : pathname === '/activity' ? 'Activity'
+              : pathname === '/my-work' ? 'My work' : 'Tasks';
 
   return (
     <AppShell breadcrumb={breadcrumb} session={session}>
@@ -64,6 +67,8 @@ function WorkspaceRoutes({ session }: { session: { user: ApiUser; frontendUrl: s
         <Route path="/habits/new" element={<HabitFormRoute />} />
         <Route path="/habits/:habitUuid/edit" element={<HabitFormRoute />} />
         <Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} />
+        <Route path="/notifications" element={<NotificationsRoute />} />
+        <Route path="/activity" element={<ActivityRoute />} />
       </Routes>
     </AppShell>
   );
