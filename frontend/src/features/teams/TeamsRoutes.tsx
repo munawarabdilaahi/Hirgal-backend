@@ -117,9 +117,9 @@ export function TeamDetailsRoute() {
   if (teamQuery.isPending) return <div className="flex min-h-48 items-center justify-center"><LoadingState label="Loading team" /></div>;
   if (teamQuery.isError || !team) return <ErrorState description={errorMessage(teamQuery.error)} onRetry={() => void teamQuery.refetch()} title="Team unavailable" />;
   const contextualLeader = team.leader?.id === user?.id || completeRosterQuery.data?.some((member) => member.user.id === user?.id && member.role === 'leader');
-  const canEdit = hasPermission(user, 'teams.update') && (contextualLeader || hasGlobalRole(user, 'system-admin'));
+  const canEdit = team.capabilities?.update ?? (hasPermission(user, 'teams.update') && (contextualLeader || hasGlobalRole(user, 'system-admin')));
   const canDelete = hasPermission(user, 'teams.delete') || hasGlobalRole(user, 'system-admin');
-  const canManageMembers = hasPermission(user, 'teams.manage') && (contextualLeader || hasGlobalRole(user, 'system-admin'));
+  const canManageMembers = team.capabilities?.manage_members ?? (hasPermission(user, 'teams.manage') && (contextualLeader || hasGlobalRole(user, 'system-admin')));
   async function confirm(): Promise<void> {
     try { await remove.mutateAsync(teamUuid); navigate('/teams'); } catch { /* Error remains in the dialog for the user. */ }
   }
@@ -161,11 +161,11 @@ export function TeamFormRoute() {
   if (teamUuid && existing.isPending) return <div className="flex min-h-48 items-center justify-center"><LoadingState label="Loading team" /></div>;
   if (teamUuid && existing.isError) return <ErrorState description={errorMessage(existing.error)} onRetry={() => void existing.refetch()} title="Team unavailable" />;
   if (teamUuid && !team) return <ErrorState description="This team is unavailable." title="Team unavailable" />;
-  if (teamUuid && existingMembers.isError) return <ErrorState description="Team permissions could not be verified. Retry before editing this team." onRetry={() => void existingMembers.refetch()} title="Team permissions unavailable" />;
-  if (teamUuid && existingMembers.isPending && !existing.isPending) return <div className="flex min-h-48 items-center justify-center"><LoadingState label="Checking team access" /></div>;
+  if (teamUuid && !team?.capabilities && existingMembers.isError) return <ErrorState description="Team permissions could not be verified. Retry before editing this team." onRetry={() => void existingMembers.refetch()} title="Team permissions unavailable" />;
+  if (teamUuid && !team?.capabilities && existingMembers.isPending && !existing.isPending) return <div className="flex min-h-48 items-center justify-center"><LoadingState label="Checking team access" /></div>;
   const contextualLeader = team?.leader?.id === user?.id || existingMembers.data?.some((member) => member.user.id === user?.id && member.role === 'leader');
   const selectedLeader = leaderSelection && leaderSelection.teamUuid === teamUuid ? leaderSelection.user : team?.leader ?? null;
-  if (teamUuid && !(hasPermission(user, 'teams.update') && (contextualLeader || hasGlobalRole(user, 'system-admin')))) return <ErrorState description="Team editing requires the team update permission and contextual leadership authority." title="Editing unavailable" />;
+  if (teamUuid && !(team?.capabilities?.update ?? (hasPermission(user, 'teams.update') && (contextualLeader || hasGlobalRole(user, 'system-admin'))))) return <ErrorState description="Team editing requires the team update permission and contextual leadership authority." title="Editing unavailable" />;
   if (!teamUuid && !hasPermission(user, 'teams.create')) return <ErrorState description="Your account cannot create teams." title="Creation unavailable" />;
   async function submit(values: TeamFormValues): Promise<void> {
     const parsed = teamSchema.safeParse(values);

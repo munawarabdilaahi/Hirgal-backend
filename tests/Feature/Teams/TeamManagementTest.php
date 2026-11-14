@@ -181,6 +181,22 @@ class TeamManagementTest extends TestCase
         $this->assertDatabaseHas('teams', ['id' => $team->id, 'name' => 'Renamed Guild']);
     }
 
+    public function test_team_details_expose_contextual_capabilities_to_the_project_owner(): void
+    {
+        $team = $this->createTeamLedBy($this->lead);
+        $project = Project::factory()->create(['owner_id' => $this->pm->id]);
+        ProjectTeam::create([
+            'project_id' => $project->id,
+            'team_id' => $team->id,
+            'assigned_at' => now(),
+        ]);
+
+        $this->getJson('/api/v1/teams/'.$team->uuid, $this->auth($this->pm, 'project-owner'))
+            ->assertOk()
+            ->assertJsonPath('data.capabilities.update', true)
+            ->assertJsonPath('data.capabilities.manage_members', true);
+    }
+
     public function test_leadership_transfer_requires_membership_in_allocated_projects(): void
     {
         $project = Project::factory()->create(['owner_id' => $this->pm->id]);

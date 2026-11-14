@@ -176,6 +176,7 @@ export interface ApiTeam {
   slug: string;
   description: string | null;
   leader?: ApiDirectoryUser | null;
+  capabilities?: { update: boolean; manage_members: boolean };
   members_count?: number;
   created_at: string | null;
   updated_at: string | null;

@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\Team;
+use App\Models\TeamMember;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -31,6 +32,13 @@ class TeamResource extends JsonResource
             'members_count' => $this->when(
                 array_key_exists('members_count', $this->resource->getAttributes()),
                 fn () => (int) $this->resource->getAttributes()['members_count']
+            ),
+            'capabilities' => $this->when(
+                $request->routeIs('api.v1.teams.show'),
+                fn () => [
+                    'update' => $request->user()->can('update', $this->resource),
+                    'manage_members' => $request->user()->can('create', [TeamMember::class, $this->resource]),
+                ]
             ),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
