@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AccountStatus;
 use App\Enums\UserRole;
+use App\Models\ActivityLog;
 use App\Models\Appointment;
 use App\Models\Habit;
 use App\Models\Project;
@@ -16,6 +18,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -201,5 +204,80 @@ class WorkspaceSessionTest extends TestCase
         $this->assertDatabaseHas('habit_logs', ['habit_id' => $habit->id, 'user_id' => $user->id, 'status' => 'completed']);
         $this->assertDatabaseHas('appointments', ['title' => 'Session appointment', 'organizer_id' => $user->id]);
         $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_follow_up_pages_require_an_active_session(): void
+    {
+        $this->withoutVite();
+        foreach (['/notifications', '/activity'] as $path) {
+            $this->get($path)->assertRedirectToRoute('login');
+        }
+
+        $user = User::factory()->create();
+        foreach (['/notifications', '/activity'] as $path) {
+            $this->actingAs($user)->get($path)->assertInertia(fn (Assert $page) => $page
+                ->component('Workspace', false)
+                ->where('user.id', $user->id));
+        }
+
+        $user->update(['account_status' => AccountStatus::Suspended]);
+        $this->actingAs($user)->get('/notifications')->assertRedirectToRoute('login');
+    }
+
+    public function test_session_inbox_and_activity_are_scoped_to_the_signed_in_user(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $notification = $user->notifications()->create([
+            'id' => (string) Str::uuid(),
+            'type' => 'App\\Notifications\\AppointmentNotification',
+            'data' => ['title' => 'My notification'],
+        ]);
+        $foreignNotification = $other->notifications()->create([
+            'id' => (string) Str::uuid(),
+            'type' => 'App\\Notifications\\AppointmentNotification',
+            'data' => ['title' => 'Other notification'],
+        ]);
+        $activity = ActivityLog::factory()->create(['user_id' => $user->id]);
+        ActivityLog::factory()->create(['user_id' => $other->id]);
+
+        $login = $this->post('/login', ['email' => $user->email, 'password' => 'password']);
+        $cookie = $login->getCookie(config('session.cookie'));
+        Auth::forgetGuards();
+
+        $this->withCookie($cookie->getName(), $cookie->getValue())
+            ->withHeader('Referer', config('app.url').'/notifications')
+            ->withHeader('X-Hirgal-Session', '1')
+            ->getJson('/api/v1/notifications')->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $notification->id);
+        Auth::forgetGuards();
+        $this->patchJson('/api/v1/notifications/'.$foreignNotification->id.'/read')->assertNotFound();
+        Auth::forgetGuards();
+        $this->patchJson('/api/v1/notifications/'.$notification->id.'/read')->assertOk();
+        $this->assertNotNull($notification->fresh()->read_at);
+        Auth::forgetGuards();
+        $this->getJson('/api/v1/notifications/unread-count')->assertOk()->assertJsonPath('data.unread_count', 0);
+        Auth::forgetGuards();
+        $this->getJson('/api/v1/activity-logs/my')->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $activity->id);
+        Auth::forgetGuards();
+        $this->getJson('/api/v1/activity-logs')->assertForbidden();
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_session_system_audit_requires_the_audit_permission(): void
+    {
+        $this->seed([RoleSeeder::class, PermissionSeeder::class, RolePermissionSeeder::class]);
+        $user = User::factory()->create();
+        $user->roles()->attach(Role::where('slug', UserRole::SystemAdmin->value)->firstOrFail());
+        ActivityLog::factory()->create();
+        $login = $this->post('/login', ['email' => $user->email, 'password' => 'password']);
+        $cookie = $login->getCookie(config('session.cookie'));
+        Auth::forgetGuards();
+
+        $this->withCookie($cookie->getName(), $cookie->getValue())
+            ->withHeader('Referer', config('app.url').'/activity')
+            ->withHeader('X-Hirgal-Session', '1')
+            ->getJson('/api/v1/activity-logs')->assertOk()->assertJsonPath('meta.total', 1);
     }
 }

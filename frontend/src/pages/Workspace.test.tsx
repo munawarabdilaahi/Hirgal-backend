@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppProviders } from '@/app/providers/AppProviders';
 import { apiClient } from '@/services/api/apiClient';
@@ -56,6 +56,47 @@ describe('session workspace appointments and habits', () => {
     fireEvent.click(screen.getByRole('link', { name: 'New habit' }));
     expect(await screen.findByRole('heading', { name: 'Create habit' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/habits/new');
+  });
+});
+
+describe('session workspace notifications and activity', () => {
+  it('loads the inbox and marks a notification as read', async () => {
+    window.history.replaceState(null, '', '/notifications');
+    const list = { data: { data: [{ id: 'notice-1', data: { title: 'Project invitation' }, read_at: null, created_at: null }], meta: { current_page: 1, last_page: 1 } } };
+    const get = vi.spyOn(apiClient, 'get')
+      .mockResolvedValueOnce(list)
+      .mockResolvedValueOnce({ data: { data: { unread_count: 1 } } })
+      .mockResolvedValue(list);
+    const patch = vi.spyOn(apiClient, 'patch').mockResolvedValue({ data: { success: true } });
+
+    render(<AppProviders><Workspace user={user} frontendUrl="https://legacy.example" /></AppProviders>);
+
+    expect(await screen.findByText('Project invitation')).toBeInTheDocument();
+    expect(get).toHaveBeenCalledWith('/notifications', { params: { page: 1 } });
+    expect(screen.getByRole('link', { name: 'Follow-up inbox' })).toHaveAttribute('href', '/notifications');
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as read' }));
+    await waitFor(() => expect(patch).toHaveBeenCalledWith('/notifications/notice-1/read'));
+  });
+
+  it.each([false, true])('loads personal activity and limits system audit to authorized users (audit.view=%s)', async (canAudit) => {
+    window.history.replaceState(null, '', '/activity');
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: { data: [], meta: { current_page: 1, last_page: 1 } },
+    });
+    const permissions = canAudit ? ['audit.view'] : [];
+
+    render(<AppProviders><Workspace user={{ ...user, permissions }} frontendUrl="https://legacy.example" /></AppProviders>);
+
+    expect(await screen.findByText('No activity on this page.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Activity' })).toHaveAttribute('href', '/activity');
+    expect(get).toHaveBeenCalledWith('/activity-logs/my', { params: { page: 1 } });
+    if (canAudit) {
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show system audit log' }));
+      await waitFor(() => expect(get).toHaveBeenCalledWith('/activity-logs', { params: { page: 1 } }));
+    } else {
+      expect(screen.queryByRole('checkbox', { name: 'Show system audit log' })).not.toBeInTheDocument();
+      expect(get).not.toHaveBeenCalledWith('/activity-logs', expect.anything());
+    }
   });
 });
 
