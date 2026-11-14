@@ -19,6 +19,14 @@ class LoginUserAction
      */
     public function execute(string $email, string $password, ?string $deviceName = null): array
     {
+        $user = $this->authenticate($email, $password);
+        $token = $user->createToken($deviceName ?: 'auth-token')->plainTextToken;
+
+        return ['user' => $user, 'token' => $token];
+    }
+
+    public function authenticate(string $email, string $password): User
+    {
         $user = User::with(['roles.permissions', 'profile'])
             ->where('email', $email)
             ->first();
@@ -53,12 +61,6 @@ class LoginUserAction
             'last_login_at' => now(),
         ])->saveQuietly();
 
-        $tokenName = $deviceName ?: 'auth-token';
-        $token = $user->createToken($tokenName)->plainTextToken;
-
-        return [
-            'user' => $user,
-            'token' => $token,
-        ];
+        return $user;
     }
 }

@@ -7,8 +7,16 @@ import { Input } from '@/components/ui/input';
 import { AuthPageLayout } from '@/features/auth/components/AuthPageLayout';
 import { forgotPasswordSchema, getApiValidationErrors, getSafeErrorMessage, getValidationErrors } from '@/features/auth/auth-validation';
 import { authApi } from '@/services/api/authApi';
+import type { ForgotPasswordRequest } from '@/services/api/contracts';
 
 export function ForgotPasswordRoute() {
+  return <ForgotPasswordForm send={authApi.forgotPassword} />;
+}
+
+export function ForgotPasswordForm({ send, web = false }: {
+  send: (request: ForgotPasswordRequest) => Promise<unknown>;
+  web?: boolean;
+}) {
   const [email, setEmail] = useState('');
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -30,7 +38,7 @@ export function ForgotPasswordRoute() {
     setIsSubmitting(true);
 
     try {
-      await authApi.forgotPassword(parsed.data);
+      await send(parsed.data);
       setSubmitted(true);
     } catch (error: unknown) {
       setFieldError(getApiValidationErrors(error).email ?? null);
@@ -42,9 +50,10 @@ export function ForgotPasswordRoute() {
 
   return (
     <AuthPageLayout
+      web={web}
       description="Enter the email address associated with your account."
       footer={
-        <Link className="font-medium text-primary hover:underline" to="/login">
+        <Link className="font-medium text-primary hover:underline" reloadDocument={web} to="/login">
           Return to sign in
         </Link>
       }

@@ -13,14 +13,18 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/features/auth/auth-hooks';
+import type { ApiUser } from '@/services/api/contracts';
 
 interface UserMenuProps {
   name?: string;
   detail?: string;
+  session?: { user: ApiUser; frontendUrl: string; logout: () => void } | undefined;
 }
 
-function UserMenu({ detail: passedDetail, name: demoName }: UserMenuProps) {
-  const { logout, user } = useAuth();
+function UserMenu({ detail: passedDetail, name: demoName, session }: UserMenuProps) {
+  const { logout, user: apiUser } = useAuth();
+  const user = session?.user ?? apiUser;
+  const frontendUrl = session?.frontendUrl ?? '';
   const navigate = useNavigate();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const name = demoName ?? user?.name;
@@ -94,13 +98,13 @@ function UserMenu({ detail: passedDetail, name: demoName }: UserMenuProps) {
         ) : (
           <>
             <DropdownMenuItem asChild>
-              <Link to="/profile">
+              <Link reloadDocument={Boolean(session)} to="/profile">
                 <UserRound aria-hidden="true" />
                 Profile
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to="/change-password">
+              <Link reloadDocument={Boolean(session)} to={`${frontendUrl}/change-password`}>
                 <Settings aria-hidden="true" />
                 Password &amp; security
               </Link>
@@ -110,7 +114,11 @@ function UserMenu({ detail: passedDetail, name: demoName }: UserMenuProps) {
               disabled={isSigningOut}
               onSelect={(event) => {
                 event.preventDefault();
-                void signOut();
+                if (session) {
+                  session.logout();
+                } else {
+                  void signOut();
+                }
               }}
             >
               <LogOut aria-hidden="true" />

@@ -30,6 +30,7 @@ import { useAuth } from '@/features/auth/auth-hooks';
 import { hasPermission } from '@/features/auth/permissions';
 import { hasAnyPermission } from '@/features/auth/permissions';
 import { cn } from '@/lib/utils';
+import type { ApiUser } from '@/services/api/contracts';
 
 type NavigationItemConfig = {
   label: string;
@@ -99,11 +100,19 @@ const navigationGroups: NavigationGroupConfig[] = [
 
 interface SidebarProps {
   onNavigate?: () => void;
+  session?: WorkspaceSession | undefined;
 }
 
-function Sidebar({ onNavigate }: SidebarProps) {
+interface WorkspaceSession {
+  user: ApiUser;
+  frontendUrl: string;
+  logout: () => void;
+}
+
+function Sidebar({ onNavigate, session }: SidebarProps) {
   const { pathname } = useLocation();
-  const { user } = useAuth();
+  const { user: apiUser } = useAuth();
+  const user = session?.user ?? apiUser;
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -168,7 +177,8 @@ function Sidebar({ onNavigate }: SidebarProps) {
                           )
                         }
                         onClick={onNavigate}
-                        to={item.to}
+                        reloadDocument={Boolean(session)}
+                        to={session && item.to !== '/dashboard' ? `${session.frontendUrl}${item.to}` : item.to}
                       >
                         <Icon aria-hidden="true" className="size-4 shrink-0" />
                         <span className="flex-1 truncate">{item.label}</span>
@@ -240,15 +250,16 @@ function Breadcrumbs({ current }: BreadcrumbsProps) {
 interface AppShellProps {
   children: React.ReactNode;
   breadcrumb: string;
+  session?: WorkspaceSession;
 }
 
-function AppShell({ breadcrumb, children }: AppShellProps) {
+function AppShell({ breadcrumb, children, session }: AppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   return (
     <div className="min-h-svh bg-background">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border bg-sidebar md:block">
-        <Sidebar />
+        <Sidebar session={session} />
       </aside>
       <div className="md:pl-64">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
@@ -272,7 +283,7 @@ function AppShell({ breadcrumb, children }: AppShellProps) {
                 <DialogDescription className="sr-only">
                   Browse workspace and personal navigation.
                 </DialogDescription>
-                <Sidebar onNavigate={() => setMobileNavigationOpen(false)} />
+                <Sidebar onNavigate={() => setMobileNavigationOpen(false)} session={session} />
                 <DialogClose asChild>
                   <Button
                     aria-label="Close navigation menu"
@@ -292,7 +303,7 @@ function AppShell({ breadcrumb, children }: AppShellProps) {
           </div>
           <div className="flex items-center gap-2">
             <ThemeSwitcher />
-            <UserMenu />
+            <UserMenu session={session} />
           </div>
         </header>
         <main className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">

@@ -6,6 +6,7 @@ interface AuthPageLayoutProps extends PropsWithChildren {
   title: string;
   description: string;
   footer?: ReactNode;
+  web?: boolean;
 }
 
 export function AuthPageLayout({
@@ -13,6 +14,7 @@ export function AuthPageLayout({
   description,
   footer,
   title,
+  web = false,
 }: AuthPageLayoutProps) {
   return (
     <main className="relative flex min-h-svh items-center justify-center bg-muted/40 px-4 py-12">
@@ -24,6 +26,7 @@ export function AuthPageLayout({
           aria-label="Hirgal home"
           className="mb-8 flex items-center justify-center gap-3 text-foreground"
           to="/login"
+          reloadDocument={web}
         >
           <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">
             H

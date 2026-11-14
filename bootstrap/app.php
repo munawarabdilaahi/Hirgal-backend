@@ -37,11 +37,25 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontFlash(['token']);
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
 
         $exceptions->render(function (ValidationException $e, Request $request) {
+            $formRoute = match ($request->route()?->getName()) {
+                'password.update' => 'password.reset',
+                'password.email' => 'password.request',
+                'invitations.store' => 'invitations.accept',
+                'profile.update' => 'profile.edit',
+                default => null,
+            };
+
+            if ($formRoute !== null && ! $request->expectsJson()) {
+                return to_route($formRoute, status: 303)->withErrors($e->errors());
+            }
+
             if ($request->is('api/*') || $request->expectsJson()) {
                 return ApiResponse::error(
                     message: 'Validation failed',

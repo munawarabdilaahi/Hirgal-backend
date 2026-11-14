@@ -6,14 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { UserIdentity } from '@/components/ui/user-identity';
 import { useAuth } from '@/features/auth/auth-hooks';
 import { hasAnyPermission } from '@/features/auth/permissions';
+import type { ApiUser } from '@/services/api/contracts';
 
 export function DashboardRoute() {
   const { user } = useAuth();
+  return user ? <Dashboard user={user} /> : null;
+}
 
-  if (!user) {
-    return null;
-  }
-
+export function Dashboard({ user, frontendUrl = '' }: { user: ApiUser; frontendUrl?: string }) {
   const canViewPeople = hasAnyPermission(user, ['users.view_directory', 'users.view']);
   const profileDetails = [user.profile?.job_title, user.profile?.department]
     .filter((detail): detail is string => Boolean(detail));
@@ -89,7 +89,7 @@ export function DashboardRoute() {
               </p>
             ) : null}
             <Button asChild variant="outline">
-              <Link to="/profile">
+              <Link reloadDocument={Boolean(frontendUrl)} to="/profile">
                 <UserRound aria-hidden="true" />
                 Manage profile
               </Link>
@@ -104,7 +104,7 @@ export function DashboardRoute() {
           </CardHeader>
           <CardContent className="grid gap-3">
             <Button asChild className="justify-between" variant="outline">
-              <Link to="/profile">
+              <Link reloadDocument={Boolean(frontendUrl)} to="/profile">
                 <span className="inline-flex items-center gap-2">
                   <UserRound aria-hidden="true" className="size-4" />
                   Your profile
@@ -114,7 +114,7 @@ export function DashboardRoute() {
             </Button>
             {canViewPeople ? (
               <Button asChild className="justify-between" variant="outline">
-                <Link to="/users">
+                <Link reloadDocument={Boolean(frontendUrl)} to={`${frontendUrl}/users`}>
                   <span className="inline-flex items-center gap-2">
                     <UsersRound aria-hidden="true" className="size-4" />
                     People &amp; access
@@ -124,7 +124,7 @@ export function DashboardRoute() {
               </Button>
             ) : null}
             <Button asChild className="justify-between" variant="outline">
-              <Link to="/change-password">
+              <Link reloadDocument={Boolean(frontendUrl)} to={`${frontendUrl}/change-password`}>
                 <span className="inline-flex items-center gap-2">
                   <KeyRound aria-hidden="true" className="size-4" />
                   Password &amp; security

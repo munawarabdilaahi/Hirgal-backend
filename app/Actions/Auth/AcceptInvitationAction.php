@@ -23,9 +23,28 @@ class AcceptInvitationAction
      */
     public function execute(string $rawToken, array $data): array
     {
+        $result = $this->complete($rawToken, $data, true);
+
+        return ['user' => $result['user'], 'token' => $result['token']];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function accept(string $rawToken, array $data): User
+    {
+        return $this->complete($rawToken, $data, false)['user'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{user: User, token: ?string}
+     */
+    private function complete(string $rawToken, array $data, bool $issueToken): array
+    {
         $tokenHash = hash('sha256', $rawToken);
 
-        $result = DB::transaction(function () use ($tokenHash, $data): ?array {
+        $result = DB::transaction(function () use ($tokenHash, $data, $issueToken): ?array {
             $invitation = UserInvitation::query()
                 ->where('token_hash', $tokenHash)
                 ->lockForUpdate()
@@ -78,12 +97,9 @@ class AcceptInvitationAction
                 'accepted_at' => now(),
             ]);
 
-            $deviceName = $data['device_name'] ?? 'auth-token';
-            $token = $user->createToken($deviceName)->plainTextToken;
-
             return [
                 'user' => $user->load(['roles.permissions', 'profile']),
-                'token' => $token,
+                'token' => $issueToken ? $user->createToken($data['device_name'] ?? 'auth-token')->plainTextToken : null,
             ];
         });
 

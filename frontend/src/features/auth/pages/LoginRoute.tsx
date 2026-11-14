@@ -17,11 +17,27 @@ import {
 } from '@/features/auth/auth-validation';
 import { getSafeRedirectPath } from '@/features/auth/safeRedirect';
 import { ApiError } from '@/services/api/ApiError';
+import type { LoginRequest } from '@/services/api/contracts';
 
 export function LoginRoute() {
   const { login, sessionMessage } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  return <LoginForm sessionMessage={sessionMessage} authenticate={async (credentials) => {
+    await login(credentials);
+    navigate(getSafeRedirectPath(location.state?.from) ?? '/dashboard', { replace: true });
+    return {};
+  }} />;
+}
+
+interface LoginFormProps {
+  authenticate: (credentials: LoginRequest) => Promise<Record<string, string>>;
+  sessionMessage: string | null;
+  forgotPasswordUrl?: string;
+}
+
+export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -44,10 +60,12 @@ export function LoginRoute() {
     setIsSubmitting(true);
 
     try {
-      await login(parsed.data);
-      navigate(getSafeRedirectPath(location.state?.from) ?? '/dashboard', {
-        replace: true,
-      });
+      const errors = await authenticate(parsed.data);
+      if (errors.email === 'Invalid credentials.') {
+        setFormError('Email or password is incorrect.');
+      } else {
+        setFieldErrors(errors);
+      }
     } catch (error: unknown) {
       const apiErrors = getApiValidationErrors(error);
       setFieldErrors(apiErrors);
@@ -125,7 +143,13 @@ export function LoginRoute() {
             </div>
           )}
         </FormField>
-        <div className="flex items-center justify-between gap-4">
+        {forgotPasswordUrl ? (
+          <a className="justify-self-end text-sm font-medium text-primary hover:underline" href={forgotPasswordUrl}>
+            Forgot password?
+          </a>
+        ) : (
+          <>
+          <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Checkbox aria-label="Keep me signed in for this tab" id="session-tab" disabled />
             <Label className="text-sm text-muted-foreground" htmlFor="session-tab">
@@ -139,6 +163,8 @@ export function LoginRoute() {
         <p className="-mt-3 text-xs text-muted-foreground">
           Refreshing or closing this tab ends your session.
         </p>
+          </>
+        )}
         <Button className="w-full" loading={isSubmitting} type="submit">
           Sign in
         </Button>

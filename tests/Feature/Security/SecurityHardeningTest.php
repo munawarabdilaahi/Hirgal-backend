@@ -495,10 +495,10 @@ class SecurityHardeningTest extends TestCase
     }
 
     // ==========================================
-    // SEC-08: Notification Action URLs Point to Frontend
+    // SEC-08: Notification Action URLs Point to Inertia Web Routes
     // ==========================================
 
-    public function test_sec_08_reset_password_notification_url_points_to_frontend(): void
+    public function test_sec_08_reset_password_notification_url_points_to_web_route(): void
     {
         config(['app.frontend_url' => 'https://app.hirgal.com']);
 
@@ -507,12 +507,12 @@ class SecurityHardeningTest extends TestCase
 
         $mailMessage = $notification->toMail($user);
 
-        $this->assertStringStartsWith('https://app.hirgal.com/reset-password', $mailMessage->actionUrl);
+        $this->assertStringStartsWith(route('password.reset').'?', $mailMessage->actionUrl);
         $this->assertStringContainsString('token=test-token-123', $mailMessage->actionUrl);
         $this->assertStringContainsString('email=notif-user%40example.com', $mailMessage->actionUrl);
     }
 
-    public function test_sec_08_invitation_notification_url_points_to_frontend(): void
+    public function test_sec_08_invitation_notification_url_points_to_web_route(): void
     {
         config(['app.frontend_url' => 'https://app.hirgal.com']);
 
@@ -529,7 +529,6 @@ class SecurityHardeningTest extends TestCase
         $notification = new UserInvitationNotification($invitation, 'raw-secret-token');
         $mailMessage = $notification->toMail($invitation);
 
-        $this->assertStringStartsWith('https://app.hirgal.com/invitations/accept', $mailMessage->actionUrl);
-        $this->assertStringContainsString('token=raw-secret-token', $mailMessage->actionUrl);
+        $this->assertSame(route('invitations.accept').'#token=raw-secret-token', $mailMessage->actionUrl);
     }
 }

@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/features/auth/auth-hooks';
 import { getApiValidationErrors, getSafeErrorMessage } from '@/features/auth/auth-validation';
 import { authApi, authQueryKey } from '@/services/api/authApi';
-import type { UpdateProfileRequest } from '@/services/api/contracts';
+import type { ApiUser, UpdateProfileRequest } from '@/services/api/contracts';
 
 interface ProfileFormValues {
   name: string;
@@ -21,9 +21,22 @@ interface ProfileFormValues {
   bio: string;
 }
 
+type ProfileFormRequest = Pick<UpdateProfileRequest, keyof ProfileFormValues>;
+
 export function ProfileRoute() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  return user ? <ProfileForm user={user} save={async (request) => {
+    const updatedUser = await authApi.updateProfile(request);
+    queryClient.setQueryData(authQueryKey, updatedUser);
+    return updatedUser;
+  }} /> : null;
+}
+
+export function ProfileForm({ user, save }: {
+  user: ApiUser;
+  save: (request: ProfileFormRequest) => Promise<ApiUser>;
+}) {
   const [values, setValues] = useState<ProfileFormValues>(() => ({
     name: user?.name ?? '',
     timezone: user?.timezone ?? '',
@@ -35,10 +48,6 @@ export function ProfileRoute() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  if (!user) {
-    return null;
-  }
 
   const updateValue = (field: keyof ProfileFormValues, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
@@ -54,7 +63,7 @@ export function ProfileRoute() {
       return;
     }
 
-    const request: UpdateProfileRequest = {
+    const request: ProfileFormRequest = {
       name: values.name.trim(),
       timezone: values.timezone.trim() || null,
       phone: values.phone.trim() || null,
@@ -66,8 +75,7 @@ export function ProfileRoute() {
     setIsSubmitting(true);
 
     try {
-      const updatedUser = await authApi.updateProfile(request);
-      queryClient.setQueryData(authQueryKey, updatedUser);
+      const updatedUser = await save(request);
       setValues({
         name: updatedUser.name,
         timezone: updatedUser.timezone,
