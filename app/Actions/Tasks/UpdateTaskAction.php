@@ -3,6 +3,7 @@
 namespace App\Actions\Tasks;
 
 use App\Enums\TaskStatus;
+use App\Models\Project;
 use App\Models\Task;
 use App\Services\Task\TaskService;
 use Illuminate\Support\Arr;
@@ -31,21 +32,39 @@ class UpdateTaskAction
             ]);
 
             if (array_key_exists('parent', $data)) {
+                Project::query()->lockForUpdate()->findOrFail($task->project_id);
+
                 if ($data['parent'] === null) {
                     $updates['parent_id'] = null;
                 } else {
-                    $parentId = Task::query()
+                    $parent = Task::query()
                         ->where('uuid', $data['parent'])
                         ->where('project_id', $task->project_id)
-                        ->value('id');
+                        ->lockForUpdate()
+                        ->first(['id', 'parent_id']);
 
-                    if ($parentId === null) {
+                    if ($parent === null) {
                         throw ValidationException::withMessages([
                             'parent' => 'The selected parent task was not found in this project.',
                         ]);
                     }
 
-                    $updates['parent_id'] = $parentId;
+                    $updates['parent_id'] = $parent->id;
+                    $visited = [$task->id => true];
+
+                    while ($parent !== null) {
+                        if (isset($visited[$parent->id])) {
+                            throw ValidationException::withMessages([
+                                'parent' => ['The selected parent would create or join a task hierarchy cycle.'],
+                            ]);
+                        }
+
+                        $visited[$parent->id] = true;
+                        $parent = $parent->parent_id === null
+                            ? null
+                            : Task::withTrashed()->where('project_id', $task->project_id)
+                                ->lockForUpdate()->find($parent->parent_id, ['id', 'parent_id']);
+                    }
                 }
             }
 

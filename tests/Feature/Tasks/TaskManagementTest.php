@@ -86,6 +86,22 @@ class TaskManagementTest extends TestCase
         return ['Authorization' => 'Bearer '.$user->createToken($label)->plainTextToken];
     }
 
+    public function test_task_cannot_be_reparented_to_itself_or_a_descendant(): void
+    {
+        $parent = Task::factory()->create(['project_id' => $this->project->id]);
+        $child = Task::factory()->create(['project_id' => $this->project->id, 'parent_id' => $parent->id]);
+
+        foreach ([$parent, $child] as $candidate) {
+            $this->putJson('/api/v1/tasks/'.$parent->uuid, [
+                'parent' => $candidate->uuid,
+            ], $this->auth($this->owner))->assertUnprocessable()
+                ->assertJsonValidationErrors('parent');
+        }
+
+        $this->assertNull($parent->fresh()->parent_id);
+        $this->assertEquals($parent->id, $child->fresh()->parent_id);
+    }
+
     public function test_member_can_list_only_scoped_tasks(): void
     {
         Task::factory()->create(['project_id' => $this->project->id, 'creator_id' => $this->owner->id]);
