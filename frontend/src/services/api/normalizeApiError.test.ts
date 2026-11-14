@@ -50,8 +50,8 @@ describe('normalizeApiError', () => {
     const response: AxiosResponse<ApiErrorResponse> = {
       data: {
         success: false,
-        message: 'Request failed',
-        errors: null,
+        message: status === 500 ? 'SQLSTATE[42S22]: Unknown column removed_at' : 'Request failed',
+        errors: status === 500 ? { exception: ['Database debug details'] } : null,
         error_code: errorCode,
       },
       status,
@@ -70,7 +70,8 @@ describe('normalizeApiError', () => {
     expect(normalizeApiError(error)).toMatchObject({
       status,
       code: errorCode,
-      message: 'Request failed',
+      message: status === 500 ? 'Hirgal could not complete the request. Please try again.' : 'Request failed',
+      errors: null,
     });
   });
 

@@ -25,10 +25,12 @@ export function normalizeApiError(error: unknown): ApiError {
       const body = isApiErrorResponse(response.data) ? response.data : null;
 
       return new ApiError(
-        body?.message ?? 'The API request failed.',
+        response.status >= 500
+          ? 'Hirgal could not complete the request. Please try again.'
+          : body?.message ?? 'The API request failed.',
         response.status,
         body?.error_code ?? null,
-        body?.errors ?? null,
+        response.status >= 500 ? null : body?.errors ?? null,
       );
     }
 
