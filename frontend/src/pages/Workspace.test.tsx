@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppProviders } from '@/app/providers/AppProviders';
 import { apiClient } from '@/services/api/apiClient';
 import { habitApi } from '@/services/api/habitApi';
+import { userApi } from '@/services/api/userApi';
 import type { ApiUser } from '@/services/api/contracts';
 import Workspace from './Workspace';
 
@@ -97,6 +98,63 @@ describe('session workspace notifications and activity', () => {
       expect(screen.queryByRole('checkbox', { name: 'Show system audit log' })).not.toBeInTheDocument();
       expect(get).not.toHaveBeenCalledWith('/activity-logs', expect.anything());
     }
+  });
+});
+
+describe('session workspace user administration', () => {
+  it('loads the collaborative directory for a directory-only user', async () => {
+    window.history.replaceState(null, '', '/users');
+    const directory = vi.spyOn(userApi, 'listDirectory').mockResolvedValue({
+      success: true, message: 'ok', data: [],
+      meta: { current_page: 1, last_page: 1, per_page: 20, total: 0 },
+    });
+    const users = vi.spyOn(userApi, 'listUsers');
+
+    render(<AppProviders><Workspace user={{ ...user, permissions: ['users.view_directory'] }} frontendUrl="https://legacy.example" /></AppProviders>);
+
+    expect(await screen.findByRole('heading', { name: 'Team directory' })).toBeInTheDocument();
+    await waitFor(() => expect(directory).toHaveBeenCalled());
+    expect(users).not.toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: 'People & access' })).toHaveAttribute('href', '/users');
+  });
+
+  it('loads the administrative list and sends an invitation', async () => {
+    window.history.replaceState(null, '', '/users');
+    const list = vi.spyOn(userApi, 'listUsers').mockResolvedValue({
+      success: true, message: 'ok', data: [],
+      meta: { current_page: 1, last_page: 1, per_page: 20, total: 0 },
+    });
+    const roles = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: { data: [{ id: 4, name: 'Member', slug: 'member' }] },
+    });
+    const invite = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { success: true } });
+
+    render(<AppProviders><Workspace user={{ ...user, permissions: ['users.view', 'users.invite'] }} frontendUrl="https://legacy.example" /></AppProviders>);
+
+    expect(await screen.findByRole('heading', { name: 'Users & access' })).toBeInTheDocument();
+    await waitFor(() => expect(list).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Invite user' }));
+    expect(await screen.findByRole('option', { name: 'Member' })).toBeInTheDocument();
+    expect(roles).toHaveBeenCalledWith('/invitations/roles');
+    fireEvent.change(screen.getByLabelText(/Email address/), { target: { value: 'new@example.test' } });
+    fireEvent.change(screen.getByLabelText(/System role/), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
+    await waitFor(() => expect(invite).toHaveBeenCalledWith('/invitations', { email: 'new@example.test', role_id: 4 }));
+  });
+
+  it('updates the session user display after editing their own administrative details', async () => {
+    window.history.replaceState(null, '', '/users/42');
+    const admin = { ...user, permissions: ['users.view', 'users.update'] };
+    vi.spyOn(userApi, 'getUser').mockResolvedValue(admin);
+    const update = vi.spyOn(userApi, 'updateUser').mockResolvedValue({ ...admin, name: 'Amina Updated' });
+
+    render(<AppProviders><Workspace user={admin} frontendUrl="https://legacy.example" /></AppProviders>);
+
+    expect(await screen.findByRole('heading', { name: 'User details for Amina Hassan' }, { timeout: 5000 })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Amina Updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save user details' }));
+    await waitFor(() => expect(update).toHaveBeenCalled());
+    expect(await screen.findByRole('button', { name: 'Open account menu for Amina Updated' })).toBeInTheDocument();
   });
 });
 

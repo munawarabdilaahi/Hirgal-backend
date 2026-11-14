@@ -18,6 +18,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -279,5 +280,112 @@ class WorkspaceSessionTest extends TestCase
             ->withHeader('Referer', config('app.url').'/activity')
             ->withHeader('X-Hirgal-Session', '1')
             ->getJson('/api/v1/activity-logs')->assertOk()->assertJsonPath('meta.total', 1);
+    }
+
+    public function test_user_pages_require_directory_or_administrative_permission(): void
+    {
+        $this->withoutVite();
+        $this->get('/users')->assertRedirectToRoute('login');
+        $this->get('/users/1')->assertRedirectToRoute('login');
+
+        $this->seed([RoleSeeder::class, PermissionSeeder::class, RolePermissionSeeder::class]);
+        $unprivileged = User::factory()->create();
+        $this->actingAs($unprivileged)->get('/users')->assertForbidden();
+        $this->get('/users/'.$unprivileged->id)->assertForbidden();
+
+        $member = User::factory()->create();
+        $member->roles()->attach(Role::where('slug', UserRole::Member->value)->firstOrFail());
+        $this->actingAs($member)->get('/users')->assertInertia(fn (Assert $page) => $page
+            ->component('Workspace', false)->where('user.id', $member->id));
+        $this->get('/users/'.$member->id)->assertForbidden();
+
+        $admin = User::factory()->create();
+        $admin->roles()->attach(Role::where('slug', UserRole::SystemAdmin->value)->firstOrFail());
+        $this->actingAs($admin)->get('/users/'.$member->id)->assertInertia(fn (Assert $page) => $page
+            ->component('Workspace', false)->where('user.id', $admin->id));
+    }
+
+    public function test_member_session_can_use_directory_but_not_user_administration_or_invitations(): void
+    {
+        $this->seed([RoleSeeder::class, PermissionSeeder::class, RolePermissionSeeder::class]);
+        $member = User::factory()->create();
+        $memberRole = Role::where('slug', UserRole::Member->value)->firstOrFail();
+        $member->roles()->attach($memberRole);
+        $other = User::factory()->create();
+        $login = $this->post('/login', ['email' => $member->email, 'password' => 'password']);
+        $cookie = $login->getCookie(config('session.cookie'));
+        Auth::forgetGuards();
+
+        $this->withCookie($cookie->getName(), $cookie->getValue())
+            ->withHeader('Referer', config('app.url').'/users')
+            ->withHeader('X-Hirgal-Session', '1')
+            ->getJson('/api/v1/users/directory')->assertOk();
+        Auth::forgetGuards();
+        $this->getJson('/api/v1/users')->assertForbidden();
+        Auth::forgetGuards();
+        $this->getJson('/api/v1/users/'.$other->id)->assertForbidden();
+        Auth::forgetGuards();
+        $this->postJson('/api/v1/invitations', ['email' => 'new@example.test', 'role_id' => $memberRole->id])->assertForbidden();
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_admin_session_can_manage_users_and_send_an_invitation(): void
+    {
+        Notification::fake();
+        $this->seed([RoleSeeder::class, PermissionSeeder::class, RolePermissionSeeder::class]);
+        $admin = User::factory()->create();
+        $admin->roles()->attach(Role::where('slug', UserRole::SystemAdmin->value)->firstOrFail());
+        $memberRole = Role::where('slug', UserRole::Member->value)->firstOrFail();
+        $target = User::factory()->create();
+        $target->roles()->attach($memberRole);
+        $login = $this->post('/login', ['email' => $admin->email, 'password' => 'password']);
+        $cookie = $login->getCookie(config('session.cookie'));
+        Auth::forgetGuards();
+
+        $this->withCookie($cookie->getName(), $cookie->getValue())
+            ->withHeader('Referer', config('app.url').'/users')
+            ->withHeader('X-Hirgal-Session', '1')
+            ->getJson('/api/v1/users')->assertOk();
+        Auth::forgetGuards();
+        $this->putJson('/api/v1/users/'.$target->id, ['name' => 'Updated user'])
+            ->assertOk()->assertJsonPath('data.name', 'Updated user');
+        Auth::forgetGuards();
+        $this->postJson('/api/v1/users/'.$target->id.'/deactivate')->assertOk();
+        Auth::forgetGuards();
+        $this->postJson('/api/v1/users/'.$target->id.'/activate')->assertOk();
+        Auth::forgetGuards();
+        $this->getJson('/api/v1/invitations/roles')->assertOk()
+            ->assertJsonFragment(['slug' => UserRole::SystemAdmin->value]);
+        Auth::forgetGuards();
+        $this->postJson('/api/v1/invitations', ['email' => 'new@example.test', 'role_id' => $memberRole->id])
+            ->assertCreated()->assertJsonPath('data.email', 'new@example.test');
+
+        $this->assertDatabaseHas('users', ['id' => $target->id, 'name' => 'Updated user', 'account_status' => AccountStatus::Active->value]);
+        $this->assertDatabaseHas('user_invitations', ['email' => 'new@example.test', 'invited_by' => $admin->id]);
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_manager_session_cannot_invite_a_system_administrator(): void
+    {
+        Notification::fake();
+        $this->seed([RoleSeeder::class, PermissionSeeder::class, RolePermissionSeeder::class]);
+        $manager = User::factory()->create();
+        $manager->roles()->attach(Role::where('slug', UserRole::ProjectManager->value)->firstOrFail());
+        $adminRole = Role::where('slug', UserRole::SystemAdmin->value)->firstOrFail();
+        $login = $this->post('/login', ['email' => $manager->email, 'password' => 'password']);
+        $cookie = $login->getCookie(config('session.cookie'));
+        Auth::forgetGuards();
+
+        $this->withCookie($cookie->getName(), $cookie->getValue())
+            ->withHeader('Referer', config('app.url').'/users')
+            ->withHeader('X-Hirgal-Session', '1')
+            ->getJson('/api/v1/invitations/roles')->assertOk()
+            ->assertJsonMissing(['slug' => UserRole::SystemAdmin->value]);
+        Auth::forgetGuards();
+        $this->postJson('/api/v1/invitations', [
+            'email' => 'admin@example.test',
+            'role_id' => $adminRole->id,
+        ])->assertForbidden();
+        $this->assertDatabaseMissing('user_invitations', ['email' => 'admin@example.test']);
     }
 }
