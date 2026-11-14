@@ -4,7 +4,7 @@ import { AppProviders } from '@/app/providers/AppProviders';
 import '@/pages/currentEmailLink';
 import '@/styles/globals.css';
 
-const pages = import.meta.glob<{ default: React.ComponentType }>('./pages/*.tsx');
+const pages = import.meta.glob<{ default: React.ComponentType }>(['./pages/*.tsx', '!./pages/*.test.tsx']);
 
 void createInertiaApp({
   resolve: async (name) => {
