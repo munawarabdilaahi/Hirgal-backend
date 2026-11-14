@@ -29,6 +29,7 @@ import { useAuth } from '@/features/auth/auth-hooks';
 import { AccountStatusBadge } from '@/features/auth/components/AccountStatusBadge';
 import { useAdministrativeUsers, useUserDirectory } from '@/features/users/user-queries';
 import { useDebouncedValue } from '@/features/users/use-debounced-value';
+import { InviteUserDialog } from '@/features/users/InviteUserDialog';
 import { hasPermission } from '@/features/auth/permissions';
 import type { AccountStatus, ApiDirectoryUser, ApiUser } from '@/services/api/contracts';
 
@@ -92,6 +93,7 @@ export function UsersRoute() {
 }
 
 function CollaborativeDirectory() {
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('');
   const debouncedSearch = useDebouncedValue(search.trim());
@@ -114,7 +116,8 @@ function CollaborativeDirectory() {
 
   return (
     <section aria-labelledby="people-directory-title" className="mx-auto max-w-6xl space-y-6">
-      <header className="space-y-2">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
         <p className="text-sm font-medium text-primary">People</p>
         <h1 className="text-2xl font-semibold tracking-tight" id="people-directory-title">
           Team directory
@@ -122,6 +125,8 @@ function CollaborativeDirectory() {
         <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
           Find active teammates by name, email, job title, or department.
         </p>
+        </div>
+        {hasPermission(user, 'users.invite') && <InviteUserDialog />}
       </header>
 
       <Card>
@@ -257,6 +262,7 @@ function DirectoryCard({ user }: { user: ApiDirectoryUser }) {
 }
 
 function AdministrativeUserList() {
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<AccountStatus | 'all'>('all');
   const [role, setRole] = useState('all');
@@ -282,7 +288,8 @@ function AdministrativeUserList() {
 
   return (
     <section aria-labelledby="user-administration-title" className="mx-auto max-w-6xl space-y-6">
-      <header className="space-y-2">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
         <p className="text-sm font-medium text-primary">Administration</p>
         <h1 className="text-2xl font-semibold tracking-tight" id="user-administration-title">
           Users &amp; access
@@ -291,6 +298,8 @@ function AdministrativeUserList() {
           Review global account status and roles. Administrative data is available only to accounts
           with the backend-provided <code>users.view</code> permission.
         </p>
+        </div>
+        {hasPermission(user, 'users.invite') && <InviteUserDialog />}
       </header>
 
       <Card>

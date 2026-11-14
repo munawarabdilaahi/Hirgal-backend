@@ -13,6 +13,21 @@ import type {
 export const authQueryKey = ['auth', 'me'] as const;
 
 export const authApi = {
+  async acceptInvitation(request: {
+    token: string;
+    name: string;
+    password: string;
+    password_confirmation: string;
+  }): Promise<AuthTokenData> {
+    const response = await apiClient.post<ApiSuccess<AuthTokenData>>(
+      '/invitations/accept',
+      request,
+      { skipAuth: true },
+    );
+
+    return response.data.data;
+  },
+
   async login(request: LoginRequest): Promise<AuthTokenData> {
     const response = await apiClient.post<ApiSuccess<AuthTokenData>>(
       '/auth/login',

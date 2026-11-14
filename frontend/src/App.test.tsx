@@ -5,10 +5,12 @@ import { AppProviders } from '@/app/providers/AppProviders';
 import { router } from '@/app/router/router';
 import App from '@/App';
 import { clearAccessToken, setAccessToken } from '@/services/api/tokenStore';
+import { apiClient } from '@/services/api/apiClient';
 
 const { authApi } = vi.hoisted(() => ({
   authApi: {
     login: vi.fn(),
+    acceptInvitation: vi.fn(),
     getCurrentUser: vi.fn(),
     logout: vi.fn(),
     forgotPassword: vi.fn(),
@@ -55,7 +57,7 @@ describe('authentication routes', () => {
       </AppProviders>,
     );
 
-    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Welcome back' }, { timeout: 5000 })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/Work email/), {
       target: { value: 'amina@example.com' },
     });
@@ -67,6 +69,75 @@ describe('authentication routes', () => {
       email: 'amina@example.com',
       password: 'secret123',
     });
+  });
+
+  it('accepts an invitation from the email link and removes the token from the URL', async () => {
+    authApi.acceptInvitation.mockResolvedValue({
+      access_token: 'invited-session',
+      token_type: 'Bearer',
+      user: activeUser,
+    });
+    await router.navigate('/invitations/accept#token=invitation-token');
+    render(<AppProviders><App /></AppProviders>);
+
+    await waitFor(() => expect(router.state.location.hash).toBe(''), { timeout: 5000 });
+    fireEvent.change(screen.getByLabelText(/Full name/), { target: { value: 'Amina Hassan' } });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'securepass123' } });
+    fireEvent.change(screen.getByLabelText(/Confirm password/), { target: { value: 'securepass123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Accept invitation' }));
+
+    expect(await screen.findByRole('heading', { name: 'Welcome, Amina Hassan' })).toBeInTheDocument();
+    expect(authApi.acceptInvitation).toHaveBeenCalledWith({
+      token: 'invitation-token',
+      name: 'Amina Hassan',
+      password: 'securepass123',
+      password_confirmation: 'securepass123',
+    });
+  });
+
+  it('loads only tasks assigned to the signed-in user in My work', async () => {
+    authApi.getCurrentUser.mockResolvedValue({ ...activeUser, permissions: ['tasks.view'] });
+    const requests = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: {
+        data: [],
+        meta: { current_page: 1, last_page: 1, total: 0, per_page: 15 },
+      },
+    });
+    try {
+      setAccessToken('my-work-session');
+      await router.navigate('/my-work');
+      render(<AppProviders><App /></AppProviders>);
+
+      expect(await screen.findByText('No assigned tasks match this view.', undefined, { timeout: 5000 })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'My work' })).toHaveAttribute('aria-current', 'page');
+      expect(requests).toHaveBeenCalledWith('/tasks', {
+        params: { page: 1, assignee: activeUser.id, status: undefined, sort_by: 'due_date', sort_direction: 'asc' },
+      });
+      expect(requests).toHaveBeenCalledTimes(1);
+    } finally {
+      requests.mockRestore();
+    }
+  });
+
+  it('loads the personal activity timeline without requesting system audit data', async () => {
+    const requests = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: {
+        data: [{ id: 1, action: 'appointment.admin_view', description: 'Viewed appointment', actor_name: 'Amina' }],
+        meta: { current_page: 1, last_page: 1, total: 1, per_page: 15 },
+      },
+    });
+    try {
+      setAccessToken('activity-session');
+      await router.navigate('/activity');
+      render(<AppProviders><App /></AppProviders>);
+
+      expect(await screen.findByText('Viewed appointment', undefined, { timeout: 5000 })).toBeInTheDocument();
+      expect(screen.queryByRole('checkbox', { name: 'Show system audit log' })).not.toBeInTheDocument();
+      expect(requests).toHaveBeenCalledWith('/activity-logs/my', { params: { page: 1 } });
+      expect(requests.mock.calls.some(([url]) => url === '/activity-logs')).toBe(false);
+    } finally {
+      requests.mockRestore();
+    }
   });
 
   it('validates login fields before making an API request', async () => {

@@ -17,6 +17,10 @@ export function AuthenticatedRouteLayout() {
     '/projects': 'Projects',
     '/teams': 'Teams',
     '/tasks': 'Tasks',
+    '/my-work': 'My work',
+    '/appointments': 'Appointments',
+    '/notifications': 'Follow-up inbox',
+    '/activity': 'Activity',
     '/habits': 'Habits',
       }[pathname] ?? 'Workspace');
 

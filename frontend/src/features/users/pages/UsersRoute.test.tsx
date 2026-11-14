@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RequireAnyPermission } from '@/features/auth/components/AuthRouteGuards';
 import { UsersRoute } from '@/features/users/pages/UsersRoute';
 import { userQueryKeys } from '@/features/users/user-queries';
+import { apiClient } from '@/services/api/apiClient';
 import type { ApiDirectoryUser, ApiPaginatedResponse, ApiUser } from '@/services/api/contracts';
 
 const { authMock, userApiMock } = vi.hoisted(() => ({
@@ -101,6 +102,30 @@ describe('UsersRoute', () => {
     vi.clearAllMocks();
     userApiMock.listDirectory.mockResolvedValue(directoryResponse());
     userApiMock.listUsers.mockResolvedValue(adminResponse());
+  });
+
+  it('shows Invite user only to authorized users and submits the selected role', async () => {
+    const directory = renderRoute();
+    expect(screen.queryByRole('button', { name: 'Invite user' })).not.toBeInTheDocument();
+    directory.unmount();
+
+    const rolesRequest = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { data: [memberRole] } });
+    const sendRequest = vi.spyOn(apiClient, 'post').mockResolvedValue({ status: 201 });
+    try {
+      renderRoute(['users.view', 'users.invite']);
+      fireEvent.click(screen.getByRole('button', { name: 'Invite user' }));
+      await screen.findByRole('option', { name: 'Member' });
+      fireEvent.change(screen.getByLabelText(/Email address/), { target: { value: 'invitee@example.test' } });
+      fireEvent.change(screen.getByLabelText(/System role/), { target: { value: String(memberRole.id) } });
+      fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(rolesRequest).toHaveBeenCalledWith('/invitations/roles');
+      expect(sendRequest).toHaveBeenCalledWith('/invitations', { email: 'invitee@example.test', role_id: memberRole.id });
+    } finally {
+      rolesRequest.mockRestore();
+      sendRequest.mockRestore();
+    }
   });
 
   it('shows only sanitized directory fields to directory viewers', async () => {

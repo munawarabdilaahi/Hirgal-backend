@@ -1,6 +1,10 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { LoadingState } from '@/components/feedback/LoadingState';
 
+const AcceptInvitationRoute = lazy(async () => {
+  const { AcceptInvitationRoute: Component } = await import('@/features/auth/pages/AcceptInvitationRoute');
+  return { default: Component };
+});
 const ChangePasswordRoute = lazy(async () => {
   const { ChangePasswordRoute: Component } = await import('@/features/auth/pages/ChangePasswordRoute');
   return { default: Component };
@@ -69,6 +73,22 @@ const HabitFormRoute = lazy(async () => {
   const { HabitFormRoute: Component } = await import('@/features/habits/pages/HabitFormRoute');
   return { default: Component };
 });
+const NotificationsRoute = lazy(async () => {
+  const { NotificationsRoute: Component } = await import('@/features/follow-up/FollowUpRoutes');
+  return { default: Component };
+});
+const ActivityRoute = lazy(async () => {
+  const { ActivityRoute: Component } = await import('@/features/follow-up/FollowUpRoutes');
+  return { default: Component };
+});
+const TasksRoute = lazy(async () => {
+  const { TasksRoute: Component } = await import('@/features/tasks/TasksRoute');
+  return { default: Component };
+});
+const AppointmentsRoute = lazy(async () => {
+  const { AppointmentsRoute: Component } = await import('@/features/appointments/AppointmentsRoute');
+  return { default: Component };
+});
 
 function renderLazyPage(page: ReactNode) {
   return (
@@ -80,6 +100,10 @@ function renderLazyPage(page: ReactNode) {
 
 export function ChangePasswordPage() {
   return renderLazyPage(<ChangePasswordRoute />);
+}
+
+export function AcceptInvitationPage() {
+  return renderLazyPage(<AcceptInvitationRoute />);
 }
 
 export function DashboardPage() {
@@ -119,3 +143,8 @@ export function TeamFormPage() { return renderLazyPage(<TeamFormRoute />); }
 export function HabitsPage() { return renderLazyPage(<HabitsRoute />); }
 export function HabitDetailsPage() { return renderLazyPage(<HabitDetailsRoute />); }
 export function HabitFormPage() { return renderLazyPage(<HabitFormRoute />); }
+export function NotificationsPage() { return renderLazyPage(<NotificationsRoute />); }
+export function ActivityPage() { return renderLazyPage(<ActivityRoute />); }
+export function TasksPage() { return renderLazyPage(<TasksRoute />); }
+export function MyWorkPage() { return renderLazyPage(<TasksRoute assignedToMe />); }
+export function AppointmentsPage() { return renderLazyPage(<AppointmentsRoute />); }

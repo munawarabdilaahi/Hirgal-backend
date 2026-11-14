@@ -50,7 +50,7 @@ const navigationGroups: NavigationGroupConfig[] = [
     label: 'Workspace',
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
-      { label: 'My work', icon: CheckSquare, status: 'planned' },
+      { label: 'My work', icon: CheckSquare, to: '/my-work', requiredPermission: 'tasks.view' },
       { label: 'Projects', icon: FolderKanban, to: '/projects', requiredPermission: 'projects.view' },
       { label: 'Teams', icon: UsersRound, to: '/teams', requiredPermission: 'teams.view' },
       { label: 'Tasks', icon: CheckSquare, to: '/tasks', requiredPermission: 'tasks.view' },
@@ -59,14 +59,14 @@ const navigationGroups: NavigationGroupConfig[] = [
   {
     label: 'Personal',
     items: [
-      { label: 'Appointments', icon: CalendarDays, status: 'planned' },
+      { label: 'Appointments', icon: CalendarDays, to: '/appointments', requiredPermission: 'appointments.view' },
       {
         label: 'Habits',
         icon: Activity,
         to: '/habits',
         requiredPermission: 'habits.manage',
       },
-      { label: 'Follow-up inbox', icon: MessageSquareText, status: 'planned' },
+      { label: 'Follow-up inbox', icon: MessageSquareText, to: '/notifications' },
     ],
   },
   {
@@ -78,7 +78,7 @@ const navigationGroups: NavigationGroupConfig[] = [
         to: '/users',
         requiredPermissions: ['users.view_directory', 'users.view'],
       },
-      { label: 'Activity', icon: CircleHelp, status: 'planned' },
+      { label: 'Activity', icon: CircleHelp, to: '/activity' },
     ],
   },
   ...(import.meta.env.DEV

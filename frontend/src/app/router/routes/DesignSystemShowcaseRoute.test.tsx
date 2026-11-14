@@ -47,11 +47,7 @@ describe('design system showcase', () => {
     const navigationDialog = await screen.findByRole('dialog', {
       name: 'Hirgal navigation',
     });
-    expect(
-      within(navigationDialog)
-        .getByText('Appointments')
-        .closest('[aria-disabled="true"]'),
-    ).toBeInTheDocument();
+    expect(within(navigationDialog).queryByText('Planned')).not.toBeInTheDocument();
     fireEvent.click(within(navigationDialog).getByRole('link', { name: 'Projects' }));
     await waitFor(() => {
       expect(

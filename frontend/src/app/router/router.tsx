@@ -6,8 +6,10 @@ import {
 import { AuthenticatedRouteLayout } from '@/app/router/routes/AuthenticatedRouteLayout';
 import { DesignSystemLoadingFallback } from '@/app/router/routes/DesignSystemLoadingFallback';
 import { NotFoundRoute } from '@/app/router/routes/NotFoundRoute';
-import { ProtectedDeferredRoute } from '@/app/router/routes/ProtectedDeferredRoute';
 import {
+  AcceptInvitationPage,
+  ActivityPage,
+  AppointmentsPage,
   ChangePasswordPage,
   DashboardPage,
   ForgotPasswordPage,
@@ -15,6 +17,8 @@ import {
   HabitFormPage,
   HabitsPage,
   LoginPage,
+  MyWorkPage,
+  NotificationsPage,
   ProfilePage,
   ProjectDetailsPage,
   ProjectFormPage,
@@ -23,6 +27,7 @@ import {
   TeamDetailsPage,
   TeamFormPage,
   TeamsPage,
+  TasksPage,
   UserDetailsPage,
   UsersPage,
 } from '@/app/router/routes/LazyPages';
@@ -48,6 +53,7 @@ const routes: RouteObject[] = [
   },
   { path: '/forgot-password', element: <ForgotPasswordPage /> },
   { path: '/reset-password', element: <ResetPasswordPage /> },
+  { path: '/invitations/accept', element: <RedirectAuthenticatedUser><AcceptInvitationPage /></RedirectAuthenticatedUser> },
   {
     element: (
       <RequireAuthenticated>
@@ -58,6 +64,10 @@ const routes: RouteObject[] = [
       { path: '/dashboard', element: <DashboardPage /> },
       { path: '/profile', element: <ProfilePage /> },
       { path: '/change-password', element: <ChangePasswordPage /> },
+      { path: '/notifications', element: <NotificationsPage /> },
+      { path: '/activity', element: <ActivityPage /> },
+      { path: '/my-work', element: <RequirePermission permission="tasks.view"><MyWorkPage /></RequirePermission> },
+      { path: '/appointments', element: <RequirePermission permission="appointments.view"><AppointmentsPage /></RequirePermission> },
       {
         path: '/users',
         element: (
@@ -106,7 +116,7 @@ const routes: RouteObject[] = [
       },
       {
         path: '/tasks',
-        element: <ProtectedDeferredRoute name="Tasks" permission="tasks.view" />,
+        element: <RequirePermission permission="tasks.view"><TasksPage /></RequirePermission>,
       },
     ],
   },
