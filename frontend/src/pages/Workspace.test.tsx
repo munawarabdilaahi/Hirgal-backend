@@ -55,8 +55,11 @@ describe('session workspace appointments and habits', () => {
     expect(overview).toHaveBeenCalled();
     expect(screen.getByRole('link', { name: 'Habits' })).toHaveAttribute('href', '/habits');
     fireEvent.click(screen.getByRole('link', { name: 'New habit' }));
-    expect(await screen.findByRole('heading', { name: 'Create habit' })).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/habits/new');
+    expect(await screen.findByRole('dialog', { name: 'Create habit' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/habits');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Daily check-in' })).toBeInTheDocument();
   });
 });
 

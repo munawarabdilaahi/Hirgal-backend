@@ -1,7 +1,8 @@
+import { HabitFormDialog } from './HabitFormDialog';
 import { NativeSelect } from '@/components/ui/native-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Activity, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -59,6 +60,14 @@ const logStatusBadges = {
 } as const;
 
 export function HabitsRoute() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  function closeEditor(): void {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('editor');
+      return next;
+    }, { replace: true });
+  }
   const { user } = useAuth();
   const today = todayForUser(user?.timezone);
   const [viewDate, setViewDate] = useState(today);
@@ -87,7 +96,7 @@ export function HabitsRoute() {
           </p>
         </div>
         <Button asChild>
-          <Link to="/habits/new">
+          <Link to="?editor=create">
             <Plus aria-hidden="true" className="size-4" />
             New habit
           </Link>
@@ -223,6 +232,7 @@ export function HabitsRoute() {
           totalPages={query.data.meta.last_page}
         />
       ) : null}
+      {searchParams.get('editor') === 'create' && <HabitFormDialog onClose={closeEditor} />}
     </section>
   );
 }

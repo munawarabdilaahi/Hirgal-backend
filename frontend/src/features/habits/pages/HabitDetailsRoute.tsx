@@ -1,7 +1,8 @@
+import { HabitFormDialog } from './HabitFormDialog';
 import { NativeSelect } from '@/components/ui/native-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Archive, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +32,14 @@ const logStatusBadges = {
 } as const;
 
 export function HabitDetailsRoute() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  function closeEditor(): void {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('editor');
+      return next;
+    }, { replace: true });
+  }
   const { habitUuid = '' } = useParams();
   const navigate = useNavigate();
   const habitQuery = useHabit(habitUuid);
@@ -121,7 +130,7 @@ export function HabitDetailsRoute() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
-            <Link to={`/habits/${habitUuid}/edit`}>Edit habit</Link>
+            <Link to="?editor=edit">Edit habit</Link>
           </Button>
           {habit.is_archived ? (
             <Button onClick={() => setConfirmAction('restore')} variant="outline">
@@ -337,6 +346,7 @@ export function HabitDetailsRoute() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {searchParams.get('editor') === 'edit' && <HabitFormDialog habitUuid={habitUuid} onClose={closeEditor} />}
     </section>
   );
 }

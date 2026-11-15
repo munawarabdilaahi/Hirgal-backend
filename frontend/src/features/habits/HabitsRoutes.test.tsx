@@ -133,7 +133,7 @@ describe('HabitsRoute', () => {
     renderWithProviders(<HabitsRoute />);
     const habitLinks = await screen.findAllByRole('link', { name: 'Morning Meditation' });
     expect(habitLinks[0]).toHaveAttribute('href', '/habits/habit-uuid');
-    expect(screen.getByRole('link', { name: 'New habit' })).toHaveAttribute('href', '/habits/new');
+    expect(screen.getByRole('link', { name: 'New habit' })).toHaveAttribute('href', expect.stringContaining('?editor=create'));
     expect(await screen.findByRole('heading', { name: 'Daily check-in' })).toBeInTheDocument();
     expect(screen.getByText('5 day streak')).toBeInTheDocument();
     expect(
@@ -330,6 +330,25 @@ describe('HabitFormRoute', () => {
       }),
     );
     expect(await screen.findByRole('heading', { name: 'Habit destination' })).toBeInTheDocument();
+  });
+
+  it('saves from the edit dialog and returns to the same detail page with history', async () => {
+    habitApi.update.mockResolvedValue({ ...habit, title: 'Evening Meditation' });
+    renderWithProviders(
+      <Routes><Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} /></Routes>,
+      '/habits/habit-uuid',
+    );
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Edit habit' }));
+    expect(await screen.findByRole('dialog', { name: 'Edit habit' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Habit title' }), {
+      target: { value: 'Evening Meditation' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByRole('heading', { name: 'Evening Meditation' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /history/i })).toBeInTheDocument();
   });
 
   it('blocks creation without the habits manage permission', () => {
