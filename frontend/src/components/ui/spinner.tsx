@@ -9,7 +9,7 @@ interface SpinnerProps {
 function Spinner({ className, label = 'Loading' }: SpinnerProps) {
   return (
     <span aria-label={label} className="inline-flex items-center" role="status">
-      <LoaderCircle aria-hidden="true" className={cn('size-4 animate-spin', className)} />
+      <LoaderCircle aria-hidden="true" className={cn('size-4 motion-safe:animate-spin', className)} />
     </span>
   );
 }

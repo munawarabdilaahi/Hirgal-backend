@@ -1,3 +1,5 @@
+import { NativeSelect } from '@/components/ui/native-select';
+import { PageHeader } from '@/components/layout/primitives';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Archive, Trash2 } from 'lucide-react';
@@ -68,9 +70,7 @@ export function HabitDetailsRoute() {
 
   if (habitQuery.isPending) {
     return (
-      <div className="flex min-h-48 items-center justify-center">
-        <LoadingState label="Loading habit" />
-      </div>
+      <LoadingState label="Loading habit" layout="detail" />
     );
   }
   if (habitQuery.isError || !habit) {
@@ -86,8 +86,8 @@ export function HabitDetailsRoute() {
   const stats = habit.stats;
 
   return (
-    <section aria-labelledby="habit-detail-title" className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <section aria-labelledby="habit-detail-title" className="space-y-6">
+      <PageHeader className="items-start">
         <div className="space-y-2">
           <Link className="text-sm text-primary hover:underline" to="/habits">
             Habits
@@ -138,7 +138,7 @@ export function HabitDetailsRoute() {
             Delete
           </Button>
         </div>
-      </header>
+      </PageHeader>
 
       {archive.isError || restore.isError || remove.isError ? (
         <p
@@ -157,7 +157,7 @@ export function HabitDetailsRoute() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">
+            <p className="text-2xl font-semibold tracking-tight">
               {stats ? `${stats.current_streak} days` : 'Not available'}
             </p>
           </CardContent>
@@ -169,7 +169,7 @@ export function HabitDetailsRoute() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">
+            <p className="text-2xl font-semibold tracking-tight">
               {stats ? `${stats.longest_streak} days` : 'Not available'}
             </p>
           </CardContent>
@@ -181,7 +181,7 @@ export function HabitDetailsRoute() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-2xl font-semibold">
+            <p className="text-2xl font-semibold tracking-tight">
               {stats ? `${stats.completion_rate}%` : 'Not available'}
             </p>
             {stats ? (
@@ -219,9 +219,9 @@ export function HabitDetailsRoute() {
             </div>
             <label className="space-y-1 text-sm">
               <span className="sr-only">Filter history by status</span>
-              <select
+              <NativeSelect
                 aria-label="Filter history by status"
-                className="h-10 rounded-md border bg-background px-3 text-sm"
+
                 onChange={(event) => {
                   setHistoryStatus(event.target.value);
                   setHistoryPage(1);
@@ -232,7 +232,7 @@ export function HabitDetailsRoute() {
                 <option value="completed">Completed</option>
                 <option value="skipped">Skipped</option>
                 <option value="failed">Failed</option>
-              </select>
+              </NativeSelect>
             </label>
           </div>
         </CardHeader>

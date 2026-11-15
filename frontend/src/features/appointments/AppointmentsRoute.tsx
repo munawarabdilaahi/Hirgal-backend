@@ -1,5 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { NativeSelect } from '@/components/ui/native-select';
+import { PageHeader } from '@/components/layout/primitives';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
@@ -14,7 +19,7 @@ import { teamApi } from '@/services/api/teamApi';
 import { DirectoryUserPicker } from '@/features/users/DirectoryUserPicker';
 import type { ApiDirectoryUser, ApiPaginatedResponse, ApiSuccess } from '@/services/api/contracts';
 
-interface Appointment {
+export interface Appointment {
   uuid: string;
   title: string;
   description: string | null;
@@ -55,8 +60,9 @@ export function AppointmentsRoute() {
   const queryClient = useQueryClient();
   const [range, setRange] = useState(upcomingRange);
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [selected, setSelected] = useState(() => searchParams.get('appointment'));
+  const [editing, setEditing] = useState(() => !selected && searchParams.get('new') === '1' && hasPermission(user, 'appointments.create'));
   const [context, setContext] = useState('personal');
   const [contextSearch, setContextSearch] = useState('');
   const [invitee, setInvitee] = useState<ApiDirectoryUser | null>(null);
@@ -96,6 +102,12 @@ export function AppointmentsRoute() {
     enabled: editing && !selected && context === 'team' && hasPermission(user, 'teams.view'),
   });
 
+  const { hash } = useLocation();
+  const targetReady = hash === '#appointment-details' ? Boolean(appointment) : hash === '#appointment-form' && editing;
+  useEffect(() => {
+    if (targetReady) document.getElementById(hash.slice(1))?.scrollIntoView?.();
+  }, [hash, targetReady]);
+
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fields = new FormData(event.currentTarget);
@@ -108,13 +120,13 @@ export function AppointmentsRoute() {
   }
 
   return (
-    <section className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Appointments</h1>
+    <section className="grid grid-cols-1 gap-4">
+      <PageHeader>
+        <h1 className="text-2xl font-semibold tracking-tight">Appointments</h1>
         {hasPermission(user, 'appointments.create') && (
           <Button onClick={() => { setSelected(null); setContext('personal'); setContextSearch(''); setEditing(true); mutation.reset(); }}>New appointment</Button>
         )}
-      </div>
+      </PageHeader>
       {conflict && <p role="status">Saved with a scheduling conflict. Review participant availability.</p>}
       {mutation.isError && <p role="alert">{Object.values(getApiValidationErrors(mutation.error)).join(' ') || getSafeErrorMessage(mutation.error)}</p>}
       <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => {
@@ -131,22 +143,22 @@ export function AppointmentsRoute() {
       {appointments.isError && <ErrorState title="Could not load appointments" description={getSafeErrorMessage(appointments.error)} onRetry={() => void appointments.refetch()} />}
       {appointments.data && (
         <>
-          {appointments.data.data.length === 0 && <p>No appointments in this range.</p>}
-          <ul className="grid gap-2">
+          {appointments.data.data.length === 0 && <EmptyState title="No appointments in this range." />}
+          <ul className="divide-y rounded-xl border bg-card empty:hidden">
             {appointments.data.data.map((item) => (
-              <li key={item.uuid} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
-                <Button variant="ghost" onClick={() => { setSelected(item.uuid); setInvitee(null); setEditing(false); mutation.reset(); }}>{item.title}</Button>
-                <span className="text-sm text-muted-foreground">{new Date(item.start_time).toLocaleString()} · {item.status}</span>
+              <li key={item.uuid} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                <Button className="h-auto max-w-full justify-start text-left whitespace-normal wrap-anywhere" variant="ghost" onClick={() => { setSelected(item.uuid); setInvitee(null); setEditing(false); mutation.reset(); }}>{item.title}</Button>
+                <span className="text-sm text-muted-foreground">{new Date(item.start_time).toLocaleString()} · <Badge className="capitalize" variant="secondary">{item.status}</Badge></span>
               </li>
             ))}
           </ul>
           <Pagination currentPage={page} totalPages={appointments.data.meta.last_page} onPageChange={setPage} />
         </>
       )}
-      {selected && detail.isPending && <LoadingState label="Loading appointment details" />}
+      {selected && detail.isPending && <LoadingState label="Loading appointment details" layout="detail" />}
       {detail.isError && <ErrorState title="Could not load appointment" description={getSafeErrorMessage(detail.error)} onRetry={() => void detail.refetch()} />}
       {appointment && !editing && (
-        <section className="grid gap-3 rounded-lg border p-4" aria-label="Appointment details">
+        <section className="grid gap-3 rounded-lg border p-4" id="appointment-details" aria-label="Appointment details">
           <h2 className="text-lg font-semibold">{appointment.title}</h2>
           <p>{appointment.description}</p>
           <p>{new Date(appointment.start_time).toLocaleString()} to {new Date(appointment.end_time).toLocaleString()}</p>
@@ -187,26 +199,27 @@ export function AppointmentsRoute() {
         </section>
       )}
       {editing && (
-        <form key={selected ?? 'new'} className="grid gap-3 rounded-lg border p-4" onSubmit={save}>
+        <form id="appointment-form" key={selected ?? 'new'} className="grid gap-3 rounded-lg border p-4" onSubmit={save}>
           <h2 className="text-lg font-semibold">{appointment ? 'Edit appointment' : 'Schedule an appointment'}</h2>
           {!selected && (
             <>
               <label>Context
-                <select className="ml-2 rounded-md border bg-background p-2" value={context} onChange={(event) => { setContext(event.target.value); setContextSearch(''); }}>
+                <NativeSelect className="ml-2" value={context} onChange={(event) => { setContext(event.target.value); setContextSearch(''); }}>
                   <option value="personal">Personal</option>
                   {hasPermission(user, 'projects.view') && <option value="project">Project</option>}
                   {hasPermission(user, 'teams.view') && <option value="team">Team</option>}
-                </select>
+                </NativeSelect>
               </label>
               {context !== 'personal' && (
                 <>
                   <Input aria-label={`Search ${context}s`} placeholder={`Search ${context}s`} value={contextSearch} onChange={(event) => setContextSearch(event.target.value)} />
-                  <select key={context} name={`${context}_uuid`} aria-label={`Choose ${context}`} className="rounded-md border bg-background p-2" required>
+                  <NativeSelect key={context} name={`${context}_uuid`} aria-label={`Choose ${context}`} required>
                     <option value="">Choose {context}</option>
                     {(context === 'project' ? projects.data : teams.data)?.data.map((item) => (
                       <option key={item.uuid} value={item.uuid}>{item.name}</option>
                     ))}
-                  </select>
+                  </NativeSelect>
+                  {(context === 'project' ? projects.isPending : teams.isPending) && <LoadingState label={`Loading ${context}s`} layout="inline" />}
                   {(context === 'project' ? projects.isError : teams.isError) && <p role="alert">The available contexts could not be loaded.</p>}
                 </>
               )}

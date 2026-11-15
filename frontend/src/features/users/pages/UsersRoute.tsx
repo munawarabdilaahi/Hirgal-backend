@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/layout/primitives';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, UserRound } from 'lucide-react';
@@ -115,8 +116,8 @@ function CollaborativeDirectory() {
   const meta = directoryQuery.data?.meta;
 
   return (
-    <section aria-labelledby="people-directory-title" className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <section aria-labelledby="people-directory-title" className="space-y-6">
+      <PageHeader className="items-start">
         <div className="space-y-2">
         <p className="text-sm font-medium text-primary">People</p>
         <h1 className="text-2xl font-semibold tracking-tight" id="people-directory-title">
@@ -127,7 +128,7 @@ function CollaborativeDirectory() {
         </p>
         </div>
         {hasPermission(user, 'users.invite') && <InviteUserDialog />}
-      </header>
+      </PageHeader>
 
       <Card>
         <CardContent className="grid gap-3 pt-6 md:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.55fr)_auto]">
@@ -161,9 +162,7 @@ function CollaborativeDirectory() {
       </Card>
 
       {directoryQuery.isPending ? (
-        <div className="flex min-h-48 items-center justify-center">
-          <LoadingState label="Loading team directory" />
-        </div>
+        <LoadingState label="Loading team directory" layout="table" />
       ) : directoryQuery.isError ? (
         <ErrorState
           action={
@@ -190,7 +189,7 @@ function CollaborativeDirectory() {
               <div className="hidden md:block">
                 <DirectoryTable users={users} />
               </div>
-              <div className="grid gap-3 p-4 md:hidden">
+              <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
                 {users.map((person) => <DirectoryCard key={person.id} user={person} />)}
               </div>
             </CardContent>
@@ -287,8 +286,8 @@ function AdministrativeUserList() {
   const meta = usersQuery.data?.meta;
 
   return (
-    <section aria-labelledby="user-administration-title" className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <section aria-labelledby="user-administration-title" className="space-y-6">
+      <PageHeader className="items-start">
         <div className="space-y-2">
         <p className="text-sm font-medium text-primary">Administration</p>
         <h1 className="text-2xl font-semibold tracking-tight" id="user-administration-title">
@@ -300,7 +299,7 @@ function AdministrativeUserList() {
         </p>
         </div>
         {hasPermission(user, 'users.invite') && <InviteUserDialog />}
-      </header>
+      </PageHeader>
 
       <Card>
         <CardContent className="grid gap-3 pt-6 sm:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_minmax(9rem,0.45fr)_minmax(9rem,0.5fr)_minmax(11rem,0.55fr)_auto]">
@@ -361,9 +360,7 @@ function AdministrativeUserList() {
       </Card>
 
       {usersQuery.isPending ? (
-        <div className="flex min-h-48 items-center justify-center">
-          <LoadingState label="Loading administrative users" />
-        </div>
+        <LoadingState label="Loading administrative users" layout="table" columns={5} />
       ) : usersQuery.isError ? (
         <ErrorState
           action={
@@ -388,7 +385,7 @@ function AdministrativeUserList() {
               <div className="hidden md:block">
                 <AdministrativeTable users={users} />
               </div>
-              <div className="grid gap-3 p-4 md:hidden">
+              <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
                 {users.map((person) => <AdministrativeCard key={person.id} user={person} />)}
               </div>
             </CardContent>

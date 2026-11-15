@@ -9,7 +9,7 @@ function Container({ className, size = 'default', ...props }: ContainerProps) {
   return (
     <div
       className={cn(
-        'mx-auto w-full px-4 sm:px-6 lg:px-8',
+        'mx-auto w-full min-w-0 px-4 sm:px-6 lg:px-8',
         size === 'default' && 'max-w-7xl',
         size === 'wide' && 'max-w-[90rem]',
         size === 'full' && 'max-w-none',
@@ -27,16 +27,19 @@ interface HeadingBlockProps {
   eyebrow?: string;
 }
 
-function PageHeader({ actions, description, eyebrow, title }: HeadingBlockProps) {
+interface PageHeaderProps extends Omit<HTMLAttributes<HTMLElement>, 'title'>, Partial<HeadingBlockProps> {}
+
+function PageHeader({ actions, children, className, description, eyebrow, title, ...props }: PageHeaderProps) {
   return (
-    <header className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">
+    <header className={cn('flex flex-wrap items-end justify-between gap-4 border-b pb-4', className)} {...props}>
+      {children ?? <>
       <div className="min-w-0">
         {eyebrow ? (
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
             {eyebrow}
           </p>
         ) : null}
-        <h1 className="text-page-title font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {description ? (
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             {description}
@@ -44,6 +47,7 @@ function PageHeader({ actions, description, eyebrow, title }: HeadingBlockProps)
         ) : null}
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+      </>}
     </header>
   );
 }

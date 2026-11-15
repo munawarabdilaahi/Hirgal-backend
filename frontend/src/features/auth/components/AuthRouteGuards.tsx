@@ -38,7 +38,7 @@ export function RequireAuthenticated({ children }: PropsWithChildren) {
   if (auth.isInitializing) {
     return (
       <main className="flex min-h-svh items-center justify-center p-6">
-        <LoadingState label="Checking your session" />
+        <LoadingState label="Checking your session" layout="inline" className="max-w-40" />
       </main>
     );
   }
@@ -60,7 +60,7 @@ export function RedirectAuthenticatedUser({ children }: PropsWithChildren) {
   if (auth.isInitializing) {
     return (
       <main className="flex min-h-svh items-center justify-center p-6">
-        <LoadingState label="Checking your session" />
+        <LoadingState label="Checking your session" layout="inline" className="max-w-40" />
       </main>
     );
   }

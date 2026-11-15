@@ -51,7 +51,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       children
     ) : (
       <>
-        {loading ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : null}
+        {loading ? <LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" /> : null}
         {children}
       </>
     );

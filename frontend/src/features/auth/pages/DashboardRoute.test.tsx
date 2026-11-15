@@ -1,7 +1,9 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DashboardRoute } from '@/features/auth/pages/DashboardRoute';
+import { apiClient } from '@/services/api/apiClient';
 import type { ApiUser } from '@/services/api/contracts';
 
 const { authMock } = vi.hoisted(() => ({ authMock: vi.fn() }));
@@ -29,50 +31,77 @@ const baseUser: ApiUser = {
   permissions: [],
 };
 
+function renderDashboard() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter><DashboardRoute /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+afterEach(() => vi.restoreAllMocks());
+
 describe('DashboardRoute', () => {
-  it('shows real account details and profile shortcuts without inventing workspace metrics', () => {
-    authMock.mockReturnValue({ user: baseUser });
-
-    render(<MemoryRouter><DashboardRoute /></MemoryRouter>);
-
-    expect(screen.getByRole('heading', { name: 'Welcome, Amina Noor' })).toBeInTheDocument();
-    expect(screen.getByText('amina@example.test')).toBeInTheDocument();
-    expect(screen.getByText('Designer')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /manage profile/i })).toHaveAttribute('href', '/profile');
-    expect(screen.queryByText(/active projects|tasks due|team members/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /people & access/i })).not.toBeInTheDocument();
-  });
-
-  it('shows the people shortcut when the authenticated user has directory permission', () => {
+  it('preserves account shortcuts and does not request data without permission', () => {
     authMock.mockReturnValue({ user: { ...baseUser, permissions: ['users.view_directory'] } });
+    const get = vi.spyOn(apiClient, 'get');
 
-    render(<MemoryRouter><DashboardRoute /></MemoryRouter>);
+    renderDashboard();
 
-    expect(screen.getByRole('link', { name: /people & access/i })).toHaveAttribute('href', '/users');
+    expect(screen.getByRole('heading', { name: "Today’s Workspace Agenda" })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Manage profile' })).toHaveAttribute('href', '/profile');
+    expect(screen.getByRole('link', { name: 'People & access' })).toHaveAttribute('href', '/users');
+    expect(screen.queryByRole('region', { name: 'Workspace overview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Add task' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Add booking' })).not.toBeInTheDocument();
+    expect(get).not.toHaveBeenCalled();
   });
 
-  it('renders safe fallbacks for incomplete account data', () => {
+  it('counts open tasks across pages and shows the first future appointment', async () => {
     authMock.mockReturnValue({
-      user: {
-        ...baseUser,
-        timezone: '',
-        profile: null,
-        roles: [],
-      },
+      user: { ...baseUser, permissions: ['projects.view', 'tasks.view', 'tasks.create', 'appointments.view', 'appointments.create'] },
+    });
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: baseUser.timezone, dateStyle: 'short' }).format(new Date());
+    const project = { uuid: 'project-1', name: 'Workspace refresh' };
+    const get = vi.spyOn(apiClient, 'get').mockImplementation(async (path, config) => {
+      const params = config?.params as { page?: number; status?: string } | undefined;
+      if (path === '/projects') return { data: { data: [project], meta: { total: 12 } } };
+      if (path === '/tasks') {
+        const items = params?.page === 1
+          ? [{ uuid: 'late', title: 'Close feedback', status: 'in_progress', due_date: '2000-01-01', project }]
+          : [
+              { uuid: 'review', title: 'Review copy', status: 'in_review', due_date: today, project },
+              { uuid: 'closed', title: 'Closed task', status: 'done', due_date: today, project },
+            ];
+        return { data: { data: items, meta: { last_page: 2 } } };
+      }
+      const start = new Date(Date.now() + (params?.status === 'confirmed' ? 3600 : 7200) * 1000);
+      return { data: { data: [{
+        uuid: params?.status,
+        title: params?.status === 'confirmed' ? 'Design review' : 'Planning session',
+        start_time: start.toISOString(),
+        organizer: { name: 'Amina Noor' },
+      }], meta: { last_page: 1 } } };
     });
 
-    render(<MemoryRouter><DashboardRoute /></MemoryRouter>);
+    renderDashboard();
 
-    expect(screen.getByText('Not set')).toBeInTheDocument();
-    expect(screen.getByText('No global role assigned')).toBeInTheDocument();
-    expect(screen.getByText('Add a job title or department from your profile to help teammates identify you.')).toBeInTheDocument();
+    expect(await screen.findByText('12')).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Review copy' })).toHaveAttribute('href', '/my-work?task=review#task-details');
+    expect(screen.getByRole('heading', { name: 'Due today' }).parentElement?.parentElement).toHaveTextContent('1');
+    expect(screen.getByRole('heading', { name: 'Overdue tasks' }).parentElement?.parentElement).toHaveTextContent('1');
+    expect(screen.getByRole('heading', { name: 'Pending reviews' }).parentElement?.parentElement).toHaveTextContent('1');
+    expect(screen.queryByText('Closed task')).not.toBeInTheDocument();
+    expect(await screen.findByText('Design review')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View appointment' })).toHaveAttribute('href', '/appointments?appointment=confirmed#appointment-details');
+    expect(screen.getByRole('link', { name: 'Add booking' })).toHaveAttribute('href', '/appointments?new=1#appointment-form');
+    expect(screen.getByRole('link', { name: 'Add task' })).toHaveAttribute('href', '/tasks#new-task');
+    expect(get).toHaveBeenCalledWith('/tasks', expect.objectContaining({ params: expect.objectContaining({ page: 2, assignee: baseUser.id }) }));
   });
 
-  it('renders no account details when no authenticated user is available', () => {
+  it('renders nothing without an authenticated user', () => {
     authMock.mockReturnValue({ user: null });
-
-    const { container } = render(<MemoryRouter><DashboardRoute /></MemoryRouter>);
-
-    expect(container).toBeEmptyDOMElement();
+    expect(renderDashboard().container).toBeEmptyDOMElement();
   });
 });

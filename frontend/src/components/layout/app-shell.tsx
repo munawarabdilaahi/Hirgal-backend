@@ -1,3 +1,4 @@
+import { Container } from '@/components/layout/primitives';
 import {
   Activity,
   CalendarDays,
@@ -277,7 +278,7 @@ function AppShell({ breadcrumb, children, session }: AppShellProps) {
                 </Button>
               </DialogTrigger>
               <DialogContent
-                className="left-0 top-0 h-svh max-h-none w-[min(20rem,85vw)] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 data-[state=open]:animate-[drawer-enter_180ms_ease-out] data-[state=closed]:animate-[drawer-exit_140ms_ease-in] sm:rounded-none"
+                className="left-0 top-0 h-svh max-h-none w-[min(20rem,85vw)] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 motion-safe:data-[state=open]:animate-[drawer-enter_180ms_ease-out] motion-safe:data-[state=closed]:animate-[drawer-exit_140ms_ease-in] sm:rounded-none"
                 showClose={false}
               >
                 <DialogTitle className="sr-only">Hirgal navigation</DialogTitle>
@@ -308,7 +309,7 @@ function AppShell({ breadcrumb, children, session }: AppShellProps) {
           </div>
         </header>
         <main className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-          {children}
+          <Container className="max-w-[69rem] px-0 sm:px-0 lg:px-0">{children}</Container>
         </main>
       </div>
     </div>

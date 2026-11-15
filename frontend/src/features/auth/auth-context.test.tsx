@@ -103,7 +103,7 @@ describe('AuthProvider query cache', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, Admin Amina' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: "Today’s Workspace Agenda" })).toBeInTheDocument();
     expect(authApiMock.getCurrentUser).toHaveBeenCalledOnce();
   });
 
@@ -123,7 +123,7 @@ describe('AuthProvider query cache', () => {
     expect(await screen.findByRole('heading', { name: 'Unable to verify your session' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry session check' }));
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, Admin Amina' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: "Today’s Workspace Agenda" })).toBeInTheDocument();
     expect(authApiMock.getCurrentUser).toHaveBeenCalledTimes(2);
   });
 

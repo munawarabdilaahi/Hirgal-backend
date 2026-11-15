@@ -92,7 +92,7 @@ const AppointmentsRoute = lazy(async () => {
 
 function renderLazyPage(page: ReactNode) {
   return (
-    <Suspense fallback={<div className="flex min-h-48 items-center justify-center"><LoadingState label="Loading page" /></div>}>
+    <Suspense fallback={<LoadingState label="Loading page" layout="page" />}>
       {page}
     </Suspense>
   );

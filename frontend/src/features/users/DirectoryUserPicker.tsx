@@ -1,3 +1,5 @@
+import { LoadingState } from '@/components/feedback/LoadingState';
+import { NativeSelect } from '@/components/ui/native-select';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -36,12 +38,12 @@ export function DirectoryUserPicker({ ariaLabel, enabled, excludeIds = [], selec
     <Input aria-label={`Search ${ariaLabel}`} autoComplete="off" maxLength={100} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={`Search ${ariaLabel.toLowerCase()}`} value={search} />
     {directoryQuery.isError ? <div className="space-y-2 rounded-md border border-destructive/30 p-3" role="alert"><p className="text-sm text-destructive">People could not be loaded. Check your connection and try again.</p><Button onClick={() => void directoryQuery.refetch()} type="button" variant="outline">Try again</Button></div> : null}
     {!enabled ? <p className="text-sm text-muted-foreground" role="status">The people directory permission is required to select a person.</p> : null}
-    {enabled && directoryQuery.isPending && searchIsSettled ? <p className="text-sm text-muted-foreground" role="status">Loading people…</p> : null}
+    {enabled && directoryQuery.isPending && searchIsSettled ? <LoadingState label="Loading people" layout="inline" /> : null}
     {!directoryQuery.isPending && !directoryQuery.isError && searchIsSettled && users.length === 0 ? <p className="text-sm text-muted-foreground" role="status">No people found. Try another search.</p> : null}
-    <select aria-label={ariaLabel} className="h-10 w-full rounded-md border bg-background px-3" disabled={!enabled || directoryQuery.isPending || directoryQuery.isError} onChange={(event) => onSelect(selectableUsers.find((user) => String(user.id) === event.target.value) ?? null)} value={selectedId}>
+    <NativeSelect aria-label={ariaLabel} className="w-full" disabled={!enabled || directoryQuery.isPending || directoryQuery.isError} onChange={(event) => onSelect(selectableUsers.find((user) => String(user.id) === event.target.value) ?? null)} value={selectedId}>
       <option value="">Choose a person</option>
       {selectableUsers.map((user) => <option key={user.id} value={user.id}>{user.name} · {user.email}</option>)}
-    </select>
+    </NativeSelect>
     {searchIsSettled && directoryQuery.data?.meta ? <Pagination currentPage={directoryQuery.data.meta.current_page} onPageChange={setPage} totalPages={directoryQuery.data.meta.last_page} /> : null}
   </div>;
 }

@@ -1,3 +1,4 @@
+import { NativeSelect } from '@/components/ui/native-select';
 import { useState } from 'react';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { ErrorState } from '@/components/feedback/ErrorState';
@@ -57,7 +58,7 @@ export function ProjectTeamAllocationPicker({
           value={search}
         />
       </label>
-      {teamsQuery.isPending ? <LoadingState label="Loading available teams" /> : null}
+      {teamsQuery.isPending ? <LoadingState label="Loading available teams" layout="inline" /> : null}
       {teamsQuery.isError ? (
         <ErrorState
           description={errorMessage(teamsQuery.error)}
@@ -73,9 +74,9 @@ export function ProjectTeamAllocationPicker({
       ) : null}
       <div className="flex flex-wrap gap-2">
         <label className="sr-only" htmlFor="project-team-allocation-select">Select a team to allocate</label>
-        <select
+        <NativeSelect
           aria-label="Select a team to allocate"
-          className="h-10 min-w-0 flex-1 rounded-md border bg-background px-2"
+          className="flex-1"
           disabled={!enabled || teamsQuery.isPending || teamsQuery.isError || availableTeams.length === 0}
           id="project-team-allocation-select"
           onChange={(event) => {
@@ -89,7 +90,7 @@ export function ProjectTeamAllocationPicker({
             <option value={selectedTeam.uuid}>{selectedTeam.name}</option>
           ) : null}
           {availableTeams.map((team) => <option key={team.uuid} value={team.uuid}>{team.name}</option>)}
-        </select>
+        </NativeSelect>
       </div>
       {teamsQuery.data?.meta ? (
         <Pagination

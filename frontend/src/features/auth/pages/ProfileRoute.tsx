@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/layout/primitives';
 import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -95,13 +96,13 @@ export function ProfileForm({ user, save }: {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header className="space-y-2">
+      <PageHeader className="block space-y-2">
         <p className="text-sm font-medium text-muted-foreground">Your account</p>
         <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           Manage the profile details supported by your Hirgal account.
         </p>
-      </header>
+      </PageHeader>
       <Card>
         <CardHeader>
           <CardTitle>Personal details</CardTitle>

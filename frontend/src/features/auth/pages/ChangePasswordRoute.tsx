@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/layout/primitives';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -59,13 +60,13 @@ export function ChangePasswordRoute() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header className="space-y-2">
+      <PageHeader className="block space-y-2">
         <p className="text-sm font-medium text-muted-foreground">Account security</p>
         <h1 className="text-2xl font-semibold tracking-tight">Change password</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           Update your password using your current credentials.
         </p>
-      </header>
+      </PageHeader>
       <Card>
         <CardHeader>
           <CardTitle>Password</CardTitle>

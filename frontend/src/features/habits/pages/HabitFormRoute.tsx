@@ -1,3 +1,5 @@
+import { NativeSelect } from '@/components/ui/native-select';
+import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
@@ -68,9 +70,7 @@ export function HabitFormRoute() {
   }
   if (habitUuid && existing.isPending) {
     return (
-      <div className="flex min-h-48 items-center justify-center">
-        <LoadingState label="Loading habit" />
-      </div>
+      <LoadingState label="Loading habit" layout="form" className="mx-auto max-w-3xl" />
     );
   }
   if (habitUuid && existing.isError) {
@@ -114,7 +114,7 @@ export function HabitFormRoute() {
 
   return (
     <section className="mx-auto max-w-3xl space-y-6">
-      <header>
+      <PageHeader className="block">
         <Link
           className="text-sm text-primary hover:underline"
           to={habitUuid ? `/habits/${habitUuid}` : '/habits'}
@@ -129,7 +129,7 @@ export function HabitFormRoute() {
             ? 'Update the habit details supported by the habits API.'
             : 'Define a habit and choose when it should be tracked.'}
         </p>
-      </header>
+      </PageHeader>
       <Card>
         <CardContent className="pt-6">
           <form
@@ -145,13 +145,13 @@ export function HabitFormRoute() {
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field error={errors.frequency} label="Frequency">
-                <select
-                  className="h-10 w-full rounded-md border bg-background px-3"
+                <NativeSelect
+                  className="w-full"
                   {...form.register('frequency')}
                 >
                   <option value="daily">Daily</option>
                   <option value="custom">Custom days</option>
-                </select>
+                </NativeSelect>
               </Field>
               <Field error={errors.color} label="Color">
                 <Input defaultValue="#3B82F6" type="color" {...form.register('color')} />

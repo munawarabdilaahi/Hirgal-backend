@@ -1,3 +1,6 @@
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/layout/primitives';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -43,26 +46,30 @@ export function NotificationsRoute() {
 
   return (
     <section className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Follow-up inbox</h1>
-        <Button variant="outline" disabled={markRead.isPending || unread.data?.unread_count === 0} onClick={() => markRead.mutate(null)}>
-          Mark all as read{unread.data ? ` (${unread.data.unread_count} unread)` : ''}
-        </Button>
-      </div>
+      <PageHeader>
+        <h1 className="text-2xl font-semibold tracking-tight">Follow-up inbox</h1>
+        <div className="w-52 max-w-full">
+          {unread.isPending ? <LoadingState label="Loading unread count" layout="control" /> : (
+            <Button className="w-full" variant="outline" disabled={markRead.isPending || unread.data?.unread_count === 0} onClick={() => markRead.mutate(null)}>
+              Mark all as read{unread.data ? ` (${unread.data.unread_count} unread)` : ''}
+            </Button>
+          )}
+        </div>
+      </PageHeader>
       {markRead.isError && <p role="alert">Could not update the inbox. Try again.</p>}
       {notifications.isPending && <LoadingState label="Loading notifications" />}
       {notifications.isError && <ErrorState title="Could not load notifications" description="Try loading your inbox again." onRetry={() => void notifications.refetch()} />}
       {notifications.data && (
         <>
-          {notifications.data.data.length === 0 && <p>No notifications on this page.</p>}
-          <ul className="grid gap-2">
+          {notifications.data.data.length === 0 && <EmptyState title="No notifications on this page." />}
+          <ul className="divide-y rounded-xl border bg-card empty:hidden">
             {notifications.data.data.map((item) => (
-              <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
+              <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div>
                   <p className="font-medium">{item.data.title ?? 'Notification'}</p>
                   <p className="text-sm text-muted-foreground">{item.data.event?.replaceAll('_', ' ')} {item.created_at && new Date(item.created_at).toLocaleString()}</p>
                 </div>
-                {item.read_at ? <span>Read</span> : (
+                {item.read_at ? <Badge variant="secondary">Read</Badge> : (
                   <Button size="sm" variant="outline" disabled={markRead.isPending} onClick={() => markRead.mutate(item.id)}>Mark as read</Button>
                 )}
               </li>
@@ -91,7 +98,7 @@ export function ActivityRoute() {
 
   return (
     <section className="grid gap-4">
-      <h1 className="text-2xl font-semibold">Activity</h1>
+      <PageHeader><h1 className="text-2xl font-semibold tracking-tight">Activity</h1></PageHeader>
       {canViewSystem && (
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={system} onChange={(event) => { setShowSystem(event.target.checked); setPage(1); }} />
@@ -102,10 +109,10 @@ export function ActivityRoute() {
       {activity.isError && <ErrorState title="Could not load activity" description="Try loading the audit timeline again." onRetry={() => void activity.refetch()} />}
       {activity.data && (
         <>
-          {activity.data.data.length === 0 && <p>No activity on this page.</p>}
-          <ul className="grid gap-2">
+          {activity.data.data.length === 0 && <EmptyState title="No activity on this page." />}
+          <ul className="divide-y rounded-xl border bg-card empty:hidden">
             {activity.data.data.map((item) => (
-              <li key={item.id} className="rounded-lg border p-4">
+              <li key={item.id} className="p-4">
                 <p className="font-medium">{item.description ?? item.action}</p>
                 <p className="text-sm text-muted-foreground">{item.actor_name} {item.created_at && new Date(item.created_at).toLocaleString()}</p>
               </li>

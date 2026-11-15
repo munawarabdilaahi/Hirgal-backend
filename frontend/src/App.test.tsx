@@ -64,7 +64,7 @@ describe('authentication routes', () => {
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, Amina Hassan' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: "Today’s Workspace Agenda" })).toBeInTheDocument();
     expect(authApi.login).toHaveBeenCalledWith({
       email: 'amina@example.com',
       password: 'secret123',
@@ -86,7 +86,7 @@ describe('authentication routes', () => {
     fireEvent.change(screen.getByLabelText(/Confirm password/), { target: { value: 'securepass123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Accept invitation' }));
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, Amina Hassan' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: "Today’s Workspace Agenda" })).toBeInTheDocument();
     expect(authApi.acceptInvitation).toHaveBeenCalledWith({
       token: 'invitation-token',
       name: 'Amina Hassan',
@@ -295,7 +295,7 @@ describe('authentication routes', () => {
     });
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-    await screen.findByRole('heading', { name: 'Welcome, Amina Hassan' });
+    await screen.findByRole('heading', { name: "Today’s Workspace Agenda" });
     await user.click(screen.getByRole('button', { name: 'Open account menu for Amina Hassan' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
 
@@ -322,7 +322,7 @@ describe('authentication routes', () => {
     });
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-    await screen.findByRole('heading', { name: 'Welcome, Amina Hassan' });
+    await screen.findByRole('heading', { name: "Today’s Workspace Agenda" });
     await user.click(screen.getByRole('button', { name: 'Open account menu for Amina Hassan' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
 

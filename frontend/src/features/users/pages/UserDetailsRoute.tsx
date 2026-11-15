@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
@@ -154,9 +155,7 @@ export function UserDetailsRoute() {
 
   if (userQuery.isPending) {
     return (
-      <div className="flex min-h-48 items-center justify-center">
-        <LoadingState label="Loading user details" />
-      </div>
+      <LoadingState label="Loading user details" layout="detail" />
     );
   }
 
@@ -227,7 +226,7 @@ export function UserDetailsRoute() {
           Back to users
         </Link>
       </Button>
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <PageHeader className="flex-col items-start sm:flex-row sm:items-center">
         <div className="space-y-3">
           <p className="text-sm font-medium text-primary">User administration</p>
           <h1 className="sr-only" id="user-details-title">User details for {person.name}</h1>
@@ -239,7 +238,7 @@ export function UserDetailsRoute() {
           />
         </div>
         <AccountStatusBadge status={person.account_status} />
-      </header>
+      </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
         <Card>

@@ -1,3 +1,5 @@
+import { NativeSelect } from '@/components/ui/native-select';
+import { PageHeader } from '@/components/layout/primitives';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
@@ -19,7 +21,6 @@ import { LoadingState } from '@/components/feedback/LoadingState';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { Progress } from '@/components/ui/progress';
-import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { useAuth } from '@/features/auth/auth-hooks';
 import { useDailyOverview, useHabits, useLogHabit, useRemoveHabitLog } from '../habit-queries';
@@ -76,8 +77,8 @@ export function HabitsRoute() {
   const habits = query.data?.data ?? [];
 
   return (
-    <section aria-labelledby="habits-title" className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <section aria-labelledby="habits-title" className="space-y-6">
+      <PageHeader>
         <div className="space-y-2">
           <p className="text-sm font-medium text-primary">Personal</p>
           <h1 className="text-2xl font-semibold tracking-tight" id="habits-title">Habits</h1>
@@ -91,7 +92,7 @@ export function HabitsRoute() {
             New habit
           </Link>
         </Button>
-      </header>
+      </PageHeader>
 
       <Card>
         <CardHeader>
@@ -158,9 +159,9 @@ export function HabitsRoute() {
         <CardContent className="grid gap-3 pt-6 sm:grid-cols-2">
           <label className="space-y-1 text-sm">
             <span className="sr-only">Filter by archive status</span>
-            <select
+            <NativeSelect
               aria-label="Filter by archive status"
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              className="w-full"
               onChange={(event) => {
                 setArchived(event.target.value === 'archived');
                 setPage(1);
@@ -169,13 +170,13 @@ export function HabitsRoute() {
             >
               <option value="active">Active habits</option>
               <option value="archived">Archived habits</option>
-            </select>
+            </NativeSelect>
           </label>
           <label className="space-y-1 text-sm">
             <span className="sr-only">Filter by frequency</span>
-            <select
+            <NativeSelect
               aria-label="Filter by frequency"
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              className="w-full"
               onChange={(event) => {
                 setFrequency(event.target.value);
                 setPage(1);
@@ -185,34 +186,13 @@ export function HabitsRoute() {
               <option value="">All frequencies</option>
               <option value="daily">Daily</option>
               <option value="custom">Custom days</option>
-            </select>
+            </NativeSelect>
           </label>
         </CardContent>
       </Card>
 
       {query.isPending ? (
-        <div
-          aria-label="Loading habits"
-          className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
-          role="status"
-        >
-          <span className="sr-only">Loading habits</span>
-          {Array.from({ length: 6 }, (_, index) => (
-            <Card aria-hidden="true" className="space-y-4 p-6" key={index}>
-              <div className="flex justify-between">
-                <Skeleton className="size-5" />
-                <Skeleton className="h-5 w-20" />
-              </div>
-              <Skeleton className="h-6 w-3/4" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-2/3" />
-              <div className="flex justify-between pt-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-            </Card>
-          ))}
-        </div>
+        <LoadingState label="Loading habits" layout="cards" />
       ) : query.isError ? (
         <ErrorState
           description={habitErrorMessage(query.error)}

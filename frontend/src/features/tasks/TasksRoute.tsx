@@ -1,5 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { Textarea } from '@/components/ui/textarea';
+import { EmptyState } from '@/components/feedback/EmptyState';
+import { Badge } from '@/components/ui/badge';
+import { NativeSelect } from '@/components/ui/native-select';
+import { PageHeader } from '@/components/layout/primitives';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
@@ -12,7 +18,7 @@ import { apiClient } from '@/services/api/apiClient';
 import { projectApi } from '@/services/api/projectApi';
 import type { ApiPaginatedResponse, ApiSuccess } from '@/services/api/contracts';
 
-const statuses = {
+export const statuses = {
   backlog: 'Backlog',
   todo: 'To do',
   in_progress: 'In progress',
@@ -23,7 +29,7 @@ const statuses = {
 
 type TaskStatus = keyof typeof statuses;
 
-interface Task {
+export interface Task {
   uuid: string;
   title: string;
   description: string | null;
@@ -41,7 +47,8 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [project, setProject] = useState('');
-  const [selectedTask, setSelectedTask] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const [selectedTask, setSelectedTask] = useState(() => searchParams.get('task'));
   const [board, setBoard] = useState(false);
   const canCreate = hasPermission(user, 'tasks.create');
   const assignee = assignedToMe ? user?.id : undefined;
@@ -78,6 +85,12 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
     },
   });
 
+  const { hash } = useLocation();
+  const targetReady = hash === '#task-details' ? Boolean(detail.data) : hash === '#new-task' && canCreate;
+  useEffect(() => {
+    if (targetReady) document.getElementById(hash.slice(1))?.scrollIntoView?.();
+  }, [hash, targetReady]);
+
   function saveTask(event: FormEvent<HTMLFormElement>, task?: Task, parent?: Task) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -103,58 +116,59 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
   }
 
   return (
-    <section className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="grid grid-cols-1 gap-5">
+      <PageHeader>
         <div>
-          <h1 className="text-2xl font-semibold">{assignedToMe ? 'My work' : 'Tasks'}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{assignedToMe ? 'My work' : 'Tasks'}</h1>
           {assignedToMe && <p className="text-sm text-muted-foreground">Review and update tasks assigned to you.</p>}
         </div>
         <Button variant="outline" aria-pressed={board} onClick={() => setBoard(!board)}>Board view</Button>
-      </div>
+      </PageHeader>
       {update.isError && <p role="alert">{getSafeErrorMessage(update.error)}</p>}
       {!assignedToMe && canCreate && hasPermission(user, 'projects.view') && (
-        <form className="grid gap-3 rounded-lg border p-4" onSubmit={(event) => saveTask(event)}>
+        <form id="new-task" className="grid gap-3 rounded-lg border p-4" onSubmit={(event) => saveTask(event)}>
           <h2 className="font-semibold">New task</h2>
           <Input aria-label="Search projects" placeholder="Search projects" value={project} onChange={(event) => setProject(event.target.value)} />
+          {projects.isPending && <LoadingState label="Loading projects for this task" layout="inline" />}
           {projects.isError && <p role="alert">Projects could not be loaded.</p>}
-          <select name="project" aria-label="Project" className="rounded-md border bg-background p-2" required>
+          <NativeSelect name="project" aria-label="Project" required>
             <option value="">Choose a project</option>
             {projects.data?.data.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
-          </select>
+          </NativeSelect>
           <Input name="title" aria-label="New task title" placeholder="Task title" required maxLength={255} />
           <Button type="submit" loading={update.isPending}>Create task</Button>
         </form>
       )}
       <label className="flex flex-wrap items-center gap-2">
         Status
-        <select className="rounded-md border bg-background p-2" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+        <NativeSelect value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
           <option value="">All statuses</option>
           {Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
+        </NativeSelect>
       </label>
-      {tasks.isPending && <LoadingState label="Loading tasks" />}
+      {tasks.isPending && <LoadingState label="Loading tasks" layout={board ? "board" : "list"} />}
       {tasks.isError && <ErrorState title="Could not load tasks" description={getSafeErrorMessage(tasks.error)} onRetry={() => void tasks.refetch()} />}
       {tasks.data && (
         <>
-          {tasks.data.data.length === 0 && <p>{assignedToMe ? 'No assigned tasks match this view.' : 'No tasks match this view.'}</p>}
+          {tasks.data.data.length === 0 && <EmptyState title={assignedToMe ? 'No assigned tasks match this view.' : 'No tasks match this view.'} />}
           {board ? (
             <div className="grid grid-cols-[repeat(6,minmax(11rem,1fr))] gap-3 overflow-x-auto pb-2">
               {Object.entries(statuses).map(([value, label]) => (
                 <section key={value} className="space-y-2 rounded-lg border p-3">
                   <h2 className="font-semibold">{label}</h2>
                   {tasks.data.data.filter((item) => item.status === value).map((item) => (
-                    <Button className="h-auto w-full justify-start whitespace-normal text-left" key={item.uuid} variant="outline"
+                    <Button className="h-auto w-full justify-start text-left whitespace-normal wrap-anywhere" key={item.uuid} variant="outline"
                       onClick={() => { setSelectedTask(item.uuid); setMemberPage(1); update.reset(); }}>{item.title}</Button>
                   ))}
                 </section>
               ))}
             </div>
-          ) : <ul className="grid gap-2">
+          ) : <ul className="divide-y rounded-xl border bg-card empty:hidden">
             {tasks.data.data.map((task) => (
-              <li key={task.uuid} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
-                <Button variant="ghost" onClick={() => { setSelectedTask(task.uuid); setMemberPage(1); update.reset(); }}>{task.title}</Button>
-                <span className="text-sm text-muted-foreground">
-                  {task.project.name} · {statuses[task.status]}
+              <li key={task.uuid} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                <Button className="h-auto max-w-full justify-start text-left whitespace-normal wrap-anywhere" variant="ghost" onClick={() => { setSelectedTask(task.uuid); setMemberPage(1); update.reset(); }}>{task.title}</Button>
+                <span className="text-sm wrap-anywhere text-muted-foreground">
+                  {task.project.name} · <Badge variant="secondary">{statuses[task.status]}</Badge>
                   {task.due_date && <> · Due <time dateTime={task.due_date}>{task.due_date.slice(0, 10)}</time></>}
                 </span>
               </li>
@@ -163,10 +177,10 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
           <Pagination currentPage={page} totalPages={tasks.data.meta.last_page} onPageChange={setPage} />
         </>
       )}
-      {selectedTask && detail.isPending && <LoadingState label="Loading task details" />}
+      {selectedTask && detail.isPending && <LoadingState label="Loading task details" layout="detail" />}
       {detail.isError && <ErrorState title="Could not load task" description={getSafeErrorMessage(detail.error)} onRetry={() => void detail.refetch()} />}
       {detail.data && (
-        <section className="grid gap-3 rounded-lg border p-4" aria-label="Task details">
+        <section className="grid gap-3 rounded-lg border p-4" id="task-details" aria-label="Task details">
           <h2 className="text-lg font-semibold">{detail.data.title}</h2>
           <p>{detail.data.description}</p>
           <p className="text-sm text-muted-foreground">Priority: {detail.data.priority} · {statuses[detail.data.status]}</p>
@@ -175,10 +189,10 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
           {hasPermission(user, 'tasks.update') && (
             <form key={detail.data.uuid} className="grid gap-2" onSubmit={(event) => saveTask(event, detail.data)}>
               <Input name="title" aria-label="Task title" defaultValue={detail.data.title} required maxLength={255} />
-              <textarea name="description" aria-label="Task description" className="rounded-md border bg-background p-2" defaultValue={detail.data.description ?? ''} maxLength={10000} />
-              <select aria-label="Task status" name="status" defaultValue={detail.data.status} className="rounded-md border bg-background p-2">
+              <Textarea name="description" aria-label="Task description" defaultValue={detail.data.description ?? ''} maxLength={10000} />
+              <NativeSelect aria-label="Task status" name="status" defaultValue={detail.data.status}>
                 {Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
+              </NativeSelect>
               <label className="grid gap-1 text-sm">
                 Due date
                 <Input name="due_date" type="date" defaultValue={detail.data.due_date?.slice(0, 10) ?? ''} />
@@ -186,17 +200,18 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
               <Button type="submit" loading={update.isPending}>Save task</Button>
             </form>
           )}
+          {canAssign && hasPermission(user, 'projects.view') && members.isPending && <LoadingState label="Loading project members" rows={1} />}
           {canAssign && members.data && (
             <form className="grid gap-2" onSubmit={(event) => {
               event.preventDefault();
               const member = new FormData(event.currentTarget).get('member');
               update.mutate({ path: `/tasks/${selectedTask}/assign`, method: 'post', body: { user_ids: [Number(member)] } });
             }}>
-              <select name="member" aria-label="Project member" className="rounded-md border bg-background p-2" required>
+              <NativeSelect name="member" aria-label="Project member" required>
                 <option value="">Choose a project member</option>
                 {members.data.data.filter(({ user: member }) => !task?.assignees.some((person) => person.id === member.id))
                   .map(({ user: member }) => <option key={member.id} value={member.id}>{member.name}</option>)}
-              </select>
+              </NativeSelect>
               <Pagination currentPage={memberPage} totalPages={members.data.meta.last_page} onPageChange={setMemberPage} />
               <Button type="submit" disabled={update.isPending}>Assign member</Button>
             </form>

@@ -2,6 +2,7 @@ import { router } from '@inertiajs/react';
 import { useQuery } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from '@/components/layout/app-shell';
+import { workspaceBreadcrumb } from '@/components/layout/workspace-breadcrumb';
 import { AuthContext } from '@/features/auth/auth-context-state';
 import { RequireAnyPermission, RequirePermission } from '@/features/auth/components/AuthRouteGuards';
 import { ProjectDetailsRoute, ProjectFormRoute, ProjectsRoute } from '@/features/projects/ProjectsRoutes';
@@ -53,18 +54,8 @@ export default function Workspace({ user, frontendUrl }: { user: ApiUser; fronte
 
 function WorkspaceRoutes({ session }: { session: { user: ApiUser; frontendUrl: string; logout: () => void } }) {
   const { pathname } = useLocation();
-  const breadcrumb = pathname.startsWith('/projects') ? 'Projects'
-    : pathname.startsWith('/teams') ? 'Teams'
-      : pathname.startsWith('/habits') ? 'Habits'
-        : pathname === '/appointments' ? 'Appointments'
-          : pathname === '/notifications' ? 'Follow-up inbox'
-            : pathname === '/activity' ? 'Activity'
-              : pathname.startsWith('/users/') ? 'User details'
-                : pathname === '/users' ? 'People & access'
-                  : pathname === '/my-work' ? 'My work' : 'Tasks';
-
   return (
-    <AppShell breadcrumb={breadcrumb} session={session}>
+    <AppShell breadcrumb={workspaceBreadcrumb(pathname)} session={session}>
       <Routes>
         <Route path="/projects" element={<ProjectsRoute />} />
         <Route path="/projects/new" element={<ProjectFormRoute />} />
