@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\Task;
+use App\Models\TaskAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,6 +33,12 @@ class TaskResource extends JsonResource
                 'title' => $this->parent?->title,
             ]),
             'title' => $this->title,
+            'capabilities' => $this->when($request->routeIs('api.v1.tasks.show'), fn () => [
+                'update' => $request->user()->can('update', $this->resource),
+                'delete' => $request->user()->can('delete', $this->resource),
+                'assign' => $request->user()->can('create', [TaskAssignment::class, $this->resource]),
+                'create_subtask' => $request->user()->can('create', [Task::class, $this->project]),
+            ]),
             'description' => $this->description,
             'status' => $this->status?->value ?? $this->status,
             'priority' => $this->priority?->value ?? $this->priority,

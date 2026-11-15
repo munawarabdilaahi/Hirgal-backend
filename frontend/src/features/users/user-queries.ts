@@ -1,3 +1,5 @@
+import { apiClient } from '@/services/api/apiClient';
+import type { ApiSuccess } from '@/services/api/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { userApi } from '@/services/api/userApi';
 import type {
@@ -37,5 +39,16 @@ export function useUserDetails(userId: number) {
     queryKey: userQueryKeys.detail(userId),
     queryFn: () => userApi.getUser(userId),
     enabled: Number.isInteger(userId) && userId > 0,
+  });
+}
+
+type InvitationRole = { id: number; name: string; slug: string };
+
+export function useInvitationRoles(enabled: boolean, userId?: number) {
+  return useQuery({
+    queryKey: ['users', 'invitation-roles', userId],
+    queryFn: async () => (await apiClient.get<ApiSuccess<InvitationRole[]>>('/invitations/roles')).data.data,
+    enabled,
+    staleTime: 0,
   });
 }

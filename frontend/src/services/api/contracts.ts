@@ -102,6 +102,7 @@ export interface UpdateUserRequest {
   name?: string;
   email?: string;
   timezone?: string | null;
+  role_id?: number;
 }
 
 export interface AuthTokenData {

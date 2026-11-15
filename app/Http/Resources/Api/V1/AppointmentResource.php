@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\Appointment;
+use App\Policies\AppointmentPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,6 +22,14 @@ class AppointmentResource extends JsonResource
                     ? ['type' => 'team', 'uuid' => $this->whenLoaded('team', fn () => $this->team?->uuid)]
                     : ['type' => 'personal', 'uuid' => null]),
             'title' => $this->title,
+            'capabilities' => $this->when($request->routeIs('api.v1.appointments.show'), function () use ($request): array {
+                $policy = app(AppointmentPolicy::class);
+
+                return [
+                    'update' => $policy->update($request->user(), $this->resource),
+                    'delete' => $policy->delete($request->user(), $this->resource),
+                ];
+            }),
             'description' => $this->description,
             'timezone' => $this->timezone,
             'start_time' => $this->start_time?->utc()->format('Y-m-d\TH:i:s\Z'),

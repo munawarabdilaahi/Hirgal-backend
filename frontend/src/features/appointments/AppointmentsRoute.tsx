@@ -1,3 +1,4 @@
+import { ActionConfirmation } from '@/components/ui/action-confirmation';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/feedback/EmptyState';
@@ -5,6 +6,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +31,7 @@ export interface Appointment {
   end_time: string;
   timezone: string;
   status: string;
+  capabilities?: { update: boolean; delete: boolean };
   participants?: { user_id: number; name?: string; status: string }[];
 }
 
@@ -67,7 +70,10 @@ export function BookingCreateDialog({ user, onClose }: { user: ApiUser; onClose:
 
 function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; closeCreateDialog?: () => void }) {
   const queryClient = useQueryClient();
+  const [status, setStatus] = useState('');
+  const [confirmation, setConfirmation] = useState<'cancel' | 'delete' | null>(null);
   const [range, setRange] = useState(upcomingRange);
+  const [rangeError, setRangeError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [searchParams, setSearchParams] = useSearchParams();
   const [selected, setSelected] = useState(() => searchParams.get('appointment'));
@@ -78,10 +84,10 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
   const [invitee, setInvitee] = useState<ApiDirectoryUser | null>(null);
   const [conflict, setConflict] = useState(false);
   const appointments = useQuery({
-    queryKey: ['appointments', 'calendar', range, page],
+    queryKey: ['appointments', 'calendar', range, page, status],
     enabled: !closeCreateDialog,
     queryFn: async () => (await apiClient.get<ApiPaginatedResponse<Appointment>>('/appointments/calendar', {
-      params: { from: `${range.from}T00:00:00Z`, to: `${range.to}T00:00:00Z`, page },
+      params: { from: `${range.from}T00:00:00Z`, to: `${range.to}T00:00:00Z`, status: status || undefined, page },
     })).data,
   });
   const detail = useQuery({
@@ -99,7 +105,7 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
     }, { replace: true });
   };
   const mutation = useMutation({
-    mutationFn: ({ url, method, data }: { url: string; method: 'post' | 'put'; data?: Record<string, unknown> }) =>
+    mutationFn: ({ url, method, data }: { url: string; method: 'post' | 'put' | 'delete'; data?: Record<string, unknown> }) =>
       apiClient.request<ApiSuccess<{ conflicts?: { has_conflicts: boolean } }>>({ url, method, data }),
     onSuccess: async ({ data }) => {
       setConflict(data.data?.conflicts?.has_conflicts === true);
@@ -108,7 +114,7 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
     },
   });
   const appointment = detail.data;
-  const organizer = appointment?.organizer.id === user?.id;
+  const canUpdate = appointment?.capabilities?.update === true;
   const active = appointment?.status === 'scheduled' || appointment?.status === 'confirmed';
   const participant = appointment?.participants?.find((person) => person.user_id === user?.id);
   const projects = useQuery({
@@ -136,7 +142,7 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
       url: appointment ? `/appointments/${appointment.uuid}` : '/appointments',
       method: appointment ? 'put' : 'post',
       data,
-    });
+    }, { onSuccess: () => toast.success(appointment ? 'Appointment updated.' : 'Appointment booked.') });
   }
 
   const bookingForm = editing && (
@@ -188,17 +194,33 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
         )}
       </PageHeader>
       {conflict && <p role="status">Saved with a scheduling conflict. Review participant availability.</p>}
-      {!editing && !inviteOpen && mutation.isError && <p role="alert">{Object.values(getApiValidationErrors(mutation.error)).join(' ') || getSafeErrorMessage(mutation.error)}</p>}
-      <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => {
+      {!editing && !inviteOpen && !confirmation && mutation.isError && <p role="alert">{Object.values(getApiValidationErrors(mutation.error)).join(' ') || getSafeErrorMessage(mutation.error)}</p>}
+      <form className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4" onSubmit={(event) => {
         event.preventDefault();
         const fields = new FormData(event.currentTarget);
-        setRange({ from: String(fields.get('from')), to: String(fields.get('to')) });
+        const from = String(fields.get('from'));
+        const to = String(fields.get('to'));
+        const duration = Date.parse(to) - Date.parse(from);
+        if (!Number.isFinite(duration) || duration <= 0 || duration > 90 * 86_400_000) {
+          setRangeError('Choose an end date after the start date and a range of at most 90 days.');
+          return;
+        }
+        setRangeError(null);
+        setRange({ from, to });
         setPage(1);
       }}>
         <label>From (UTC)<Input type="date" name="from" defaultValue={range.from} required /></label>
         <label>Until (UTC)<Input type="date" name="to" defaultValue={range.to} required /></label>
+        <label className="grid gap-2 text-sm font-medium">Status
+          <NativeSelect value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+            <option value="">All statuses</option>
+            <option value="scheduled">Scheduled</option><option value="confirmed">Confirmed</option>
+            <option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+          </NativeSelect>
+        </label>
         <Button type="submit" variant="outline">Show date range</Button>
       </form>
+      {rangeError && <p role="alert" className="text-sm text-destructive">{rangeError}</p>}
       {appointments.isPending && <LoadingState label="Loading appointments" />}
       {appointments.isError && <ErrorState title="Could not load appointments" description={getSafeErrorMessage(appointments.error)} onRetry={() => void appointments.refetch()} />}
       {appointments.data && (
@@ -233,15 +255,35 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
               ))}
             </div>
           )}
-          {organizer && active && hasPermission(user, 'appointments.update') && (
+          {canUpdate && active && (
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setEditing(true)}>Edit appointment</Button>
-              <Button variant="destructive" disabled={mutation.isPending} onClick={() => {
-                if (window.confirm('Cancel this appointment?')) mutation.mutate({ url: `/appointments/${appointment.uuid}/cancel`, method: 'post' });
-              }}>Cancel appointment</Button>
+              <Button variant="destructive" onClick={() => { mutation.reset(); setConfirmation('cancel'); }}>Cancel appointment</Button>
             </div>
           )}
-          {organizer && active && hasPermission(user, 'appointments.update') && hasPermission(user, 'users.view_directory') && (
+          {appointment.capabilities?.delete && <Button variant="outline" onClick={() => { mutation.reset(); setConfirmation('delete'); }}>Delete appointment</Button>}
+          {confirmation && (
+            <ActionConfirmation
+              title={confirmation === 'cancel' ? 'Cancel this appointment?' : 'Delete this appointment?'}
+              description={confirmation === 'cancel' ? 'The booking will be marked cancelled.' : 'The booking will be removed from your appointments.'}
+              action={confirmation === 'cancel' ? 'Cancel appointment' : 'Delete appointment'}
+              pending={mutation.isPending} error={mutation.isError ? getSafeErrorMessage(mutation.error) : null}
+              onCancel={() => { mutation.reset(); setConfirmation(null); }}
+              onConfirm={() => mutation.mutate(
+                confirmation === 'cancel' ? { url: `/appointments/${appointment.uuid}/cancel`, method: 'post' }
+                  : { url: `/appointments/${appointment.uuid}`, method: 'delete' },
+                { onSuccess: () => {
+                  if (confirmation === 'delete') {
+                    setSelected(null);
+                    setPage(1);
+                    setSearchParams({}, { replace: true });
+                  }
+                  setConfirmation(null);
+                } },
+              )}
+            />
+          )}
+          {canUpdate && active && hasPermission(user, 'users.view_directory') && (
             <>
             <Button variant="outline" onClick={() => { mutation.reset(); setInvitee(null); setInviteOpen(true); }}>Invite participant</Button>
             {inviteOpen && <FormDialog title="Invite participant" description="Choose a person to invite to this appointment." pending={mutation.isPending} onClose={() => setInviteOpen(false)}>

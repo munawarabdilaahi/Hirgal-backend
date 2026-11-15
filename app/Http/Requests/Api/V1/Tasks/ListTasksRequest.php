@@ -24,6 +24,7 @@ class ListTasksRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'search' => ['nullable', 'string', 'max:100'],
             'project' => ['nullable', 'string', 'uuid'],
             'team' => ['nullable', 'string', 'uuid'],
             'assignee' => ['nullable', 'integer', 'exists:users,id'],

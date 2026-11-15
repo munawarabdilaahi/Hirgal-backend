@@ -1,11 +1,14 @@
+import { ActionConfirmation } from '@/components/ui/action-confirmation';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { NativeSelect } from '@/components/ui/native-select';
 import { PageHeader } from '@/components/layout/primitives';
+import { useDebouncedValue } from '@/features/users/use-debounced-value';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +39,7 @@ export interface Task {
   description: string | null;
   status: TaskStatus;
   priority: string;
+  capabilities?: { update: boolean; delete: boolean; assign: boolean; create_subtask: boolean };
   due_date?: string | null;
   project: { uuid: string; name: string };
   parent?: { uuid: string | null; title: string | null };
@@ -53,6 +57,12 @@ export function TaskCreateDialog({ user, onClose }: { user: ApiUser; onClose: ()
 
 function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: ApiUser | null; assignedToMe?: boolean; closeCreateDialog?: () => void }) {
   const queryClient = useQueryClient();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [taskSearch, setTaskSearch] = useState('');
+  const searchTerm = useDebouncedValue(taskSearch.trim());
+  const [priority, setPriority] = useState('');
+  const [sort, setSort] = useState(assignedToMe ? 'due_date:asc' : 'created_at:desc');
+  const [sortBy, sortDirection] = sort.split(':');
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [project, setProject] = useState('');
@@ -62,11 +72,15 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
   const canCreate = hasPermission(user, 'tasks.create');
   const assignee = assignedToMe ? user?.id : undefined;
   const tasks = useQuery({
-    queryKey: ['tasks', 'list', assignee, page, status],
+    queryKey: ['tasks', 'list', user?.id, assignee, page, status, priority, searchTerm, sort],
     queryFn: async () => (await apiClient.get<ApiPaginatedResponse<Task>>('/tasks', {
-      params: { page, assignee, status: status || undefined, ...(assignedToMe ? { sort_by: 'due_date', sort_direction: 'asc' } : {}) },
+      params: {
+        page, assignee, status: status || undefined, sort_by: sortBy, sort_direction: sortDirection,
+        ...(searchTerm ? { search: searchTerm } : {}),
+        ...(priority ? { priority } : {}),
+      },
     })).data,
-    enabled: !closeCreateDialog && (!assignedToMe || assignee !== undefined),
+    enabled: !closeCreateDialog && taskSearch.trim() === searchTerm && (!assignedToMe || assignee !== undefined),
   });
   const projects = useQuery({
     queryKey: ['projects', 'task-picker', project],
@@ -79,7 +93,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
     enabled: selectedTask !== null,
   });
   const task = detail.data;
-  const canAssign = hasPermission(user, 'tasks.assign');
+  const canAssign = task?.capabilities?.assign === true;
   const [memberPage, setMemberPage] = useState(1);
   const members = useQuery({
     queryKey: ['projects', task?.project.uuid, 'task-members', memberPage],
@@ -119,6 +133,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
         title: fields.get('title'),
         description: fields.get('description') || null,
         status: fields.get('status') ?? 'todo',
+        ...(fields.has('priority') ? { priority: fields.get('priority') } : {}),
         ...(dueDate !== null && dueDate !== (task?.due_date?.slice(0, 10) ?? '')
           ? { due_date: dueDate || null }
           : {}),
@@ -128,6 +143,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
       onSuccess: () => {
         form.reset();
         closeEditor();
+        toast.success(task ? 'Task updated.' : parent ? 'Subtask created.' : 'Task created.');
       },
     });
   }
@@ -144,6 +160,9 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
             {projects.data?.data.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
           </NativeSelect>
           <Input name="title" aria-label="New task title" placeholder="Task title" required maxLength={255} />
+          <Textarea name="description" aria-label="Task description" maxLength={10000} />
+          <TaskPrioritySelect />
+          <Input name="due_date" aria-label="Due date" type="date" />
           <FormDialogActions pending={update.isPending} submitLabel="Create task" />
         </form>
         </FormDialog>
@@ -164,13 +183,23 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
       </PageHeader>
       {!editor && update.isError && <p role="alert">{getSafeErrorMessage(update.error)}</p>}
       {createTaskForm}
-      <label className="flex flex-wrap items-center gap-2">
-        Status
-        <NativeSelect value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+      <div className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Input aria-label="Search tasks" placeholder="Search tasks" maxLength={100} value={taskSearch} onChange={(event) => { setTaskSearch(event.target.value); setPage(1); }} />
+        <label className="sr-only" htmlFor="task-status-filter">Status</label>
+        <NativeSelect id="task-status-filter" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
           <option value="">All statuses</option>
           {Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </NativeSelect>
-      </label>
+        <NativeSelect aria-label="Filter by priority" value={priority} onChange={(event) => { setPriority(event.target.value); setPage(1); }}>
+          <option value="">All priorities</option>
+          {priorities.map((value) => <option className="capitalize" key={value} value={value}>{value}</option>)}
+        </NativeSelect>
+        <NativeSelect aria-label="Sort tasks" value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
+          <option value="created_at:desc">Newest first</option>
+          <option value="due_date:asc">Due date</option>
+          <option value="title:asc">Title A–Z</option>
+        </NativeSelect>
+      </div>
       {tasks.isPending && <LoadingState label="Loading tasks" layout={board ? "board" : "list"} />}
       {tasks.isError && <ErrorState title="Could not load tasks" description={getSafeErrorMessage(tasks.error)} onRetry={() => void tasks.refetch()} />}
       {tasks.data && (
@@ -211,8 +240,8 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
           <p className="text-sm text-muted-foreground">Priority: {detail.data.priority} · {statuses[detail.data.status]}</p>
           {detail.data.parent?.title && <p>Parent task: {detail.data.parent.title}</p>}
           <p>Assignees: {detail.data.assignees.map((person) => person.name).join(', ') || 'Unassigned'}</p>
-          {hasPermission(user, 'tasks.update') && <Button variant="outline" onClick={() => { update.reset(); setEditor('edit'); }}>Edit task</Button>}
-          {editor === 'edit' && hasPermission(user, 'tasks.update') && (
+          {task?.capabilities?.update && <Button variant="outline" onClick={() => { update.reset(); setEditor('edit'); }}>Edit task</Button>}
+          {editor === 'edit' && task?.capabilities?.update && (
             <FormDialog title="Edit task" description="Update the task details and status." pending={update.isPending} onClose={closeEditor}>
             <form key={detail.data.uuid} className="grid gap-2" onSubmit={(event) => saveTask(event, detail.data)}>
               <Input name="title" aria-label="Task title" defaultValue={detail.data.title} required maxLength={255} />
@@ -225,6 +254,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
                 <Input name="due_date" type="date" defaultValue={detail.data.due_date?.slice(0, 10) ?? ''} />
               </label>
               {update.isError && <p role="alert" className="text-sm text-destructive">{getSafeErrorMessage(update.error)}</p>}
+              <TaskPrioritySelect value={task?.priority} />
               <FormDialogActions pending={update.isPending} submitLabel="Save task" />
             </form>
             </FormDialog>
@@ -249,8 +279,8 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
             </FormDialog>
           )}
           {canAssign && members.isError && <p role="alert">Project members could not be loaded.</p>}
-          {canCreate && task && <Button variant="outline" onClick={() => { update.reset(); setEditor('subtask'); }}>Add subtask</Button>}
-          {editor === 'subtask' && canCreate && task && (
+          {task?.capabilities?.create_subtask && task && <Button variant="outline" onClick={() => { update.reset(); setEditor('subtask'); }}>Add subtask</Button>}
+          {editor === 'subtask' && task?.capabilities?.create_subtask && task && (
             <FormDialog title="Add subtask" description="Create a task under this task." pending={update.isPending} onClose={closeEditor}>
             <form key={task.uuid} className="grid gap-4" onSubmit={(event) => saveTask(event, undefined, task)}>
               <Input name="title" aria-label="Subtask title" placeholder="Subtask title" required maxLength={255} />
@@ -264,16 +294,27 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
               update.mutate({ path: `/tasks/${selectedTask}/assignees/${member.id}`, method: 'delete' })
             }>Unassign {member.name}</Button>
           ))}
-          {hasPermission(user, 'tasks.delete') && (
-            <Button variant="destructive" disabled={update.isPending} onClick={() => {
-              if (window.confirm('Delete this task?')) {
-                update.mutate({ path: `/tasks/${selectedTask}`, method: 'delete' }, { onSuccess: () => setSelectedTask(null) });
-              }
-            }}>Delete task</Button>
+          {task?.capabilities?.delete && <Button variant="destructive" onClick={() => { update.reset(); setDeleteOpen(true); }}>Delete task</Button>}
+          {deleteOpen && task?.capabilities?.delete && (
+            <ActionConfirmation title="Delete this task?" description="This task will be removed from the project and assigned work." action="Delete task"
+              pending={update.isPending} error={update.isError ? getSafeErrorMessage(update.error) : null}
+              onCancel={() => { update.reset(); setDeleteOpen(false); }}
+              onConfirm={() => update.mutate({ path: `/tasks/${task.uuid}`, method: 'delete' }, { onSuccess: () => { setDeleteOpen(false); setSelectedTask(null); } })} />
           )}
           <Button variant="outline" onClick={() => setSelectedTask(null)}>Close details</Button>
         </section>
       )}
     </section>
   );
+}
+
+const priorities = ['urgent', 'high', 'medium', 'low'] as const;
+
+function TaskPrioritySelect({ value = 'medium' }: { value?: string | undefined }) {
+  return <label className="grid gap-2 text-sm font-medium">
+    Priority
+    <NativeSelect name="priority" defaultValue={value}>
+      {priorities.map((priority) => <option className="capitalize" key={priority} value={priority}>{priority}</option>)}
+    </NativeSelect>
+  </label>;
 }

@@ -63,6 +63,24 @@ describe('session workspace appointments and habits', () => {
   });
 });
 
+describe('session workspace task actions', () => {
+  it('searches assigned work without dropping the assignee scope', async () => {
+    window.history.replaceState(null, '', '/my-work');
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: { data: [], meta: { current_page: 1, last_page: 1 } },
+    });
+
+    render(<AppProviders><Workspace user={user} frontendUrl="https://legacy.example" /></AppProviders>);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Search tasks' }), { target: { value: 'release' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by priority' }), { target: { value: 'high' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sort tasks' }), { target: { value: 'title:asc' } });
+
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/tasks', {
+      params: expect.objectContaining({ assignee: user.id, page: 1, search: 'release', priority: 'high', sort_by: 'title', sort_direction: 'asc' }),
+    }));
+  });
+});
+
 describe('session workspace notifications and activity', () => {
   it('loads the inbox and marks a notification as read', async () => {
     window.history.replaceState(null, '', '/notifications');
@@ -78,6 +96,9 @@ describe('session workspace notifications and activity', () => {
     expect(await screen.findByText('Project invitation')).toBeInTheDocument();
     expect(get).toHaveBeenCalledWith('/notifications', { params: { page: 1 } });
     expect(screen.getByRole('link', { name: 'Follow-up inbox' })).toHaveAttribute('href', '/notifications');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter inbox by read status' }), { target: { value: 'unread' } });
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/notifications', { params: { page: 1, status: 'unread' } }));
+    await screen.findByText('Project invitation');
     fireEvent.click(screen.getByRole('button', { name: 'Mark as read' }));
     await waitFor(() => expect(patch).toHaveBeenCalledWith('/notifications/notice-1/read'));
   });
@@ -105,6 +126,27 @@ describe('session workspace notifications and activity', () => {
 });
 
 describe('session workspace user administration', () => {
+  it('lets an authorized system administrator replace another user’s global role', async () => {
+    window.history.replaceState(null, '', '/users/43');
+    const adminRole = { id: 1, name: 'System Admin', slug: 'system-admin', description: null, is_system: true };
+    const memberRole = { id: 2, name: 'Member', slug: 'member', description: null, is_system: true };
+    const admin = { ...user, roles: [adminRole], permissions: ['users.view', 'users.update', 'users.invite'] };
+    const target = { ...user, id: 43, email: 'colleague@example.com' };
+    vi.spyOn(userApi, 'getUser').mockResolvedValue(target);
+    const update = vi.spyOn(userApi, 'updateUser').mockResolvedValue({ ...target, roles: [memberRole] });
+    vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { data: [memberRole] } });
+
+    render(<AppProviders><Workspace user={admin} frontendUrl="https://legacy.example" /></AppProviders>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit user details' }));
+    const roleSelect = await screen.findByRole('combobox', { name: 'Global role' });
+    expect(roleSelect).toHaveValue('');
+    fireEvent.change(roleSelect, { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save user details' }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith(43, expect.objectContaining({ role_id: 2 })));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
   it('loads the collaborative directory for a directory-only user', async () => {
     window.history.replaceState(null, '', '/users');
     const directory = vi.spyOn(userApi, 'listDirectory').mockResolvedValue({
@@ -181,7 +223,8 @@ describe('session workspace tasks', () => {
         page: 1,
         assignee,
         status: undefined,
-        ...(assignee ? { sort_by: 'due_date', sort_direction: 'asc' } : {}),
+        sort_by: assignee ? 'due_date' : 'created_at',
+        sort_direction: assignee ? 'asc' : 'desc',
       },
     });
     expect(screen.getByRole('link', { name: heading })).toHaveAttribute('href', path);

@@ -116,6 +116,24 @@ class TaskManagementTest extends TestCase
         $this->assertSame(1, $response->json('meta.total'));
     }
 
+    public function test_task_search_matches_title_and_description_without_widening_project_scope(): void
+    {
+        $titleMatch = Task::factory()->create(['project_id' => $this->project->id, 'title' => 'Release checklist']);
+        $descriptionMatch = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'title' => 'Deployment plan',
+            'description' => 'Prepare the release',
+        ]);
+        Task::factory()->create(['project_id' => $this->project->id, 'title' => 'Unrelated task', 'description' => null]);
+        Task::factory()->for(Project::factory(), 'project')->create(['title' => 'Release in another project']);
+
+        $this->getJson('/api/v1/tasks?search=release&sort_by=title&sort_direction=asc', $this->auth($this->member, 'member'))
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.uuid', $descriptionMatch->uuid)
+            ->assertJsonPath('data.1.uuid', $titleMatch->uuid);
+    }
+
     public function test_system_admin_can_list_all_tasks(): void
     {
         Task::factory()->create(['project_id' => $this->project->id, 'creator_id' => $this->owner->id]);

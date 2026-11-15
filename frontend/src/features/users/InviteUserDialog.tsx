@@ -1,7 +1,7 @@
 import { LoadingState } from '@/components/feedback/LoadingState';
 import { NativeSelect } from '@/components/ui/native-select';
 import { useState, type FormEvent } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert } from '@/components/ui/alert';
@@ -11,18 +11,13 @@ import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { getApiValidationErrors, getSafeErrorMessage } from '@/features/auth/auth-validation';
 import { apiClient } from '@/services/api/apiClient';
-import type { ApiSuccess } from '@/services/api/contracts';
-
-type InvitationRole = { id: number; name: string; slug: string };
+import { useInvitationRoles } from '@/features/users/user-queries';
+import { useAuth } from '@/features/auth/auth-hooks';
 
 export function InviteUserDialog() {
   const [open, setOpen] = useState(false);
-  const roles = useQuery({
-    queryKey: ['users', 'invitation-roles'],
-    queryFn: async () => (await apiClient.get<ApiSuccess<InvitationRole[]>>('/invitations/roles')).data.data,
-    enabled: open,
-    staleTime: 0,
-  });
+  const { user } = useAuth();
+  const roles = useInvitationRoles(open, user?.id);
   const invite = useMutation({
     mutationFn: ({ email, role_id }: { email: string; role_id: number }) =>
       apiClient.post('/invitations', { email, role_id }),

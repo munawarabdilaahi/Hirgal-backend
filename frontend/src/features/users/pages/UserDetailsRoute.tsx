@@ -1,3 +1,4 @@
+import { NativeSelect } from '@/components/ui/native-select';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState } from 'react';
@@ -27,7 +28,7 @@ import { getApiValidationErrors } from '@/features/auth/auth-validation';
 import { useAuth } from '@/features/auth/auth-hooks';
 import { hasGlobalRole, hasPermission } from '@/features/auth/permissions';
 import { userApi } from '@/services/api/userApi';
-import { userQueryKeys, useUserDetails } from '@/features/users/user-queries';
+import { userQueryKeys, useUserDetails, useInvitationRoles } from '@/features/users/user-queries';
 import type { ApiUser, UpdateUserRequest } from '@/services/api/contracts';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -103,6 +104,9 @@ export function UserDetailsRoute() {
     defaultValues: { name: '', email: '', timezone: '' },
   });
   const [editorOpen, setEditorOpen] = useState(false);
+  const [roleId, setRoleId] = useState('');
+  const canChangeRole = actorIsSystemAdmin && canUpdateUsers && auth.user?.id !== userId && hasPermission(auth.user, 'users.invite');
+  const roles = useInvitationRoles(editorOpen && canChangeRole, auth.user?.id);
   const [formError, setFormError] = useState<string | null>(null);
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
 
@@ -206,6 +210,7 @@ export function UserDetailsRoute() {
       name: parsed.data.name,
       email: parsed.data.email,
       timezone: parsed.data.timezone || null,
+      ...(canChangeRole && roles.isSuccess && roleId ? { role_id: Number(roleId) } : {}),
     };
     updateMutation.mutate(request);
   };
@@ -320,7 +325,7 @@ export function UserDetailsRoute() {
           </CardContent>
         </Card>
 
-        {canEditUser && <div><Button variant="outline" onClick={() => { reset({ name: person.name, email: person.email, timezone: person.timezone ?? '' }); setFormError(null); setServerFieldErrors({}); setEditorOpen(true); }}>Edit user details</Button></div>}
+        {canEditUser && <div><Button variant="outline" onClick={() => { reset({ name: person.name, email: person.email, timezone: person.timezone ?? '' }); setFormError(null); setServerFieldErrors({}); setRoleId(''); setEditorOpen(true); }}>Edit user details</Button></div>}
         {canEditUser && editorOpen && (
           <FormDialog title="Edit user details" description="Update the name, email, and time zone for this account." pending={updateMutation.isPending} onClose={() => setEditorOpen(false)} wide>
               {formError ? (
@@ -343,6 +348,18 @@ export function UserDetailsRoute() {
                 >
                   {(controlProps) => <Input {...controlProps} {...register('timezone')} />}
                 </FormField>
+                {canChangeRole && (
+                  <FormField label="Global role" htmlFor="user-role" error={serverFieldErrors.role_id} description="Choosing a role replaces this account’s current global roles.">
+                    {(props) => roles.isPending ? <LoadingState label="Loading roles" layout="control" /> : roles.isError ? (
+                      <Button type="button" variant="outline" onClick={() => void roles.refetch()}>Retry loading roles</Button>
+                    ) : (
+                      <NativeSelect {...props} className="w-full" value={roleId} onChange={(event) => setRoleId(event.target.value)}>
+                        <option value="">Keep current roles</option>
+                        {roles.data.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                      </NativeSelect>
+                    )}
+                  </FormField>
+                )}
                 <FormDialogActions pending={updateMutation.isPending} submitLabel="Save user details" />
               </form>
           </FormDialog>

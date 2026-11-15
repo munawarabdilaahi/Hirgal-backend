@@ -59,9 +59,10 @@ export function ProjectsRoute() {
   const [status, setStatus] = useState('');
   const [priority, setPriority] = useState('');
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<'default' | 'name' | 'due_date'>('default');
   const debouncedSearch = useDebouncedValue(search.trim());
   const searchIsSettled = search.trim() === debouncedSearch;
-  const query = useProjects({ page, per_page: 12, ...(debouncedSearch ? { search: debouncedSearch } : {}), ...(status ? { status: status as ProjectStatus } : {}), ...(priority ? { priority: priority as 'urgent' | 'high' | 'medium' | 'low' } : {}) }, searchIsSettled);
+  const query = useProjects({ page, per_page: 12, ...(sort === 'default' ? {} : { sort_by: sort, sort_direction: 'asc' }), ...(debouncedSearch ? { search: debouncedSearch } : {}), ...(status ? { status: status as ProjectStatus } : {}), ...(priority ? { priority: priority as 'urgent' | 'high' | 'medium' | 'low' } : {}) }, searchIsSettled);
   const projects = query.data?.data ?? [];
   return (
     <section aria-labelledby="projects-title" className="space-y-6">
@@ -70,8 +71,8 @@ export function ProjectsRoute() {
         {hasPermission(user, 'projects.create') ? <Button asChild><Link to="?editor=create"><Plus aria-hidden="true" className="size-4" />New project</Link></Button> : null}
       </PageHeader>
       <Card className="@container">
-        <CardContent className="grid gap-3 pt-6 @min-[25rem]:grid-cols-2 @min-[40rem]:grid-cols-[minmax(0,1fr)_12rem_12rem]">
-          <label className="relative min-w-0 @min-[25rem]:col-span-2 @min-[40rem]:col-span-1">
+        <CardContent className="grid gap-3 pt-6 @min-[25rem]:grid-cols-2 @min-[48rem]:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,10rem))]">
+          <label className="relative min-w-0 @min-[25rem]:col-span-2 @min-[48rem]:col-span-1">
             <span className="sr-only">Search projects</span>
             <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input className="pl-9" maxLength={100} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search projects" value={search} />
@@ -90,6 +91,9 @@ export function ProjectsRoute() {
               {(['urgent', 'high', 'medium', 'low'] as const).map((value) => <option key={value} value={value}>{value.charAt(0).toUpperCase() + value.slice(1)}</option>)}
             </NativeSelect>
           </label>
+          <NativeSelect aria-label="Sort projects" value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); setPage(1); }}>
+            <option value="default">Newest first</option><option value="name">Name A–Z</option><option value="due_date">Due date</option>
+          </NativeSelect>
         </CardContent>
       </Card>
       {query.isPending ? <LoadingState label="Loading projects" layout="cards" /> : query.isError ? <ErrorState description={errorMessage(query.error)} onRetry={() => void query.refetch()} title="Projects could not be loaded" /> : projects.length === 0 ? <EmptyState description="Projects you can access will appear here. Try a different search or create a project if you have permission." title="No projects found" /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{projects.map((project) => <ProjectCard key={project.uuid} project={project} />)}</div>}

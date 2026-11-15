@@ -81,6 +81,13 @@ class TaskService
             $query->where('priority', $filters['priority']);
         }
 
+        $search = trim($filters['search'] ?? '');
+        if ($search !== '') {
+            $query->where(fn ($matching) => $matching
+                ->whereLike('title', "%{$search}%")
+                ->orWhereLike('description', "%{$search}%"));
+        }
+
         $sortBy = $filters['sort_by'] ?? 'created_at';
         $sortDirection = $filters['sort_direction'] ?? 'desc';
         $perPage = (int) ($filters['per_page'] ?? 15);
