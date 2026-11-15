@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { BookingCreateDialog } from '@/features/appointments/AppointmentsRoute';
+import { TaskCreateDialog } from '@/features/tasks/TasksRoute';
 import { LoadingState } from '@/components/feedback/LoadingState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { PageHeader } from '@/components/layout/primitives';
@@ -22,6 +25,7 @@ export function DashboardRoute() {
 }
 
 export function Dashboard({ user, frontendUrl = '' }: { user: ApiUser; frontendUrl?: string }) {
+  const [editor, setEditor] = useState<'task' | 'booking' | null>(null);
   const canViewProjects = hasPermission(user, 'projects.view');
   const canViewTasks = hasPermission(user, 'tasks.view');
   const canViewAppointments = hasPermission(user, 'appointments.view');
@@ -102,11 +106,13 @@ export function Dashboard({ user, frontendUrl = '' }: { user: ApiUser; frontendU
         </div>
         {(canAddTask || canAddBooking) && (
           <div className="flex flex-wrap gap-2">
-            {canAddTask && <Button asChild className="h-8 text-xs" size="sm" variant="outline"><Link reloadDocument={Boolean(frontendUrl)} to="/tasks#new-task"><Plus aria-hidden="true" className="size-3.5" /> Add task</Link></Button>}
-            {canAddBooking && <Button asChild className="h-8 text-xs" size="sm"><Link reloadDocument={Boolean(frontendUrl)} to="/appointments?new=1#appointment-form"><Plus aria-hidden="true" className="size-3.5" /> Add booking</Link></Button>}
+            {canAddTask && <Button className="h-8 text-xs" size="sm" variant="outline" onClick={() => setEditor('task')}><Plus aria-hidden="true" className="size-3.5" /> Add task</Button>}
+            {canAddBooking && <Button className="h-8 text-xs" size="sm" onClick={() => setEditor('booking')}><Plus aria-hidden="true" className="size-3.5" /> Add booking</Button>}
           </div>
         )}
       </PageHeader>
+      {editor === 'task' && canAddTask && <TaskCreateDialog user={user} onClose={() => setEditor(null)} />}
+      {editor === 'booking' && canAddBooking && <BookingCreateDialog user={user} onClose={() => setEditor(null)} />}
 
       {metrics.length > 0 && (
         <section aria-label="Workspace overview" className="grid gap-3 min-[420px]:grid-cols-2 lg:grid-cols-4">

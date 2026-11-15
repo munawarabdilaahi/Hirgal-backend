@@ -61,7 +61,7 @@ describe('Team detail and form', () => {
     teamApi.addMember.mockResolvedValue({ ...member, id: 12, user: { ...team.leader, id: 8, name: 'Omar Ali' }, role: 'member' });
     renderWithProviders(<Routes><Route path="/teams/:teamUuid" element={<TeamDetailsRoute />} /></Routes>, '/teams/team-uuid');
     expect(await screen.findByRole('heading', { name: 'Platform team' })).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Add member' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
     await screen.findByRole('option', { name: /Omar Ali/ });
     fireEvent.change(screen.getByRole('combobox', { name: 'Select a person to add' }), { target: { value: '8' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
@@ -78,7 +78,7 @@ describe('Team detail and form', () => {
       meta: { current_page: page, last_page: 2, per_page: 100, total: 101 },
     }));
     renderWithProviders(<Routes><Route path="/teams/:teamUuid" element={<TeamDetailsRoute />} /></Routes>, '/teams/team-uuid');
-    await screen.findByRole('button', { name: 'Add member' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
     await waitFor(() => expect(teamApi.members).toHaveBeenCalledWith('team-uuid', 2));
     expect(screen.queryByRole('option', { name: /Omar Ali/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add member' })).toBeDisabled();
@@ -88,7 +88,7 @@ describe('Team detail and form', () => {
   it('shows a useful message when the backend rejects a member for project eligibility', async () => {
     teamApi.addMember.mockRejectedValueOnce({ status: 422 });
     renderWithProviders(<Routes><Route path="/teams/:teamUuid" element={<TeamDetailsRoute />} /></Routes>, '/teams/team-uuid');
-    await screen.findByRole('button', { name: 'Add member' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
     await screen.findByRole('option', { name: /Omar Ali/ });
     fireEvent.change(screen.getByRole('combobox', { name: 'Select a person to add' }), { target: { value: '8' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
@@ -151,7 +151,7 @@ describe('Team detail and form', () => {
     renderWithProviders(<Routes><Route path="/teams/:teamUuid" element={<TeamDetailsRoute />} /></Routes>, '/teams/team-uuid');
     await screen.findByRole('heading', { name: 'Platform team' });
     expect(screen.queryByRole('link', { name: 'Edit team' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add member' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Invite member' })).not.toBeInTheDocument();
   });
 
   it('recognizes a contextual team leader on a later roster page', async () => {
@@ -163,8 +163,8 @@ describe('Team detail and form', () => {
       meta: { current_page: page, last_page: 2, per_page: 100, total: 101 },
     }));
     renderWithProviders(<Routes><Route path="/teams/:teamUuid" element={<TeamDetailsRoute />} /></Routes>, '/teams/team-uuid');
-    expect(await screen.findByRole('link', { name: 'Edit team' })).toHaveAttribute('href', '/teams/team-uuid/edit');
-    expect(await screen.findByRole('button', { name: 'Add member' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Edit team' })).toHaveAttribute('href', '/teams/team-uuid?editor=edit');
+    expect(await screen.findByRole('button', { name: 'Invite member' })).toBeInTheDocument();
     expect(teamApi.members).toHaveBeenCalledWith('team-uuid', 2);
   });
 });

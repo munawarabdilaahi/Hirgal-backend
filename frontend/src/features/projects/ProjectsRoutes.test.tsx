@@ -109,6 +109,7 @@ describe('Project details and form', () => {
     teamApi.list.mockResolvedValue({ success: true, message: 'ok', data: [availableTeam], meta: { current_page: 1, last_page: 1, per_page: 12, total: 1 } });
     projectApi.allocateTeam.mockResolvedValue(availableTeam);
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+    fireEvent.click(await screen.findByRole('button', { name: 'Add team' }));
     await screen.findByText('No teams are allocated to this project.');
     await screen.findByRole('option', { name: 'Platform team' });
     fireEvent.change(screen.getByRole('combobox', { name: 'Select a team to allocate' }), { target: { value: 'team-uuid' } });
@@ -120,6 +121,7 @@ describe('Project details and form', () => {
     let resolveTeams: ((value: unknown) => void) | undefined;
     teamApi.list.mockImplementationOnce(() => new Promise((resolve) => { resolveTeams = resolve; }));
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+    fireEvent.click(await screen.findByRole('button', { name: 'Add team' }));
     expect(await screen.findByRole('status', { name: 'Loading available teams' })).toBeInTheDocument();
     resolveTeams?.({ success: true, message: 'ok', data: [], meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 } });
     expect(await screen.findByText('No available teams')).toBeInTheDocument();
@@ -128,6 +130,7 @@ describe('Project details and form', () => {
   it('shows a retryable error when accessible teams cannot be loaded', async () => {
     teamApi.list.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ success: true, message: 'ok', data: [], meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 } });
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+    fireEvent.click(await screen.findByRole('button', { name: 'Add team' }));
     expect(await screen.findByText('Available teams could not be loaded')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('No available teams')).toBeInTheDocument();
@@ -144,6 +147,7 @@ describe('Project details and form', () => {
     }));
     projectApi.allocateTeam.mockResolvedValue(firstTeam);
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+    fireEvent.click(await screen.findByRole('button', { name: 'Add team' }));
 
     const select = await screen.findByRole('combobox', { name: 'Select a team to allocate' });
     await screen.findByRole('option', { name: 'Platform team' });
@@ -173,6 +177,27 @@ describe('Project details and form', () => {
     expect(await screen.findByRole('heading', { name: 'Created project destination' })).toBeInTheDocument();
   });
 
+  it('keeps an edited draft when discarding is declined, then saves from the project list', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    projectApi.create.mockResolvedValue(project);
+    try {
+      renderWithProviders(<Routes><Route path="/projects" element={<ProjectsRoute />} /></Routes>, '/projects');
+      fireEvent.click(await screen.findByRole('link', { name: 'New project' }));
+      expect(await screen.findByRole('dialog', { name: 'Create project' })).toBeInTheDocument();
+      fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), { target: { value: 'Atlas rollout' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(confirm).toHaveBeenCalledOnce();
+      expect(screen.getByRole('textbox', { name: 'Project name' })).toHaveValue('Atlas rollout');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+      expect(projectApi.create).toHaveBeenCalledWith(expect.objectContaining({ name: 'Atlas rollout' }));
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
   it('preserves an archived project status when editing its metadata', async () => {
     const archivedProject = { ...project, status: 'archived' as const };
     projectApi.get.mockResolvedValueOnce(archivedProject);
@@ -190,7 +215,7 @@ describe('Project details and form', () => {
   it('renders role management only for authorized project leads and invalidates after adding a member', async () => {
     projectApi.addMember.mockResolvedValue({ ...projectMember, id: 19, user: { ...project.owner, id: 8, name: 'Omar Ali' }, role: 'member' });
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
-    expect(await screen.findByRole('button', { name: 'Add member' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
     await screen.findByRole('option', { name: /Omar Ali/ });
     fireEvent.change(screen.getByRole('combobox', { name: 'Select a person to add' }), { target: { value: '8' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add member' }));

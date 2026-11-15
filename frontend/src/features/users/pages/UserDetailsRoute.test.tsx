@@ -217,6 +217,7 @@ describe('UserDetailsRoute', () => {
     await screen.findByText('Sam Lee');
     expect(screen.queryByLabelText(/role/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/account status/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Edit user details' }));
     await user.clear(screen.getByLabelText(/^Name/));
     await user.type(screen.getByLabelText(/^Name/), updatedUser.name);
     await user.clear(screen.getByLabelText(/^Email address/));
@@ -237,6 +238,7 @@ describe('UserDetailsRoute', () => {
     const user = userEvent.setup();
     setup();
     await screen.findByText('Sam Lee');
+    await user.click(screen.getByRole('button', { name: 'Edit user details' }));
 
     await user.clear(screen.getByLabelText(/^Name/));
     await user.clear(screen.getByLabelText(/^Email address/));
@@ -255,6 +257,7 @@ describe('UserDetailsRoute', () => {
     }));
     const { queryClient } = setup();
     await screen.findByText('Sam Lee');
+    await user.click(screen.getByRole('button', { name: 'Edit user details' }));
     await user.click(screen.getByRole('button', { name: 'Save user details' }));
 
     expect(await screen.findByText('This email is already in use.')).toBeInTheDocument();
@@ -269,6 +272,7 @@ describe('UserDetailsRoute', () => {
     }));
     setup();
     await screen.findByText('Sam Lee');
+    await user.click(screen.getByRole('button', { name: 'Edit user details' }));
     await user.clear(screen.getByLabelText('Time zone'));
     await user.type(screen.getByLabelText('Time zone'), 'Mars/Olympus');
     await user.click(screen.getByRole('button', { name: 'Save user details' }));
@@ -285,6 +289,7 @@ describe('UserDetailsRoute', () => {
     }));
     setup();
     await screen.findByText('Sam Lee');
+    await user.click(screen.getByRole('button', { name: 'Edit user details' }));
     const saveButton = screen.getByRole('button', { name: 'Save user details' });
     await user.click(saveButton);
     expect(saveButton).toBeDisabled();
@@ -304,6 +309,7 @@ describe('UserDetailsRoute', () => {
     userApiMock.updateUser.mockRejectedValue(new ApiError('Request failed', status));
     setup();
     await screen.findByText('Sam Lee');
+    await user.click(screen.getByRole('button', { name: 'Edit user details' }));
     await user.click(screen.getByRole('button', { name: 'Save user details' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(message);

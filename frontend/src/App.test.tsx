@@ -346,6 +346,7 @@ describe('authentication routes', () => {
         <App />
       </AppProviders>,
     );
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit profile' }));
     fireEvent.change(await screen.findByLabelText(/^Name/), { target: { value: 'Amina Ali' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 

@@ -1,3 +1,4 @@
+import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { Badge } from '@/components/ui/badge';
@@ -5,7 +6,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
@@ -16,7 +17,7 @@ import { hasPermission } from '@/features/auth/permissions';
 import { getSafeErrorMessage } from '@/features/auth/auth-validation';
 import { apiClient } from '@/services/api/apiClient';
 import { projectApi } from '@/services/api/projectApi';
-import type { ApiPaginatedResponse, ApiSuccess } from '@/services/api/contracts';
+import type { ApiPaginatedResponse, ApiSuccess, ApiUser } from '@/services/api/contracts';
 
 export const statuses = {
   backlog: 'Backlog',
@@ -43,6 +44,14 @@ export interface Task {
 
 export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean }) {
   const { user } = useAuth();
+  return <TasksView assignedToMe={assignedToMe} user={user} />;
+}
+
+export function TaskCreateDialog({ user, onClose }: { user: ApiUser; onClose: () => void }) {
+  return <TasksView user={user} closeCreateDialog={onClose} />;
+}
+
+function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: ApiUser | null; assignedToMe?: boolean; closeCreateDialog?: () => void }) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
@@ -57,7 +66,7 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
     queryFn: async () => (await apiClient.get<ApiPaginatedResponse<Task>>('/tasks', {
       params: { page, assignee, status: status || undefined, ...(assignedToMe ? { sort_by: 'due_date', sort_direction: 'asc' } : {}) },
     })).data,
-    enabled: !assignedToMe || assignee !== undefined,
+    enabled: !closeCreateDialog && (!assignedToMe || assignee !== undefined),
   });
   const projects = useQuery({
     queryKey: ['projects', 'task-picker', project],
@@ -85,8 +94,15 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
     },
   });
 
-  const { hash } = useLocation();
-  const targetReady = hash === '#task-details' ? Boolean(detail.data) : hash === '#new-task' && canCreate;
+  const { hash, pathname, search } = useLocation();
+  const navigate = useNavigate();
+  const [editor, setEditor] = useState<"create" | "edit" | "subtask" | "assign" | null>(() => closeCreateDialog || hash === "#new-task" ? "create" : null);
+  const closeEditor = () => {
+    setEditor(null);
+    if (closeCreateDialog) { closeCreateDialog(); return; }
+    if (hash === '#new-task') void navigate({ pathname, search }, { replace: true });
+  };
+  const targetReady = hash === '#task-details' && Boolean(detail.data);
   useEffect(() => {
     if (targetReady) document.getElementById(hash.slice(1))?.scrollIntoView?.();
   }, [hash, targetReady]);
@@ -110,24 +126,16 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
       },
     }, {
       onSuccess: () => {
-        if (!task) form.reset();
+        form.reset();
+        closeEditor();
       },
     });
   }
 
-  return (
-    <section className="grid grid-cols-1 gap-5">
-      <PageHeader>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{assignedToMe ? 'My work' : 'Tasks'}</h1>
-          {assignedToMe && <p className="text-sm text-muted-foreground">Review and update tasks assigned to you.</p>}
-        </div>
-        <Button variant="outline" aria-pressed={board} onClick={() => setBoard(!board)}>Board view</Button>
-      </PageHeader>
-      {update.isError && <p role="alert">{getSafeErrorMessage(update.error)}</p>}
-      {!assignedToMe && canCreate && hasPermission(user, 'projects.view') && (
-        <form id="new-task" className="grid gap-3 rounded-lg border p-4" onSubmit={(event) => saveTask(event)}>
-          <h2 className="font-semibold">New task</h2>
+  const createTaskForm = editor === 'create' && !assignedToMe && canCreate && hasPermission(user, 'projects.view') && (
+        <FormDialog title="Create task" description="Choose a project and enter the task details." pending={update.isPending} onClose={closeEditor}>
+        <form className="grid gap-4" onSubmit={(event) => saveTask(event)}>
+          {update.isError && <p role="alert" className="text-sm text-destructive">{getSafeErrorMessage(update.error)}</p>}
           <Input aria-label="Search projects" placeholder="Search projects" value={project} onChange={(event) => setProject(event.target.value)} />
           {projects.isPending && <LoadingState label="Loading projects for this task" layout="inline" />}
           {projects.isError && <p role="alert">Projects could not be loaded.</p>}
@@ -136,9 +144,26 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
             {projects.data?.data.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
           </NativeSelect>
           <Input name="title" aria-label="New task title" placeholder="Task title" required maxLength={255} />
-          <Button type="submit" loading={update.isPending}>Create task</Button>
+          <FormDialogActions pending={update.isPending} submitLabel="Create task" />
         </form>
-      )}
+        </FormDialog>
+      );
+  if (closeCreateDialog) return createTaskForm;
+
+  return (
+    <section className="grid grid-cols-1 gap-5">
+      <PageHeader>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{assignedToMe ? 'My work' : 'Tasks'}</h1>
+          {assignedToMe && <p className="text-sm text-muted-foreground">Review and update tasks assigned to you.</p>}
+        </div>
+        <div className="flex flex-wrap gap-2">
+        {!assignedToMe && canCreate && hasPermission(user, 'projects.view') && <Button onClick={() => { update.reset(); setEditor('create'); }}>Add task</Button>}
+        <Button variant="outline" aria-pressed={board} onClick={() => setBoard(!board)}>Board view</Button>
+        </div>
+      </PageHeader>
+      {!editor && update.isError && <p role="alert">{getSafeErrorMessage(update.error)}</p>}
+      {createTaskForm}
       <label className="flex flex-wrap items-center gap-2">
         Status
         <NativeSelect value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
@@ -186,7 +211,9 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
           <p className="text-sm text-muted-foreground">Priority: {detail.data.priority} · {statuses[detail.data.status]}</p>
           {detail.data.parent?.title && <p>Parent task: {detail.data.parent.title}</p>}
           <p>Assignees: {detail.data.assignees.map((person) => person.name).join(', ') || 'Unassigned'}</p>
-          {hasPermission(user, 'tasks.update') && (
+          {hasPermission(user, 'tasks.update') && <Button variant="outline" onClick={() => { update.reset(); setEditor('edit'); }}>Edit task</Button>}
+          {editor === 'edit' && hasPermission(user, 'tasks.update') && (
+            <FormDialog title="Edit task" description="Update the task details and status." pending={update.isPending} onClose={closeEditor}>
             <form key={detail.data.uuid} className="grid gap-2" onSubmit={(event) => saveTask(event, detail.data)}>
               <Input name="title" aria-label="Task title" defaultValue={detail.data.title} required maxLength={255} />
               <Textarea name="description" aria-label="Task description" defaultValue={detail.data.description ?? ''} maxLength={10000} />
@@ -197,15 +224,18 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
                 Due date
                 <Input name="due_date" type="date" defaultValue={detail.data.due_date?.slice(0, 10) ?? ''} />
               </label>
-              <Button type="submit" loading={update.isPending}>Save task</Button>
+              {update.isError && <p role="alert" className="text-sm text-destructive">{getSafeErrorMessage(update.error)}</p>}
+              <FormDialogActions pending={update.isPending} submitLabel="Save task" />
             </form>
+            </FormDialog>
           )}
-          {canAssign && hasPermission(user, 'projects.view') && members.isPending && <LoadingState label="Loading project members" rows={1} />}
-          {canAssign && members.data && (
-            <form className="grid gap-2" onSubmit={(event) => {
+          {canAssign && hasPermission(user, 'projects.view') && <Button variant="outline" onClick={() => { update.reset(); setEditor('assign'); }}>Assign member</Button>}
+          {editor === 'assign' && canAssign && (
+            <FormDialog title="Assign member" description="Choose a member of the task’s project." pending={update.isPending} onClose={closeEditor}>
+            {members.isPending ? <LoadingState label="Loading project members" layout="control" /> : members.isError ? <ErrorState title="Could not load project members" description={getSafeErrorMessage(members.error)} onRetry={() => void members.refetch()} /> : members.data && <form className="grid gap-2" onSubmit={(event) => {
               event.preventDefault();
               const member = new FormData(event.currentTarget).get('member');
-              update.mutate({ path: `/tasks/${selectedTask}/assign`, method: 'post', body: { user_ids: [Number(member)] } });
+              update.mutate({ path: `/tasks/${selectedTask}/assign`, method: 'post', body: { user_ids: [Number(member)] } }, { onSuccess: () => setEditor(null) });
             }}>
               <NativeSelect name="member" aria-label="Project member" required>
                 <option value="">Choose a project member</option>
@@ -213,15 +243,21 @@ export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean })
                   .map(({ user: member }) => <option key={member.id} value={member.id}>{member.name}</option>)}
               </NativeSelect>
               <Pagination currentPage={memberPage} totalPages={members.data.meta.last_page} onPageChange={setMemberPage} />
-              <Button type="submit" disabled={update.isPending}>Assign member</Button>
-            </form>
+              {update.isError && <p role="alert" className="text-sm text-destructive">{getSafeErrorMessage(update.error)}</p>}
+              <FormDialogActions pending={update.isPending} submitLabel="Assign member" />
+            </form>}
+            </FormDialog>
           )}
           {canAssign && members.isError && <p role="alert">Project members could not be loaded.</p>}
-          {canCreate && task && (
-            <form key={task.uuid} className="flex flex-wrap gap-2" onSubmit={(event) => saveTask(event, undefined, task)}>
+          {canCreate && task && <Button variant="outline" onClick={() => { update.reset(); setEditor('subtask'); }}>Add subtask</Button>}
+          {editor === 'subtask' && canCreate && task && (
+            <FormDialog title="Add subtask" description="Create a task under this task." pending={update.isPending} onClose={closeEditor}>
+            <form key={task.uuid} className="grid gap-4" onSubmit={(event) => saveTask(event, undefined, task)}>
               <Input name="title" aria-label="Subtask title" placeholder="Subtask title" required maxLength={255} />
-              <Button type="submit" disabled={update.isPending}>Add subtask</Button>
+              {update.isError && <p role="alert" className="text-sm text-destructive">{getSafeErrorMessage(update.error)}</p>}
+              <FormDialogActions pending={update.isPending} submitLabel="Add subtask" />
             </form>
+            </FormDialog>
           )}
           {canAssign && task?.assignees.map((member) => (
             <Button key={member.id} variant="outline" disabled={update.isPending} onClick={() =>

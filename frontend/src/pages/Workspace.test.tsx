@@ -151,6 +151,7 @@ describe('session workspace user administration', () => {
     render(<AppProviders><Workspace user={admin} frontendUrl="https://legacy.example" /></AppProviders>);
 
     expect(await screen.findByRole('heading', { name: 'User details for Amina Hassan' }, { timeout: 5000 })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit user details' }));
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Amina Updated' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save user details' }));
     await waitFor(() => expect(update).toHaveBeenCalled());

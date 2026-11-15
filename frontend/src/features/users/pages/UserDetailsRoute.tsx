@@ -1,3 +1,4 @@
+import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -101,6 +102,7 @@ export function UserDetailsRoute() {
   } = useForm<EditableUserFields>({
     defaultValues: { name: '', email: '', timezone: '' },
   });
+  const [editorOpen, setEditorOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
 
@@ -116,6 +118,7 @@ export function UserDetailsRoute() {
       applyUpdatedUser(queryClient, updatedUser, auth.user?.id);
       setFormError(null);
       setServerFieldErrors({});
+      setEditorOpen(false);
       toast.success('User details updated.');
     },
     onError: (error: unknown) => {
@@ -317,22 +320,15 @@ export function UserDetailsRoute() {
           </CardContent>
         </Card>
 
-        {canEditUser ? (
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Edit user details</CardTitle>
-              <CardDescription>
-                Update the name, email, or time zone supported by the administrative endpoint. Global
-                role assignment is unavailable because the backend has no role-list endpoint.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+        {canEditUser && <div><Button variant="outline" onClick={() => { reset({ name: person.name, email: person.email, timezone: person.timezone ?? '' }); setFormError(null); setServerFieldErrors({}); setEditorOpen(true); }}>Edit user details</Button></div>}
+        {canEditUser && editorOpen && (
+          <FormDialog title="Edit user details" description="Update the name, email, and time zone for this account." pending={updateMutation.isPending} onClose={() => setEditorOpen(false)} wide>
               {formError ? (
                 <p className="mb-5 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
                   {formError}
                 </p>
               ) : null}
-              <form className="grid gap-5 md:grid-cols-3" noValidate onSubmit={handleSubmit(submitUserUpdate)}>
+              <form className="grid gap-5" noValidate onSubmit={handleSubmit(submitUserUpdate)}>
                 <FormField error={errors.name?.message ?? serverFieldErrors.name} htmlFor="user-name" label="Name" required>
                   {(controlProps) => <Input autoComplete="name" {...controlProps} {...register('name')} />}
                 </FormField>
@@ -347,15 +343,10 @@ export function UserDetailsRoute() {
                 >
                   {(controlProps) => <Input {...controlProps} {...register('timezone')} />}
                 </FormField>
-                <div className="flex justify-end md:col-span-3">
-                  <Button loading={updateMutation.isPending} type="submit">
-                    Save user details
-                  </Button>
-                </div>
+                <FormDialogActions pending={updateMutation.isPending} submitLabel="Save user details" />
               </form>
-            </CardContent>
-          </Card>
-        ) : null}
+          </FormDialog>
+        )}
       </div>
 
       <AccountActionConfirmation

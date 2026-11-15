@@ -1,6 +1,6 @@
+import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { PageHeader } from '@/components/layout/primitives';
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   changePasswordSchema,
   getApiValidationErrors,
@@ -18,6 +17,16 @@ import {
 import { authApi } from '@/services/api/authApi';
 
 export function ChangePasswordRoute() {
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <PageHeader title="Change password" eyebrow="Account security" description="Update your password using your current credentials." />
+      <ChangePasswordDialog initialOpen />
+    </div>
+  );
+}
+
+export function ChangePasswordDialog({ initialOpen = false }: { initialOpen?: boolean }) {
+  const [editorOpen, setEditorOpen] = useState(initialOpen);
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
@@ -49,6 +58,8 @@ export function ChangePasswordRoute() {
       setCurrentPassword('');
       setPassword('');
       setPasswordConfirmation('');
+      setLogoutOtherDevices(false);
+      setEditorOpen(false);
       toast.success('Your password has been updated.');
     } catch (error: unknown) {
       setFieldErrors(getApiValidationErrors(error));
@@ -59,22 +70,9 @@ export function ChangePasswordRoute() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader className="block space-y-2">
-        <p className="text-sm font-medium text-muted-foreground">Account security</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Change password</h1>
-        <p className="text-sm leading-6 text-muted-foreground">
-          Update your password using your current credentials.
-        </p>
-      </PageHeader>
-      <Card>
-        <CardHeader>
-          <CardTitle>Password</CardTitle>
-          <CardDescription>
-            Passwords must be at least 8 characters and differ from your current password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <>
+      <Button onClick={() => setEditorOpen(true)}>Change password</Button>
+      {editorOpen && <FormDialog title="Change password" description="Use at least 8 characters and choose a different password from your current one." pending={isSubmitting} onClose={() => { setCurrentPassword(''); setPassword(''); setPasswordConfirmation(''); setLogoutOtherDevices(false); setFormError(null); setFieldErrors({}); setEditorOpen(false); }}>
           {formError ? (
             <Alert className="mb-5" role="alert" variant="destructive">{formError}</Alert>
           ) : null}
@@ -135,15 +133,9 @@ export function ChangePasswordRoute() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Button asChild variant="outline">
-                <Link to="/profile">Cancel</Link>
-              </Button>
-              <Button loading={isSubmitting} type="submit">Update password</Button>
-            </div>
+            <FormDialogActions pending={isSubmitting} submitLabel="Update password" />
           </form>
-        </CardContent>
-      </Card>
-    </div>
+      </FormDialog>}
+    </>
   );
 }

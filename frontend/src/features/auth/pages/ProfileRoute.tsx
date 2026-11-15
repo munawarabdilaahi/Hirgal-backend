@@ -1,3 +1,5 @@
+import { ChangePasswordDialog } from '@/features/auth/pages/ChangePasswordRoute';
+import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { PageHeader } from '@/components/layout/primitives';
 import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -46,6 +48,7 @@ export function ProfileForm({ user, save }: {
     department: user?.profile?.department ?? '',
     bio: user?.profile?.bio ?? '',
   }));
+  const [editorOpen, setEditorOpen] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,6 +88,7 @@ export function ProfileForm({ user, save }: {
         department: updatedUser.profile?.department ?? '',
         bio: updatedUser.profile?.bio ?? '',
       });
+      setEditorOpen(false);
       toast.success('Your profile has been updated.');
     } catch (error: unknown) {
       setFieldErrors(getApiValidationErrors(error));
@@ -111,6 +115,16 @@ export function ProfileForm({ user, save }: {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="font-medium">{user.name}</p>
+              <p className="text-sm wrap-anywhere text-muted-foreground">{user.email}</p>
+            </div>
+            <Button variant="outline" onClick={() => { setFieldErrors({}); setFormError(null); setEditorOpen(true); }}>Edit profile</Button>
+          </div>
+        </CardContent>
+      </Card>
+      {editorOpen && <FormDialog title="Edit profile" description="Update your personal details." pending={isSubmitting} onClose={() => { setValues({ name: user.name, timezone: user.timezone, phone: user.profile?.phone ?? '', job_title: user.profile?.job_title ?? '', department: user.profile?.department ?? '', bio: user.profile?.bio ?? '' }); setEditorOpen(false); }} wide>
           {formError ? (
             <Alert className="mb-5" role="alert" variant="destructive">{formError}</Alert>
           ) : null}
@@ -186,12 +200,9 @@ export function ProfileForm({ user, save }: {
                 />
               )}
             </FormField>
-            <div className="flex justify-end sm:col-span-2">
-              <Button loading={isSubmitting} type="submit">Save changes</Button>
-            </div>
+            <div className="sm:col-span-2"><FormDialogActions pending={isSubmitting} submitLabel="Save changes" /></div>
           </form>
-        </CardContent>
-      </Card>
+      </FormDialog>}
       <Card>
         <CardHeader>
           <CardTitle>Password &amp; security</CardTitle>
@@ -200,9 +211,7 @@ export function ProfileForm({ user, save }: {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button asChild variant="outline">
-            <a href="/change-password">Change password</a>
-          </Button>
+          <ChangePasswordDialog />
         </CardContent>
       </Card>
     </div>

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DashboardRoute } from '@/features/auth/pages/DashboardRoute';
@@ -53,8 +53,8 @@ describe('DashboardRoute', () => {
     expect(screen.getByRole('link', { name: 'Manage profile' })).toHaveAttribute('href', '/profile');
     expect(screen.getByRole('link', { name: 'People & access' })).toHaveAttribute('href', '/users');
     expect(screen.queryByRole('region', { name: 'Workspace overview' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Add task' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Add booking' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add task' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add booking' })).not.toBeInTheDocument();
     expect(get).not.toHaveBeenCalled();
   });
 
@@ -95,8 +95,13 @@ describe('DashboardRoute', () => {
     expect(screen.queryByText('Closed task')).not.toBeInTheDocument();
     expect(await screen.findByText('Design review')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View appointment' })).toHaveAttribute('href', '/appointments?appointment=confirmed#appointment-details');
-    expect(screen.getByRole('link', { name: 'Add booking' })).toHaveAttribute('href', '/appointments?new=1#appointment-form');
-    expect(screen.getByRole('link', { name: 'Add task' })).toHaveAttribute('href', '/tasks#new-task');
+    expect(screen.getByRole('button', { name: 'Add booking' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add task' }));
+    expect(screen.getByRole('dialog', { name: 'Create task' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('heading', { name: 'Today’s Workspace Agenda' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add booking' }));
+    expect(screen.getByRole('dialog', { name: 'Schedule an appointment' })).toBeInTheDocument();
     expect(get).toHaveBeenCalledWith('/tasks', expect.objectContaining({ params: expect.objectContaining({ page: 2, assignee: baseUser.id }) }));
   });
 
