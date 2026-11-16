@@ -65,6 +65,36 @@ describe('session workspace appointments and habits', () => {
 });
 
 describe('session workspace task actions', () => {
+  it('opens task details from the list and restores focus when the drawer closes', async () => {
+    window.history.replaceState(null, '', '/tasks');
+    const task = {
+      uuid: 'release', title: 'Review release', description: 'Check the rollout plan.', status: 'todo',
+      priority: 'medium', project: { uuid: 'project', name: 'Platform' }, assignees: [],
+      capabilities: { update: true, delete: false, assign: false, create_subtask: false },
+    };
+    vi.spyOn(apiClient, 'get').mockImplementation(async (path) => ({
+      data: path === '/tasks/release'
+        ? { data: task }
+        : { data: [task], meta: { current_page: 1, last_page: 1 } },
+    }));
+    render(<AppProviders><Workspace user={user} frontendUrl="https://legacy.example" /></AppProviders>);
+    const trigger = await screen.findByRole('button', { name: 'Review release' });
+    fireEvent.click(trigger);
+    const drawer = await screen.findByRole('dialog', { name: 'Review release' });
+    expect(drawer).toHaveTextContent('Check the rollout plan.');
+    expect(window.location.search).toBe('?task=release');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit task' }));
+    expect(await screen.findByRole('dialog', { name: 'Edit task' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('dialog', { name: 'Review release' })).toBeInTheDocument();
+
+    fireEvent.keyDown(drawer, { key: 'Escape' });
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(window.location.search).toBe('');
+  });
+
   it('searches assigned work without dropping the assignee scope', async () => {
     window.history.replaceState(null, '', '/my-work');
     const get = vi.spyOn(apiClient, 'get').mockResolvedValue({
