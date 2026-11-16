@@ -33,6 +33,68 @@ class HabitApiTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_activity_counts_only_the_users_completed_check_ins_within_the_local_year(): void
+    {
+        $user = $this->userWithPermissions(['habits.manage']);
+        $user->update(['timezone' => 'Africa/Nairobi']);
+        $otherUser = $this->userWithPermissions(['habits.manage']);
+        $active = Habit::factory()->for($user)->create();
+        $archived = Habit::factory()->for($user)->create(['is_archived' => true]);
+        $otherHabit = Habit::factory()->for($otherUser)->create();
+        Carbon::setTestNow(Carbon::parse('2026-11-08 22:00:00', 'UTC'));
+
+        foreach ([
+            [$active, '2026-11-09', HabitLogStatus::Completed],
+            [$archived, '2026-11-09', HabitLogStatus::Completed],
+            [$active, '2026-11-08', HabitLogStatus::Skipped],
+            [$active, '2025-11-09', HabitLogStatus::Completed],
+            [$otherHabit, '2026-11-09', HabitLogStatus::Completed],
+        ] as [$habit, $date, $status]) {
+            HabitLog::factory()->for($habit)->create([
+                'user_id' => $habit->user_id,
+                'logged_date' => $date,
+                'status' => $status,
+            ]);
+        }
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/v1/habits/activity')
+            ->assertOk()
+            ->assertJsonPath('data.from', '2025-11-10')
+            ->assertJsonPath('data.through', '2026-11-09')
+            ->assertJsonPath('data.days', [['date' => '2026-11-09', 'completed' => 2]]);
+
+        $this->actingAs($this->userWithPermissions([]), 'sanctum')->getJson('/api/v1/habits/activity')->assertForbidden();
+    }
+
+    public function test_weekly_list_returns_scoped_search_results_and_check_in_availability(): void
+    {
+        $user = $this->userWithPermissions(['habits.manage']);
+        $habit = Habit::factory()->for($user)->create([
+            'title' => 'Read architecture notes',
+            'frequency' => HabitFrequency::Custom,
+            'target_days' => ['mon', 'wed'],
+            'created_at' => '2026-11-01 00:00:00',
+        ]);
+        Habit::factory()->for($user)->create(['title' => 'Run']);
+        Habit::factory()->create(['title' => $habit->title]);
+        HabitLog::factory()->for($habit)->create(['logged_date' => '2026-11-04', 'status' => HabitLogStatus::Completed]);
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/habits?search=architecture&week_start=2026-11-02')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonCount(7, 'data.0.week')
+            ->assertJsonPath('data.0.week.0.can_check_in', true)
+            ->assertJsonPath('data.0.week.1.is_scheduled', false)
+            ->assertJsonPath('data.0.week.2.log.status', 'completed');
+
+        $habit->update(['is_archived' => true]);
+        $this->getJson('/api/v1/habits?is_archived=1&week_start=2026-11-02')
+            ->assertOk()
+            ->assertJsonPath('data.0.week.2.can_check_in', false)
+            ->assertJsonPath('data.0.week.2.log.status', 'completed');
+    }
+
     public function test_invalid_legacy_profile_timezone_uses_utc(): void
     {
         $user = $this->userWithPermissions(['habits.manage']);

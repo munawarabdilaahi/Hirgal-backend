@@ -39,28 +39,26 @@ describe('session workspace appointments and habits', () => {
 
   it('opens the habits list and navigates to the new habit form', async () => {
     window.history.replaceState(null, '', '/habits');
+    const activity = vi.spyOn(habitApi, 'activity').mockResolvedValue({ from: '2025-11-15', through: '2026-11-14', days: [] });
     const list = vi.spyOn(habitApi, 'list').mockResolvedValue({
       success: true,
       message: 'ok',
       data: [],
       meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 },
     });
-    const overview = vi.spyOn(habitApi, 'dailyOverview').mockResolvedValue({
-      date: '2026-11-14', timezone: 'UTC', habits: [],
-    });
 
     render(<AppProviders><Workspace user={{ ...user, permissions: ['habits.manage'] }} frontendUrl="https://legacy.example" /></AppProviders>);
 
     expect(await screen.findByText('No habits found')).toBeInTheDocument();
     expect(list).toHaveBeenCalled();
-    expect(overview).toHaveBeenCalled();
+    expect(activity).toHaveBeenCalled();
     expect(screen.getByRole('link', { name: 'Habits' })).toHaveAttribute('href', '/habits');
     fireEvent.click(screen.getByRole('link', { name: 'New habit' }));
     expect(await screen.findByRole('dialog', { name: 'Create habit' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/habits');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Daily check-in' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Habit activity' })).toBeInTheDocument();
   });
 });
 

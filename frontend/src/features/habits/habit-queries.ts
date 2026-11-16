@@ -8,8 +8,13 @@ export const habitKeys = {
   list: (filters: HabitFilters) => [...habitKeys.lists(), filters] as const,
   detail: (uuid: string) => [...habitKeys.all, 'detail', uuid] as const,
   overview: (date: string) => [...habitKeys.all, 'overview', date] as const,
+  activity: (today: string) => [...habitKeys.all, 'activity', today] as const,
   logs: (uuid: string, filters: HabitLogFilters) => [...habitKeys.all, 'logs', uuid, filters] as const,
 };
+
+export function useHabitActivity(today: string) {
+  return useQuery({ queryKey: habitKeys.activity(today), queryFn: () => habitApi.activity() });
+}
 
 export function useHabits(filters: HabitFilters, enabled = true) {
   return useQuery({ queryKey: habitKeys.list(filters), queryFn: () => habitApi.list(filters), enabled });

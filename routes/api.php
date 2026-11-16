@@ -113,6 +113,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/', [HabitController::class, 'index'])->name('api.v1.habits.index');
             Route::post('/', [HabitController::class, 'store'])->name('api.v1.habits.store');
             Route::get('/daily-overview', [HabitController::class, 'dailyOverview'])->name('api.v1.habits.daily-overview');
+            Route::get('/activity', [HabitController::class, 'activity'])->name('api.v1.habits.activity');
             Route::get('/{uuid}', [HabitController::class, 'show'])->name('api.v1.habits.show');
             Route::put('/{uuid}', [HabitController::class, 'update'])->name('api.v1.habits.update');
             Route::delete('/{uuid}', [HabitController::class, 'destroy'])->name('api.v1.habits.destroy');

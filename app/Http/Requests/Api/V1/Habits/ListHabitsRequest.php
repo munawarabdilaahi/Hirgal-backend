@@ -27,6 +27,8 @@ class ListHabitsRequest extends FormRequest
         return [
             'is_archived' => ['nullable', 'boolean'],
             'frequency' => ['nullable', Rule::enum(HabitFrequency::class)],
+            'search' => ['nullable', 'string', 'max:100'],
+            'week_start' => ['nullable', 'date_format:Y-m-d'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];
     }
