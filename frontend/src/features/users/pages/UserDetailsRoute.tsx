@@ -1,4 +1,4 @@
-import { NativeSelect } from '@/components/ui/native-select';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState } from 'react';
@@ -353,10 +353,10 @@ export function UserDetailsRoute() {
                     {(props) => roles.isPending ? <LoadingState label="Loading roles" layout="control" /> : roles.isError ? (
                       <Button type="button" variant="outline" onClick={() => void roles.refetch()}>Retry loading roles</Button>
                     ) : (
-                      <NativeSelect {...props} className="w-full" value={roleId} onChange={(event) => setRoleId(event.target.value)}>
-                        <option value="">Keep current roles</option>
-                        {roles.data.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-                      </NativeSelect>
+                      <ChoiceSelect {...props} className="w-full" value={roleId} onValueChange={(nextValue) => setRoleId(nextValue)}>
+                        <ChoiceOption value="">Keep current roles</ChoiceOption>
+                        {roles.data.map((role) => <ChoiceOption key={role.id} value={role.id}>{role.name}</ChoiceOption>)}
+                      </ChoiceSelect>
                     )}
                   </FormField>
                 )}

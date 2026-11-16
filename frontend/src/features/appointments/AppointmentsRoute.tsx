@@ -1,3 +1,5 @@
+import { DateField } from '@/components/ui/date-field';
+import { DateTimeField } from '@/components/ui/date-time-field';
 import { ActionConfirmation } from '@/components/ui/action-confirmation';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -151,7 +153,7 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
           {!selected && (
             <>
               <label>Context
-                <ChoiceSelect className="ml-2" value={context} onValueChange={(nextValue) => { setContext(nextValue); setContextSearch(''); }}>
+                <ChoiceSelect aria-label="Context" value={context} onValueChange={(nextValue) => { setContext(nextValue); setContextSearch(''); }}>
                   <ChoiceOption value="personal">Personal</ChoiceOption>
                   {hasPermission(user, 'projects.view') && <ChoiceOption value="project">Project</ChoiceOption>}
                   {hasPermission(user, 'teams.view') && <ChoiceOption value="team">Team</ChoiceOption>}
@@ -175,8 +177,8 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
           <label>Title<Input name="title" defaultValue={appointment?.title} maxLength={255} required /></label>
           <label>Description<Input name="description" defaultValue={appointment?.description ?? ''} /></label>
           <label>Time zone<Input name="timezone" defaultValue={appointment?.timezone ?? 'UTC'} required /></label>
-          <label>Starts at<Input name="start_time" defaultValue={appointment && formatAppointmentTime(appointment.start_time, appointment.timezone)} placeholder="YYYY-MM-DDThh:mm:ssZ" required /></label>
-          <label>Ends at<Input name="end_time" defaultValue={appointment && formatAppointmentTime(appointment.end_time, appointment.timezone)} placeholder="YYYY-MM-DDThh:mm:ssZ" required /></label>
+          <DateTimeField label="Starts at" name="start_time" defaultValue={appointment && formatAppointmentTime(appointment.start_time, appointment.timezone)} />
+          <DateTimeField label="Ends at" name="end_time" defaultValue={appointment && formatAppointmentTime(appointment.end_time, appointment.timezone)} />
           <p className="text-sm text-muted-foreground">For local times, include the UTC offset for the chosen time zone. Use Z for UTC.</p>
           {mutation.isError && <p role="alert" className="text-sm text-destructive">{Object.values(getApiValidationErrors(mutation.error)).join(' ') || getSafeErrorMessage(mutation.error)}</p>}
           <FormDialogActions pending={mutation.isPending} submitLabel="Save appointment" />
@@ -209,8 +211,8 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
         setRange({ from, to });
         setPage(1);
       }}>
-        <label>From (UTC)<Input type="date" name="from" defaultValue={range.from} required /></label>
-        <label>Until (UTC)<Input type="date" name="to" defaultValue={range.to} required /></label>
+        <div className="grid gap-2"><label htmlFor="appointment-from">From (UTC)</label><DateField id="appointment-from" aria-label="From (UTC)" name="from" defaultValue={range.from} required /></div>
+        <div className="grid gap-2"><label htmlFor="appointment-to">Until (UTC)</label><DateField id="appointment-to" aria-label="Until (UTC)" name="to" defaultValue={range.to} required /></div>
         <label className="grid gap-2 text-sm font-medium">Status
           <ChoiceSelect value={status} onValueChange={(nextValue) => { setStatus(nextValue); setPage(1); }}>
             <ChoiceOption value="">All statuses</ChoiceOption>

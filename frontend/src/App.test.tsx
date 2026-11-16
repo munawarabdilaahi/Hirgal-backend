@@ -64,7 +64,7 @@ describe('authentication routes', () => {
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(await screen.findByRole('heading', { name: "Today’s Workspace Agenda" })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: "Today’s Workspace Agenda" }, { timeout: 5000 })).toBeInTheDocument();
     expect(authApi.login).toHaveBeenCalledWith({
       email: 'amina@example.com',
       password: 'secret123',

@@ -1,3 +1,4 @@
+import { chooseOption } from '@/test/choose-option';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
@@ -31,20 +32,17 @@ describe('DirectoryUserPicker', () => {
     const onSubmit = vi.fn();
     renderPicker(onSubmit);
     const select = await screen.findByRole('combobox', { name: 'Select a person' });
-    await screen.findByRole('option', { name: /Amina Hassan/ });
     expect(userApi.listDirectory).toHaveBeenNthCalledWith(1, { page: 1, per_page: 100 });
-    fireEvent.change(select, { target: { value: '101' } });
+    await chooseOption(select, /Amina Hassan/);
     fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }));
     expect(onSubmit).not.toHaveBeenCalled();
-    await screen.findByRole('option', { name: /Zahra Noor/ });
+    await waitFor(() => expect(select).toBeEnabled());
     expect(userApi.listDirectory).toHaveBeenNthCalledWith(2, { page: 2, per_page: 100 });
-    expect(select).toHaveValue('101');
-    expect(screen.getByRole('option', { name: /Amina Hassan/ })).toBeInTheDocument();
+    expect(select).toHaveTextContent('Amina Hassan');
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Search Select a person' }), { target: { value: 'Zahra' } });
     await waitFor(() => expect(userApi.listDirectory).toHaveBeenNthCalledWith(3, { page: 1, per_page: 100, search: 'Zahra' }));
-    expect(select).toHaveValue('101');
-    expect(screen.getByRole('option', { name: /Amina Hassan/ })).toBeInTheDocument();
+    expect(select).toHaveTextContent('Amina Hassan');
   });
 
   it('shows directory failures with a retry action', async () => {

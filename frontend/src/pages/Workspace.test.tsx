@@ -1,3 +1,4 @@
+import { chooseOption } from '@/test/choose-option';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppProviders } from '@/app/providers/AppProviders';
@@ -72,8 +73,8 @@ describe('session workspace task actions', () => {
 
     render(<AppProviders><Workspace user={user} frontendUrl="https://legacy.example" /></AppProviders>);
     fireEvent.change(await screen.findByRole('textbox', { name: 'Search tasks' }), { target: { value: 'release' } });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by priority' }), { target: { value: 'high' } });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Sort tasks' }), { target: { value: 'title:asc' } });
+    await chooseOption(screen.getByRole('combobox', { name: 'Filter by priority' }), 'high');
+    await chooseOption(screen.getByRole('combobox', { name: 'Sort tasks' }), 'Title A–Z');
 
     await waitFor(() => expect(get).toHaveBeenCalledWith('/tasks', {
       params: expect.objectContaining({ assignee: user.id, page: 1, search: 'release', priority: 'high', sort_by: 'title', sort_direction: 'asc' }),
@@ -96,7 +97,7 @@ describe('session workspace notifications and activity', () => {
     expect(await screen.findByText('Project invitation')).toBeInTheDocument();
     expect(get).toHaveBeenCalledWith('/notifications', { params: { page: 1 } });
     expect(screen.getByRole('link', { name: 'Follow-up inbox' })).toHaveAttribute('href', '/notifications');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter inbox by read status' }), { target: { value: 'unread' } });
+    await chooseOption(screen.getByRole('combobox', { name: 'Filter inbox by read status' }), 'Unread');
     await waitFor(() => expect(get).toHaveBeenCalledWith('/notifications', { params: { page: 1, status: 'unread' } }));
     await screen.findByText('Project invitation');
     fireEvent.click(screen.getByRole('button', { name: 'Mark as read' }));
@@ -139,8 +140,8 @@ describe('session workspace user administration', () => {
     render(<AppProviders><Workspace user={admin} frontendUrl="https://legacy.example" /></AppProviders>);
     fireEvent.click(await screen.findByRole('button', { name: 'Edit user details' }));
     const roleSelect = await screen.findByRole('combobox', { name: 'Global role' });
-    expect(roleSelect).toHaveValue('');
-    fireEvent.change(roleSelect, { target: { value: '2' } });
+    expect(roleSelect).toHaveTextContent('Keep current roles');
+    await chooseOption(roleSelect, 'Member');
     fireEvent.click(screen.getByRole('button', { name: 'Save user details' }));
 
     await waitFor(() => expect(update).toHaveBeenCalledWith(43, expect.objectContaining({ role_id: 2 })));
@@ -179,10 +180,9 @@ describe('session workspace user administration', () => {
     expect(await screen.findByRole('heading', { name: 'Users & access' })).toBeInTheDocument();
     await waitFor(() => expect(list).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: 'Invite user' }));
-    expect(await screen.findByRole('option', { name: 'Member' })).toBeInTheDocument();
     expect(roles).toHaveBeenCalledWith('/invitations/roles');
     fireEvent.change(screen.getByLabelText(/Email address/), { target: { value: 'new@example.test' } });
-    fireEvent.change(screen.getByLabelText(/System role/), { target: { value: '4' } });
+    await chooseOption(await screen.findByRole('combobox', { name: /System role/ }), 'Member');
     fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
     await waitFor(() => expect(invite).toHaveBeenCalledWith('/invitations', { email: 'new@example.test', role_id: 4 }));
   });

@@ -1,5 +1,6 @@
+import { DateField } from '@/components/ui/date-field';
 import { HabitFormDialog } from './HabitFormDialog';
-import { NativeSelect } from '@/components/ui/native-select';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -19,7 +20,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { LoadingState } from '@/components/feedback/LoadingState';
-import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { Progress } from '@/components/ui/progress';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -119,16 +119,8 @@ export function HabitsRoute() {
               >
                 <ChevronLeft aria-hidden="true" className="size-4" />
               </Button>
-              <Input
-                aria-label="Check-in date"
-                className="w-36"
-                max={today}
-                onChange={(event) => {
-                  if (event.target.value) setViewDate(event.target.value);
-                }}
-                type="date"
-                value={viewDate}
-              />
+              <DateField aria-label="Check-in date" calendarOnly className="w-36" max={today}
+                onValueChange={setViewDate} value={viewDate} />
               <Button
                 aria-label="Next day"
                 disabled={viewDate >= today}
@@ -168,34 +160,34 @@ export function HabitsRoute() {
         <CardContent className="grid gap-3 pt-6 sm:grid-cols-2">
           <label className="space-y-1 text-sm">
             <span className="sr-only">Filter by archive status</span>
-            <NativeSelect
+            <ChoiceSelect
               aria-label="Filter by archive status"
               className="w-full"
-              onChange={(event) => {
-                setArchived(event.target.value === 'archived');
+              onValueChange={(nextValue) => {
+                setArchived(nextValue === 'archived');
                 setPage(1);
               }}
               value={archived ? 'archived' : 'active'}
             >
-              <option value="active">Active habits</option>
-              <option value="archived">Archived habits</option>
-            </NativeSelect>
+              <ChoiceOption value="active">Active habits</ChoiceOption>
+              <ChoiceOption value="archived">Archived habits</ChoiceOption>
+            </ChoiceSelect>
           </label>
           <label className="space-y-1 text-sm">
             <span className="sr-only">Filter by frequency</span>
-            <NativeSelect
+            <ChoiceSelect
               aria-label="Filter by frequency"
               className="w-full"
-              onChange={(event) => {
-                setFrequency(event.target.value);
+              onValueChange={(nextValue) => {
+                setFrequency(nextValue);
                 setPage(1);
               }}
               value={frequency}
             >
-              <option value="">All frequencies</option>
-              <option value="daily">Daily</option>
-              <option value="custom">Custom days</option>
-            </NativeSelect>
+              <ChoiceOption value="">All frequencies</ChoiceOption>
+              <ChoiceOption value="daily">Daily</ChoiceOption>
+              <ChoiceOption value="custom">Custom days</ChoiceOption>
+            </ChoiceSelect>
           </label>
         </CardContent>
       </Card>

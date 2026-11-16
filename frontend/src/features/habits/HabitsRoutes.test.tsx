@@ -1,3 +1,4 @@
+import { chooseOption } from '@/test/choose-option';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -171,12 +172,8 @@ describe('HabitsRoute', () => {
   it('submits supported archive and frequency filters', async () => {
     renderWithProviders(<HabitsRoute />);
     await screen.findAllByRole('link', { name: 'Morning Meditation' });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by archive status' }), {
-      target: { value: 'archived' },
-    });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by frequency' }), {
-      target: { value: 'daily' },
-    });
+    await chooseOption(screen.getByRole('combobox', { name: 'Filter by archive status' }), 'Archived habits');
+    await chooseOption(screen.getByRole('combobox', { name: 'Filter by frequency' }), 'Daily');
     await waitFor(() =>
       expect(habitApi.list).toHaveBeenLastCalledWith({
         page: 1,
@@ -291,9 +288,7 @@ describe('HabitFormRoute', () => {
     fireEvent.change(document.querySelector('[name="title"]')!, {
       target: { value: 'Gym Workout' },
     });
-    fireEvent.change(document.querySelector('[name="frequency"]')!, {
-      target: { value: 'custom' },
-    });
+    await chooseOption(screen.getByRole('combobox', { name: 'Frequency' }), 'Custom days');
     fireEvent.click(screen.getByRole('button', { name: 'Create habit' }));
     expect(
       await screen.findByText('Custom habits require at least one weekday.'),
@@ -447,9 +442,7 @@ describe('HabitDetailsRoute', () => {
     );
     expect(await screen.findByText('2026-11-10')).toBeInTheDocument();
     expect(screen.getByText('Felt great')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter history by status' }), {
-      target: { value: 'completed' },
-    });
+    await chooseOption(screen.getByRole('combobox', { name: 'Filter history by status' }), 'Completed');
     await waitFor(() =>
       expect(habitApi.logs).toHaveBeenLastCalledWith(
         'habit-uuid',

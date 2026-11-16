@@ -1,3 +1,4 @@
+import { chooseOption } from '@/test/choose-option';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -114,9 +115,8 @@ describe('UsersRoute', () => {
     try {
       renderRoute(['users.view', 'users.invite']);
       fireEvent.click(screen.getByRole('button', { name: 'Invite user' }));
-      await screen.findByRole('option', { name: 'Member' });
       fireEvent.change(screen.getByLabelText(/Email address/), { target: { value: 'invitee@example.test' } });
-      fireEvent.change(screen.getByLabelText(/System role/), { target: { value: String(memberRole.id) } });
+      await chooseOption(await screen.findByRole('combobox', { name: /System role/ }), memberRole.name);
       fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

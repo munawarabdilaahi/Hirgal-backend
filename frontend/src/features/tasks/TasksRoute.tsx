@@ -1,3 +1,4 @@
+import { DateField } from '@/components/ui/date-field';
 import { ActionConfirmation } from '@/components/ui/action-confirmation';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { Textarea } from '@/components/ui/textarea';
@@ -162,7 +163,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
           <Input name="title" aria-label="New task title" placeholder="Task title" required maxLength={255} />
           <Textarea name="description" aria-label="Task description" maxLength={10000} />
           <TaskPrioritySelect />
-          <Input name="due_date" aria-label="Due date" type="date" />
+          <DateField name="due_date" aria-label="Due date" />
           <FormDialogActions pending={update.isPending} submitLabel="Create task" />
         </form>
         </FormDialog>
@@ -251,10 +252,10 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
               <ChoiceSelect aria-label="Task status" name="status" defaultValue={detail.data.status}>
                 {Object.entries(statuses).map(([value, label]) => <ChoiceOption key={value} value={value}>{label}</ChoiceOption>)}
               </ChoiceSelect>
-              <label className="grid gap-1 text-sm">
-                Due date
-                <Input name="due_date" type="date" defaultValue={detail.data.due_date?.slice(0, 10) ?? ''} />
-              </label>
+              <div className="grid gap-1 text-sm">
+                <label htmlFor="edit-task-due-date">Due date</label>
+                <DateField id="edit-task-due-date" name="due_date" aria-label="Due date" defaultValue={detail.data.due_date?.slice(0, 10) ?? ''} />
+              </div>
               {update.isError && <p role="alert" className="text-sm text-destructive">{getSafeErrorMessage(update.error)}</p>}
               <TaskPrioritySelect value={task?.priority} />
               <FormDialogActions pending={update.isPending} submitLabel="Save task" />
@@ -315,7 +316,7 @@ const priorities = ['urgent', 'high', 'medium', 'low'] as const;
 function TaskPrioritySelect({ value = 'medium' }: { value?: string | undefined }) {
   return <label className="grid gap-2 text-sm font-medium">
     Priority
-    <ChoiceSelect name="priority" defaultValue={value}>
+    <ChoiceSelect name="priority" aria-label="Priority" defaultValue={value}>
       {priorities.map((priority) => <ChoiceOption className="capitalize" key={priority} value={priority}>{priority}</ChoiceOption>)}
     </ChoiceSelect>
   </label>;

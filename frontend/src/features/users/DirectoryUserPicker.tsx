@@ -1,5 +1,5 @@
 import { LoadingState } from '@/components/feedback/LoadingState';
-import { NativeSelect } from '@/components/ui/native-select';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -40,10 +40,10 @@ export function DirectoryUserPicker({ ariaLabel, enabled, excludeIds = [], selec
     {!enabled ? <p className="text-sm text-muted-foreground" role="status">The people directory permission is required to select a person.</p> : null}
     {enabled && directoryQuery.isPending && searchIsSettled ? <LoadingState label="Loading people" layout="inline" /> : null}
     {!directoryQuery.isPending && !directoryQuery.isError && searchIsSettled && users.length === 0 ? <p className="text-sm text-muted-foreground" role="status">No people found. Try another search.</p> : null}
-    <NativeSelect aria-label={ariaLabel} className="w-full" disabled={!enabled || directoryQuery.isPending || directoryQuery.isError} onChange={(event) => onSelect(selectableUsers.find((user) => String(user.id) === event.target.value) ?? null)} value={selectedId}>
-      <option value="">Choose a person</option>
-      {selectableUsers.map((user) => <option key={user.id} value={user.id}>{user.name} · {user.email}</option>)}
-    </NativeSelect>
+    <ChoiceSelect aria-label={ariaLabel} className="w-full" disabled={!enabled || directoryQuery.isPending || directoryQuery.isError} onValueChange={(nextValue) => onSelect(selectableUsers.find((user) => String(user.id) === nextValue) ?? null)} value={selectedId}>
+      <ChoiceOption value="">Choose a person</ChoiceOption>
+      {selectableUsers.map((user) => <ChoiceOption key={user.id} value={user.id}>{user.name} · {user.email}</ChoiceOption>)}
+    </ChoiceSelect>
     {searchIsSettled && directoryQuery.data?.meta ? <Pagination currentPage={directoryQuery.data.meta.current_page} onPageChange={setPage} totalPages={directoryQuery.data.meta.last_page} /> : null}
   </div>;
 }

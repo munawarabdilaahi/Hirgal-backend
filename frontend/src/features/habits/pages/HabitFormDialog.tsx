@@ -1,7 +1,8 @@
-import { NativeSelect } from '@/components/ui/native-select';
+import { ColorField } from '@/components/ui/color-field';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { useEffect, useState, type ReactNode } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { LoadingState } from '@/components/feedback/LoadingState';
 import { Input } from '@/components/ui/input';
@@ -140,17 +141,20 @@ export function HabitFormDialog({ habitUuid, onClose, onSaved }: {
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field error={errors.frequency} label="Frequency">
-          <NativeSelect
-            className="w-full"
-            {...form.register('frequency')}
-          >
-            <option value="daily">Daily</option>
-            <option value="custom">Custom days</option>
-          </NativeSelect>
+          <Controller control={form.control} name="frequency" render={({ field }) => (
+            <ChoiceSelect aria-label="Frequency" name={field.name} value={field.value} onValueChange={field.onChange}>
+              <ChoiceOption value="daily">Daily</ChoiceOption>
+              <ChoiceOption value="custom">Custom days</ChoiceOption>
+            </ChoiceSelect>
+          )} />
         </Field>
-        <Field error={errors.color} label="Color">
-          <Input defaultValue="#3B82F6" type="color" {...form.register('color')} />
-        </Field>
+        <div className="space-y-1.5 text-sm font-medium">
+          <span>Color</span>
+          <Controller control={form.control} name="color" render={({ field }) => (
+            <ColorField name={field.name} value={field.value} onValueChange={field.onChange} />
+          )} />
+          {errors.color && <p className="text-xs text-destructive" role="alert">{errors.color}</p>}
+        </div>
       </div>
       {frequency === 'custom' ? (
         <div className="space-y-1.5">
