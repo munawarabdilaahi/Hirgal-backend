@@ -33,20 +33,20 @@ function PageHeader({ actions, children, className, description, eyebrow, title,
   return (
     <header className={cn('flex flex-wrap items-end justify-between gap-4 border-b pb-4', className)} {...props}>
       {children ?? <>
-      <div className="min-w-0">
+      <div className="min-w-0 space-y-2">
         {eyebrow ? (
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+          <p className="text-sm font-medium text-primary">
             {eyebrow}
           </p>
         ) : null}
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {description ? (
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
             {description}
           </p>
         ) : null}
       </div>
-      {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 flex-wrap gap-2">{actions}</div> : null}
       </>}
     </header>
   );

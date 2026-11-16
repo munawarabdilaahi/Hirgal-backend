@@ -53,15 +53,15 @@ export function LoadingState({ label = 'Loading', layout = 'list', rows, columns
               ))}
             </div>
           ) : layout === 'form' ? (
-            <div className="space-y-5 rounded-xl border bg-card p-6">
+            <div className="workspace-surface space-y-5 p-4 sm:p-6">
               {Array.from({ length: count }, (_, index) => (
                 <div className="space-y-2" key={index}><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
               ))}
               <Skeleton className="ml-auto h-10 w-28" />
             </div>
           ) : (
-            <div className="divide-y rounded-xl border bg-card">
-              {layout === 'table' && <div className="flex gap-4 rounded-t-xl bg-muted/40 px-4 py-3">
+            <div className="workspace-surface divide-y">
+              {layout === 'table' && <div className="flex gap-4 min-h-11 items-center rounded-t-xl bg-muted/40 px-4">
                 {Array.from({ length: columns }, (_, index) => <div className="min-w-0 flex-1" key={index}><Skeleton className="h-3 w-2/3 max-w-24" /></div>)}
               </div>}
               {Array.from({ length: count }, (_, row) => (

@@ -3,7 +3,7 @@ import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { Badge } from '@/components/ui/badge';
-import { NativeSelect } from '@/components/ui/native-select';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useDebouncedValue } from '@/features/users/use-debounced-value';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -155,10 +155,10 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
           <Input aria-label="Search projects" placeholder="Search projects" value={project} onChange={(event) => setProject(event.target.value)} />
           {projects.isPending && <LoadingState label="Loading projects for this task" layout="inline" />}
           {projects.isError && <p role="alert">Projects could not be loaded.</p>}
-          <NativeSelect name="project" aria-label="Project" required>
-            <option value="">Choose a project</option>
-            {projects.data?.data.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
-          </NativeSelect>
+          <ChoiceSelect name="project" aria-label="Project" required>
+            <ChoiceOption value="">Choose a project</ChoiceOption>
+            {projects.data?.data.map((item) => <ChoiceOption key={item.uuid} value={item.uuid}>{item.name}</ChoiceOption>)}
+          </ChoiceSelect>
           <Input name="title" aria-label="New task title" placeholder="Task title" required maxLength={255} />
           <Textarea name="description" aria-label="Task description" maxLength={10000} />
           <TaskPrioritySelect />
@@ -172,9 +172,9 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
   return (
     <section className="grid grid-cols-1 gap-5">
       <PageHeader>
-        <div>
+        <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">{assignedToMe ? 'My work' : 'Tasks'}</h1>
-          {assignedToMe && <p className="text-sm text-muted-foreground">Review and update tasks assigned to you.</p>}
+          {assignedToMe && <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Review and update tasks assigned to you.</p>}
         </div>
         <div className="flex flex-wrap gap-2">
         {!assignedToMe && canCreate && hasPermission(user, 'projects.view') && <Button onClick={() => { update.reset(); setEditor('create'); }}>Add task</Button>}
@@ -183,22 +183,24 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
       </PageHeader>
       {!editor && update.isError && <p role="alert">{getSafeErrorMessage(update.error)}</p>}
       {createTaskForm}
-      <div className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Input aria-label="Search tasks" placeholder="Search tasks" maxLength={100} value={taskSearch} onChange={(event) => { setTaskSearch(event.target.value); setPage(1); }} />
-        <label className="sr-only" htmlFor="task-status-filter">Status</label>
-        <NativeSelect id="task-status-filter" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
-          <option value="">All statuses</option>
-          {Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </NativeSelect>
-        <NativeSelect aria-label="Filter by priority" value={priority} onChange={(event) => { setPriority(event.target.value); setPage(1); }}>
-          <option value="">All priorities</option>
-          {priorities.map((value) => <option className="capitalize" key={value} value={value}>{value}</option>)}
-        </NativeSelect>
-        <NativeSelect aria-label="Sort tasks" value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
-          <option value="created_at:desc">Newest first</option>
-          <option value="due_date:asc">Due date</option>
-          <option value="title:asc">Title A–Z</option>
-        </NativeSelect>
+      <div className="workspace-filters @container">
+        <div className="grid gap-3 @min-[25rem]:grid-cols-2 @min-[48rem]:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,10rem))]">
+          <Input className="@min-[25rem]:col-span-2 @min-[48rem]:col-span-1" aria-label="Search tasks" placeholder="Search tasks" maxLength={100} value={taskSearch} onChange={(event) => { setTaskSearch(event.target.value); setPage(1); }} />
+          <label className="sr-only" htmlFor="task-status-filter">Status</label>
+          <ChoiceSelect id="task-status-filter" value={status} onValueChange={(nextValue) => { setStatus(nextValue); setPage(1); }}>
+            <ChoiceOption value="">All statuses</ChoiceOption>
+            {Object.entries(statuses).map(([value, label]) => <ChoiceOption key={value} value={value}>{label}</ChoiceOption>)}
+          </ChoiceSelect>
+          <ChoiceSelect aria-label="Filter by priority" value={priority} onValueChange={(nextValue) => { setPriority(nextValue); setPage(1); }}>
+            <ChoiceOption value="">All priorities</ChoiceOption>
+            {priorities.map((value) => <ChoiceOption className="capitalize" key={value} value={value}>{value}</ChoiceOption>)}
+          </ChoiceSelect>
+          <ChoiceSelect aria-label="Sort tasks" value={sort} onValueChange={(nextValue) => { setSort(nextValue); setPage(1); }}>
+            <ChoiceOption value="created_at:desc">Newest first</ChoiceOption>
+            <ChoiceOption value="due_date:asc">Due date</ChoiceOption>
+            <ChoiceOption value="title:asc">Title A–Z</ChoiceOption>
+          </ChoiceSelect>
+        </div>
       </div>
       {tasks.isPending && <LoadingState label="Loading tasks" layout={board ? "board" : "list"} />}
       {tasks.isError && <ErrorState title="Could not load tasks" description={getSafeErrorMessage(tasks.error)} onRetry={() => void tasks.refetch()} />}
@@ -217,7 +219,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
                 </section>
               ))}
             </div>
-          ) : <ul className="divide-y rounded-xl border bg-card empty:hidden">
+          ) : <ul className="workspace-surface divide-y empty:hidden">
             {tasks.data.data.map((task) => (
               <li key={task.uuid} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                 <Button className="h-auto max-w-full justify-start text-left whitespace-normal wrap-anywhere" variant="ghost" onClick={() => { setSelectedTask(task.uuid); setMemberPage(1); update.reset(); }}>{task.title}</Button>
@@ -246,9 +248,9 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
             <form key={detail.data.uuid} className="grid gap-2" onSubmit={(event) => saveTask(event, detail.data)}>
               <Input name="title" aria-label="Task title" defaultValue={detail.data.title} required maxLength={255} />
               <Textarea name="description" aria-label="Task description" defaultValue={detail.data.description ?? ''} maxLength={10000} />
-              <NativeSelect aria-label="Task status" name="status" defaultValue={detail.data.status}>
-                {Object.entries(statuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </NativeSelect>
+              <ChoiceSelect aria-label="Task status" name="status" defaultValue={detail.data.status}>
+                {Object.entries(statuses).map(([value, label]) => <ChoiceOption key={value} value={value}>{label}</ChoiceOption>)}
+              </ChoiceSelect>
               <label className="grid gap-1 text-sm">
                 Due date
                 <Input name="due_date" type="date" defaultValue={detail.data.due_date?.slice(0, 10) ?? ''} />
@@ -267,11 +269,11 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
               const member = new FormData(event.currentTarget).get('member');
               update.mutate({ path: `/tasks/${selectedTask}/assign`, method: 'post', body: { user_ids: [Number(member)] } }, { onSuccess: () => setEditor(null) });
             }}>
-              <NativeSelect name="member" aria-label="Project member" required>
-                <option value="">Choose a project member</option>
+              <ChoiceSelect name="member" aria-label="Project member" required>
+                <ChoiceOption value="">Choose a project member</ChoiceOption>
                 {members.data.data.filter(({ user: member }) => !task?.assignees.some((person) => person.id === member.id))
-                  .map(({ user: member }) => <option key={member.id} value={member.id}>{member.name}</option>)}
-              </NativeSelect>
+                  .map(({ user: member }) => <ChoiceOption key={member.id} value={member.id}>{member.name}</ChoiceOption>)}
+              </ChoiceSelect>
               <Pagination currentPage={memberPage} totalPages={members.data.meta.last_page} onPageChange={setMemberPage} />
               {update.isError && <p role="alert" className="text-sm text-destructive">{getSafeErrorMessage(update.error)}</p>}
               <FormDialogActions pending={update.isPending} submitLabel="Assign member" />
@@ -313,8 +315,8 @@ const priorities = ['urgent', 'high', 'medium', 'low'] as const;
 function TaskPrioritySelect({ value = 'medium' }: { value?: string | undefined }) {
   return <label className="grid gap-2 text-sm font-medium">
     Priority
-    <NativeSelect name="priority" defaultValue={value}>
-      {priorities.map((priority) => <option className="capitalize" key={priority} value={priority}>{priority}</option>)}
-    </NativeSelect>
+    <ChoiceSelect name="priority" defaultValue={value}>
+      {priorities.map((priority) => <ChoiceOption className="capitalize" key={priority} value={priority}>{priority}</ChoiceOption>)}
+    </ChoiceSelect>
   </label>;
 }

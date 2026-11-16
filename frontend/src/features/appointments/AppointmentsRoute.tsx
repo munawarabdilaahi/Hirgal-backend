@@ -2,7 +2,7 @@ import { ActionConfirmation } from '@/components/ui/action-confirmation';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { NativeSelect } from '@/components/ui/native-select';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -151,21 +151,21 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
           {!selected && (
             <>
               <label>Context
-                <NativeSelect className="ml-2" value={context} onChange={(event) => { setContext(event.target.value); setContextSearch(''); }}>
-                  <option value="personal">Personal</option>
-                  {hasPermission(user, 'projects.view') && <option value="project">Project</option>}
-                  {hasPermission(user, 'teams.view') && <option value="team">Team</option>}
-                </NativeSelect>
+                <ChoiceSelect className="ml-2" value={context} onValueChange={(nextValue) => { setContext(nextValue); setContextSearch(''); }}>
+                  <ChoiceOption value="personal">Personal</ChoiceOption>
+                  {hasPermission(user, 'projects.view') && <ChoiceOption value="project">Project</ChoiceOption>}
+                  {hasPermission(user, 'teams.view') && <ChoiceOption value="team">Team</ChoiceOption>}
+                </ChoiceSelect>
               </label>
               {context !== 'personal' && (
                 <>
                   <Input aria-label={`Search ${context}s`} placeholder={`Search ${context}s`} value={contextSearch} onChange={(event) => setContextSearch(event.target.value)} />
-                  <NativeSelect key={context} name={`${context}_uuid`} aria-label={`Choose ${context}`} required>
-                    <option value="">Choose {context}</option>
+                  <ChoiceSelect key={context} name={`${context}_uuid`} aria-label={`Choose ${context}`} required>
+                    <ChoiceOption value="">Choose {context}</ChoiceOption>
                     {(context === 'project' ? projects.data : teams.data)?.data.map((item) => (
-                      <option key={item.uuid} value={item.uuid}>{item.name}</option>
+                      <ChoiceOption key={item.uuid} value={item.uuid}>{item.name}</ChoiceOption>
                     ))}
-                  </NativeSelect>
+                  </ChoiceSelect>
                   {(context === 'project' ? projects.isPending : teams.isPending) && <LoadingState label={`Loading ${context}s`} layout="inline" />}
                   {(context === 'project' ? projects.isError : teams.isError) && <p role="alert">The available contexts could not be loaded.</p>}
                 </>
@@ -195,7 +195,7 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
       </PageHeader>
       {conflict && <p role="status">Saved with a scheduling conflict. Review participant availability.</p>}
       {!editing && !inviteOpen && !confirmation && mutation.isError && <p role="alert">{Object.values(getApiValidationErrors(mutation.error)).join(' ') || getSafeErrorMessage(mutation.error)}</p>}
-      <form className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4" onSubmit={(event) => {
+      <form className="workspace-filters flex flex-wrap items-end gap-3" onSubmit={(event) => {
         event.preventDefault();
         const fields = new FormData(event.currentTarget);
         const from = String(fields.get('from'));
@@ -212,11 +212,11 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
         <label>From (UTC)<Input type="date" name="from" defaultValue={range.from} required /></label>
         <label>Until (UTC)<Input type="date" name="to" defaultValue={range.to} required /></label>
         <label className="grid gap-2 text-sm font-medium">Status
-          <NativeSelect value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
-            <option value="">All statuses</option>
-            <option value="scheduled">Scheduled</option><option value="confirmed">Confirmed</option>
-            <option value="completed">Completed</option><option value="cancelled">Cancelled</option>
-          </NativeSelect>
+          <ChoiceSelect value={status} onValueChange={(nextValue) => { setStatus(nextValue); setPage(1); }}>
+            <ChoiceOption value="">All statuses</ChoiceOption>
+            <ChoiceOption value="scheduled">Scheduled</ChoiceOption><ChoiceOption value="confirmed">Confirmed</ChoiceOption>
+            <ChoiceOption value="completed">Completed</ChoiceOption><ChoiceOption value="cancelled">Cancelled</ChoiceOption>
+          </ChoiceSelect>
         </label>
         <Button type="submit" variant="outline">Show date range</Button>
       </form>
@@ -226,7 +226,7 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
       {appointments.data && (
         <>
           {appointments.data.data.length === 0 && <EmptyState title="No appointments in this range." />}
-          <ul className="divide-y rounded-xl border bg-card empty:hidden">
+          <ul className="workspace-surface divide-y empty:hidden">
             {appointments.data.data.map((item) => (
               <li key={item.uuid} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                 <Button className="h-auto max-w-full justify-start text-left whitespace-normal wrap-anywhere" variant="ghost" onClick={() => { setSelected(item.uuid); setInvitee(null); setEditing(false); mutation.reset(); }}>{item.title}</Button>

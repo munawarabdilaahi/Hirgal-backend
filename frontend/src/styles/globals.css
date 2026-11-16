@@ -33,6 +33,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-scrim: var(--scrim);
   --font-sans: var(--font-sans-token);
   --font-mono: var(--font-mono-token);
   --text-display: 2.5rem;
@@ -91,6 +92,7 @@
   --border: oklch(0.9 0.012 255);
   --input: oklch(0.89 0.014 255);
   --ring: oklch(0.53 0.12 255);
+  --scrim: oklch(0.18 0.025 255 / 42%);
 
   color-scheme: light;
 }
@@ -126,8 +128,17 @@
   --border: oklch(1 0 0 / 11%);
   --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.67 0.1 250);
+  --scrim: oklch(0.1 0.018 255 / 72%);
 
   color-scheme: dark;
+}
+
+@utility workspace-surface {
+  @apply rounded-xl border bg-card text-card-foreground shadow-card;
+}
+
+@utility workspace-filters {
+  @apply workspace-surface p-4 sm:p-6;
 }
 
 @layer base {

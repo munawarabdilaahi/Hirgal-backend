@@ -117,7 +117,7 @@ export function Dashboard({ user, frontendUrl = '' }: { user: ApiUser; frontendU
       {metrics.length > 0 && (
         <section aria-label="Workspace overview" className="grid gap-3 min-[420px]:grid-cols-2 lg:grid-cols-4">
           {metrics.map(({ title, description, value, pending, icon: Icon, color }) => (
-            <div className="min-w-0 rounded-xl border bg-card p-4" key={title}>
+            <div className="workspace-surface min-w-0 p-4" key={title}>
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm text-muted-foreground">{title}</h2>
                 <Icon aria-hidden="true" className={`size-4 shrink-0 ${color}`} />
@@ -141,7 +141,7 @@ export function Dashboard({ user, frontendUrl = '' }: { user: ApiUser; frontendU
           {appointments.isError ? <ErrorState description={getSafeErrorMessage(appointments.error)} title="Could not load appointments" onRetry={() => void appointments.refetch()} /> : appointments.isPending ? (
             <LoadingState label="Loading appointments" rows={1} rowClassName="min-h-27" />
           ) : nextAppointment ? (
-            <div className="flex min-h-27 flex-wrap items-center gap-4 rounded-xl border bg-card p-4">
+            <div className="workspace-surface flex min-h-27 flex-wrap items-center gap-4 p-4">
               <span className="rounded-lg bg-muted p-2.5 text-primary"><CalendarDays aria-hidden="true" className="size-5" /></span>
               <div className="min-w-0 flex-1 break-words">
                 <p className="font-medium">{nextAppointment.title}</p>
@@ -168,7 +168,7 @@ export function Dashboard({ user, frontendUrl = '' }: { user: ApiUser; frontendU
           {tasks.isError ? <ErrorState description={getSafeErrorMessage(tasks.error)} title="Could not load assigned tasks" onRetry={() => void tasks.refetch()} /> : tasks.isPending ? (
             <LoadingState label="Loading assigned tasks" rows={3} />
           ) : actionTasks?.length ? (
-            <ul className="divide-y rounded-xl border bg-card shadow-xs">
+            <ul className="workspace-surface divide-y">
               {actionTasks.map((task) => {
                 const overdue = isOverdue(task);
                 const dueDate = task.due_date?.slice(0, 10);

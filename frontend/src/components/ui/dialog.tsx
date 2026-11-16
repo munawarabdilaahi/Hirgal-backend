@@ -13,7 +13,7 @@ const DialogOverlay = ({
 }: React.ComponentProps<typeof DialogPrimitive.Overlay>) => (
   <DialogPrimitive.Overlay
     className={cn(
-      'fixed inset-0 z-40 bg-foreground/30 backdrop-blur-[2px] transition-opacity duration-150 data-[state=open]:opacity-100 data-[state=closed]:opacity-0',
+      'fixed inset-0 z-40 bg-scrim backdrop-blur-[2px] transition-opacity duration-150 data-[state=open]:opacity-100 data-[state=closed]:opacity-0',
       className,
     )}
     {...props}
@@ -30,7 +30,7 @@ const DialogContent = ({
     <DialogOverlay />
     <DialogPrimitive.Content
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 grid max-h-[min(90svh,48rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl border bg-popover p-6 text-popover-foreground shadow-popover outline-none transition-opacity duration-150 data-[state=open]:opacity-100 data-[state=closed]:opacity-0',
+        'fixed left-1/2 top-1/2 z-50 grid max-h-[min(90svh,48rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-popover p-6 text-popover-foreground shadow-popover outline-none transition-opacity duration-150 data-[state=open]:opacity-100 data-[state=closed]:opacity-0',
         className,
       )}
       {...props}
@@ -47,7 +47,7 @@ const DialogContent = ({
 );
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('flex flex-col gap-1.5 text-left', className)} {...props} />
+  <div className={cn('flex flex-col gap-1.5 pr-8 text-left', className)} {...props} />
 );
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

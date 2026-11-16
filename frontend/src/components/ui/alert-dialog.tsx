@@ -11,7 +11,7 @@ const AlertDialogOverlay = ({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) => (
   <AlertDialogPrimitive.Overlay
     className={cn(
-      'fixed inset-0 z-40 bg-foreground/30 backdrop-blur-[2px] transition-opacity duration-150 data-[state=open]:opacity-100 data-[state=closed]:opacity-0',
+      'fixed inset-0 z-40 bg-scrim backdrop-blur-[2px] transition-opacity duration-150 data-[state=open]:opacity-100 data-[state=closed]:opacity-0',
       className,
     )}
     {...props}
@@ -26,7 +26,7 @@ const AlertDialogContent = ({
     <AlertDialogOverlay />
     <AlertDialogPrimitive.Content
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border bg-popover p-6 text-popover-foreground shadow-popover outline-none',
+        'fixed left-1/2 top-1/2 z-50 grid max-h-[min(90svh,48rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-popover p-4 sm:p-6 text-popover-foreground shadow-popover outline-none',
         className,
       )}
       {...props}

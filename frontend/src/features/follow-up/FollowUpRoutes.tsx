@@ -1,4 +1,4 @@
-import { NativeSelect } from '@/components/ui/native-select';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { Link } from 'react-router-dom';
@@ -63,10 +63,10 @@ export function NotificationsRoute() {
           )}
         </div>
       </PageHeader>
-      <div className="rounded-xl border bg-card p-4">
-        <NativeSelect aria-label="Filter inbox by read status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
-          <option value="">All notifications</option><option value="unread">Unread</option><option value="read">Read</option>
-        </NativeSelect>
+      <div className="workspace-filters">
+        <ChoiceSelect aria-label="Filter inbox by read status" value={status} onValueChange={(nextValue) => { setStatus(nextValue); setPage(1); }}>
+          <ChoiceOption value="">All notifications</ChoiceOption><ChoiceOption value="unread">Unread</ChoiceOption><ChoiceOption value="read">Read</ChoiceOption>
+        </ChoiceSelect>
       </div>
       {unread.isError && <ErrorState title="Unread count unavailable" description="You can still read individual notifications." onRetry={() => void unread.refetch()} />}
       {markRead.isError && <p role="alert">Could not update the inbox. Try again.</p>}
@@ -75,7 +75,7 @@ export function NotificationsRoute() {
       {notifications.data && (
         <>
           {notifications.data.data.length === 0 && <EmptyState title="No notifications on this page." />}
-          <ul className="divide-y rounded-xl border bg-card empty:hidden">
+          <ul className="workspace-surface divide-y empty:hidden">
             {notifications.data.data.map((item) => (
               <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div>
@@ -127,7 +127,7 @@ export function ActivityRoute() {
           Show system audit log
         </label>
       )}
-      <form className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4" onSubmit={(event) => {
+      <form className="flex flex-wrap items-end gap-3 workspace-filters" onSubmit={(event) => {
         event.preventDefault();
         const fields = new FormData(event.currentTarget);
         setFilters({ action: String(fields.get('action')).trim(), from: String(fields.get('from')), to: String(fields.get('to')) });
@@ -144,7 +144,7 @@ export function ActivityRoute() {
       {activity.data && (
         <>
           {activity.data.data.length === 0 && <EmptyState title="No activity on this page." />}
-          <ul className="divide-y rounded-xl border bg-card empty:hidden">
+          <ul className="workspace-surface divide-y empty:hidden">
             {activity.data.data.map((item) => (
               <li key={item.id} className="p-4">
                 <p className="font-medium">{item.description ?? item.action}</p>

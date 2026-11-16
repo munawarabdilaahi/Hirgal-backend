@@ -260,17 +260,17 @@ function AppShell({ breadcrumb, children, session }: AppShellProps) {
 
   return (
     <div className="min-h-svh bg-background">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border bg-sidebar md:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border bg-sidebar lg:block">
         <Sidebar session={session} />
       </aside>
-      <div className="md:pl-64">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
+      <div className="lg:pl-64">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <Dialog open={mobileNavigationOpen} onOpenChange={setMobileNavigationOpen}>
               <DialogTrigger asChild>
                 <Button
                   aria-label="Open navigation menu"
-                  className="md:hidden"
+                  className="lg:hidden"
                   size="icon"
                   variant="ghost"
                 >
@@ -289,7 +289,7 @@ function AppShell({ breadcrumb, children, session }: AppShellProps) {
                 <DialogClose asChild>
                   <Button
                     aria-label="Close navigation menu"
-                    className="absolute right-3 top-3 z-10 md:hidden"
+                    className="absolute right-3 top-3 z-10 lg:hidden"
                     size="icon"
                     variant="ghost"
                   >
