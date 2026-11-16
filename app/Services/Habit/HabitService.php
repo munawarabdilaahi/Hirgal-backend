@@ -2,11 +2,13 @@
 
 namespace App\Services\Habit;
 
+use App\Enums\HabitLogStatus;
 use App\Models\Habit;
 use App\Models\HabitLog;
 use App\Models\User;
 use App\Policies\HabitPolicy;
 use Carbon\Carbon;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -73,6 +75,37 @@ class HabitService
         abort_unless($this->policy->view($user, $habit), 404);
 
         return $habit;
+    }
+
+    /**
+     * @return array{from: string, through: string, days: list<array{date: string, completed: int}>}
+     */
+    public function activity(User $user): array
+    {
+        throw_unless($this->policy->viewAny($user), AuthorizationException::class);
+
+        $today = Carbon::now($user->timezone ?: 'UTC');
+        $through = $today->toDateString();
+        $until = $today->copy()->addDay()->toDateString();
+        $from = $today->subDays(364)->toDateString();
+
+        $days = HabitLog::query()
+            ->where('user_id', $user->id)
+            ->whereHas('habit', fn ($query) => $query->where('user_id', $user->id))
+            ->where('status', HabitLogStatus::Completed->value)
+            ->where('logged_date', '>=', $from)
+            ->where('logged_date', '<', $until)
+            ->selectRaw('DATE(logged_date) as activity_date, COUNT(*) as completed')
+            ->groupByRaw('DATE(logged_date)')
+            ->orderBy('activity_date')
+            ->get()
+            ->map(fn (HabitLog $log): array => [
+                'date' => $log->activity_date,
+                'completed' => (int) $log->completed,
+            ])
+            ->all();
+
+        return ['from' => $from, 'through' => $through, 'days' => $days];
     }
 
     /**

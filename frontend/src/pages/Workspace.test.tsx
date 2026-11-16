@@ -48,6 +48,7 @@ describe('session workspace appointments and habits', () => {
     const overview = vi.spyOn(habitApi, 'dailyOverview').mockResolvedValue({
       date: '2026-11-14', timezone: 'UTC', habits: [],
     });
+    vi.spyOn(habitApi, 'activity').mockResolvedValue({ from: '2025-11-15', through: '2026-11-14', days: [] });
 
     render(<AppProviders><Workspace user={{ ...user, permissions: ['habits.manage'] }} frontendUrl="https://legacy.example" /></AppProviders>);
 

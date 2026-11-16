@@ -168,4 +168,12 @@ class HabitController extends Controller
             message: 'Daily overview retrieved successfully.'
         );
     }
+
+    public function activity(Request $request): JsonResponse
+    {
+        return ApiResponse::success(
+            data: $this->habitService->activity($request->user()),
+            message: 'Habit activity retrieved successfully.'
+        );
+    }
 }

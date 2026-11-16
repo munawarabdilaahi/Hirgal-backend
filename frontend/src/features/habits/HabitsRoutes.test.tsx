@@ -13,6 +13,7 @@ const { habitApi, authState } = vi.hoisted(() => ({
   habitApi: {
     list: vi.fn(),
     dailyOverview: vi.fn(),
+    activity: vi.fn(),
     get: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -113,6 +114,11 @@ beforeEach(() => {
     meta: { current_page: 1, last_page: 1, per_page: 12, total: 1 },
   });
   habitApi.dailyOverview.mockResolvedValue(overviewWith(null));
+  habitApi.activity.mockResolvedValue({
+    from: '2026-11-13',
+    through: '2026-11-16',
+    days: [{ date: '2026-11-14', completed: 2 }],
+  });
   habitApi.get.mockResolvedValue(habit);
   habitApi.create.mockResolvedValue(habit);
   habitApi.update.mockResolvedValue(habit);
@@ -136,10 +142,11 @@ describe('HabitsRoute', () => {
     expect(habitLinks[0]).toHaveAttribute('href', '/habits/habit-uuid');
     expect(screen.getByRole('link', { name: 'New habit' })).toHaveAttribute('href', expect.stringContaining('?editor=create'));
     expect(await screen.findByRole('heading', { name: 'Daily check-in' })).toBeInTheDocument();
-    expect(screen.getByText('5 day streak')).toBeInTheDocument();
-    expect(
-      screen.getByRole('progressbar', { name: 'Completion rate for Morning Meditation' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/5 day streak/)).toBeInTheDocument();
+    const day = await screen.findByRole('button', { name: 'November 14, 2026: 2 completed check-ins' });
+    fireEvent.click(day);
+    expect(day).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => expect(habitApi.dailyOverview).toHaveBeenLastCalledWith('2026-11-14'));
     expect(habitApi.list).toHaveBeenCalledWith({ page: 1, per_page: 12, is_archived: false });
   });
 

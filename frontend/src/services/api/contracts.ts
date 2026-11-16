@@ -262,6 +262,12 @@ export interface HabitStats {
   completion_rate: number;
 }
 
+export interface ApiHabitActivity {
+  from: string;
+  through: string;
+  days: { date: string; completed: number }[];
+}
+
 export interface ApiHabitLog {
   id: number;
   logged_date: string;

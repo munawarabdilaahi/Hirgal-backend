@@ -1,10 +1,11 @@
 import { DateField } from '@/components/ui/date-field';
 import { HabitFormDialog } from './HabitFormDialog';
+import { HabitActivity } from './HabitActivity';
 import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Activity, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -21,7 +22,6 @@ import { EmptyState } from '@/components/feedback/EmptyState';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { LoadingState } from '@/components/feedback/LoadingState';
 import { Pagination } from '@/components/ui/pagination';
-import { Progress } from '@/components/ui/progress';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { useAuth } from '@/features/auth/auth-hooks';
 import { useDailyOverview, useHabits, useLogHabit, useRemoveHabitLog } from '../habit-queries';
@@ -102,6 +102,8 @@ export function HabitsRoute() {
           </Link>
         </Button>
       </PageHeader>
+
+      <HabitActivity today={today} selectedDate={viewDate} onSelectDate={setViewDate} />
 
       <Card>
         <CardHeader>
@@ -193,7 +195,7 @@ export function HabitsRoute() {
       </Card>
 
       {query.isPending ? (
-        <LoadingState label="Loading habits" layout="cards" />
+        <LoadingState label="Loading habits" layout="list" />
       ) : query.isError ? (
         <ErrorState
           description={habitErrorMessage(query.error)}
@@ -210,14 +212,14 @@ export function HabitsRoute() {
           title="No habits found"
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <ul aria-label="Habit directory" className="workspace-surface divide-y">
           {habits.map((habit) => (
-            <HabitCard habit={habit} key={habit.uuid} />
+            <HabitRow habit={habit} key={habit.uuid} />
           ))}
-        </div>
+        </ul>
       )}
 
-      {query.data?.meta ? (
+      {query.data && query.data.meta.last_page > 1 ? (
         <Pagination
           currentPage={query.data.meta.current_page}
           onPageChange={setPage}
@@ -229,51 +231,28 @@ export function HabitsRoute() {
   );
 }
 
-function HabitCard({ habit }: { habit: ApiHabit }) {
+function HabitRow({ habit }: { habit: ApiHabit }) {
   const stats = habit.stats;
   const targetDays = (habit.target_days ?? []).map(habitTargetDayLabel).join(', ');
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
-      <CardHeader className="gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <Activity aria-hidden="true" className="size-5 text-primary" />
-          <StatusBadge
-            label={habit.is_archived ? 'Archived' : 'Active'}
-            status={habit.is_archived ? 'neutral' : 'active'}
-          />
-        </div>
-        <CardTitle>
+    <li className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 px-4 py-3">
+      <div className="min-w-0 flex-1 basis-48">
           <Link
-            className="hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="text-sm font-semibold wrap-anywhere hover:text-primary"
             to={`/habits/${habit.uuid}`}
           >
             {habit.title}
           </Link>
-        </CardTitle>
-        <CardDescription>{habit.description || 'No description provided.'}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="flex justify-between gap-3 text-muted-foreground">
-          <span>
-            {habit.frequency === 'daily' ? 'Every day' : `Days: ${targetDays || 'Not set'}`}
-          </span>
-          <span>{stats ? `${stats.current_streak} day streak` : 'No activity yet'}</span>
-        </div>
-        {stats ? (
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Completion rate</span>
-              <span>{stats.completion_rate}%</span>
-            </div>
-            <Progress
-              aria-label={`Completion rate for ${habit.title}`}
-              value={stats.completion_rate}
-            />
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {habit.frequency === 'daily' ? 'Every day' : targetDays || 'No days set'}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+        {stats && <span>{stats.current_streak} day streak · {stats.completion_rate}% completion</span>}
+        <StatusBadge label={habit.is_archived ? 'Archived' : 'Active'} status={habit.is_archived ? 'neutral' : 'active'} />
+      </div>
+    </li>
   );
 }
 
