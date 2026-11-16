@@ -331,6 +331,7 @@ class WorkspaceSessionTest extends TestCase
 
     public function test_admin_session_can_manage_users_and_send_an_invitation(): void
     {
+        config(['mail.default' => 'smtp']);
         Notification::fake();
         $this->seed([RoleSeeder::class, PermissionSeeder::class, RolePermissionSeeder::class]);
         $admin = User::factory()->create();

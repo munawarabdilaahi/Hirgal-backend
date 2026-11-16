@@ -164,6 +164,7 @@ class SecurityHardeningTest extends TestCase
 
     public function test_sec_02_project_manager_can_invite_regular_member(): void
     {
+        config(['mail.default' => 'smtp']);
         Notification::fake();
 
         $pm = $this->createUserWithRole($this->pmRole);
@@ -183,6 +184,7 @@ class SecurityHardeningTest extends TestCase
 
     public function test_sec_02_system_admin_can_invite_system_admin(): void
     {
+        config(['mail.default' => 'smtp']);
         Notification::fake();
 
         $admin = $this->createUserWithRole($this->adminRole);

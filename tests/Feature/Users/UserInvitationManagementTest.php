@@ -14,6 +14,7 @@ use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
 
 class UserInvitationManagementTest extends TestCase
@@ -95,6 +96,7 @@ class UserInvitationManagementTest extends TestCase
 
     public function test_system_admin_can_create_and_dispatch_invitation(): void
     {
+        config(['mail.default' => 'smtp']);
         Notification::fake();
 
         $token = $this->admin->createToken('admin-session')->plainTextToken;
@@ -162,8 +164,46 @@ class UserInvitationManagementTest extends TestCase
             ->assertJsonValidationErrors(['email']);
     }
 
+    public function test_logging_mailer_cannot_report_an_invitation_as_sent(): void
+    {
+        config(['mail.default' => 'log']);
+        Notification::fake();
+
+        $this->actingAs($this->admin, 'sanctum')->postJson('/api/v1/invitations', [
+            'email' => 'newhire@example.test',
+            'role_id' => $this->memberRole->id,
+        ])->assertServiceUnavailable()
+            ->assertJsonPath('error_code', 'INVITATION_DELIVERY_UNAVAILABLE');
+
+        $this->assertDatabaseMissing('user_invitations', ['email' => 'newhire@example.test']);
+        Notification::assertNothingSent();
+    }
+
+    public function test_failed_resend_preserves_the_previous_token_and_expiry(): void
+    {
+        config(['mail.default' => 'smtp']);
+        Notification::shouldReceive('sendNow')->once()->andThrow(new TransportException('SMTP rejected the request.'));
+        $invitation = UserInvitation::factory()->create([
+            'role_id' => $this->memberRole->id,
+            'invited_by' => $this->admin->id,
+            'status' => InvitationStatus::Pending,
+        ]);
+        $oldHash = $invitation->token_hash;
+        $oldExpiry = $invitation->expires_at->toISOString();
+
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/v1/invitations/'.$invitation->id.'/resend')
+            ->assertServiceUnavailable()
+            ->assertJsonPath('error_code', 'INVITATION_DELIVERY_UNAVAILABLE');
+
+        $invitation->refresh();
+        $this->assertSame($oldHash, $invitation->token_hash);
+        $this->assertSame($oldExpiry, $invitation->expires_at->toISOString());
+    }
+
     public function test_admin_can_resend_invitation_with_fresh_token(): void
     {
+        config(['mail.default' => 'smtp']);
         Notification::fake();
 
         $invitation = UserInvitation::create([

@@ -31,7 +31,7 @@ class UserInvitationNotification extends Notification
      */
     public function toMail(object $notifiable): MailMessage
     {
-        $acceptUrl = route('invitations.accept').'#token='.rawurlencode($this->rawToken);
+        $acceptUrl = rtrim(config('app.url'), '/').route('invitations.accept', absolute: false).'#token='.rawurlencode($this->rawToken);
 
         return (new MailMessage)
             ->subject('You Have Been Invited to Hirgal Platform')

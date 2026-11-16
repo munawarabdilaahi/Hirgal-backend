@@ -7,14 +7,16 @@ use App\Enums\UserRole;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\UserInvitation;
-use App\Notifications\UserInvitationNotification;
+use App\Services\User\SendInvitationEmail;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CreateUserInvitationAction
 {
+    public function __construct(private SendInvitationEmail $sendInvitationEmail) {}
+
     /**
      * Create an onboarding user invitation and send notification.
      *
@@ -56,20 +58,23 @@ class CreateUserInvitationAction
         $rawToken = Str::random(64);
         $tokenHash = hash('sha256', $rawToken);
 
-        $invitation = UserInvitation::create([
-            'email' => $email,
-            'role_id' => $data['role_id'],
-            'token_hash' => $tokenHash,
-            'status' => InvitationStatus::Pending,
-            'invited_by' => $actor->id,
-            'expires_at' => now()->addDays(7),
-        ]);
+        $invitation = DB::transaction(function () use ($actor, $data, $email, $rawToken, $tokenHash): UserInvitation {
+            $invitation = UserInvitation::create([
+                'email' => $email,
+                'role_id' => $data['role_id'],
+                'token_hash' => $tokenHash,
+                'status' => InvitationStatus::Pending,
+                'invited_by' => $actor->id,
+                'expires_at' => now()->addDays(7),
+            ])->load(['role', 'inviter']);
 
-        Notification::route('mail', $email)
-            ->notify(new UserInvitationNotification($invitation->load(['role', 'inviter']), $rawToken));
+            $this->sendInvitationEmail->execute($invitation, $rawToken);
+
+            return $invitation;
+        });
 
         return [
-            'invitation' => $invitation->load(['role', 'inviter']),
+            'invitation' => $invitation,
             'raw_token' => $rawToken,
         ];
     }

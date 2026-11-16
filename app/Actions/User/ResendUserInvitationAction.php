@@ -4,14 +4,15 @@ namespace App\Actions\User;
 
 use App\Enums\InvitationStatus;
 use App\Models\UserInvitation;
-use App\Notifications\UserInvitationNotification;
+use App\Services\User\SendInvitationEmail;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ResendUserInvitationAction
 {
+    public function __construct(private SendInvitationEmail $sendInvitationEmail) {}
+
     /**
      * Refresh invitation expiration, regenerate token, and re-dispatch notification.
      *
@@ -38,11 +39,11 @@ class ResendUserInvitationAction
                 'expires_at' => now()->addDays(7),
             ]);
 
-            return $invitation->load(['role', 'inviter']);
-        });
+            $invitation->load(['role', 'inviter']);
+            $this->sendInvitationEmail->execute($invitation, $rawToken);
 
-        Notification::route('mail', $invitation->email)
-            ->notify(new UserInvitationNotification($invitation, $rawToken));
+            return $invitation;
+        });
 
         return [
             'invitation' => $invitation,

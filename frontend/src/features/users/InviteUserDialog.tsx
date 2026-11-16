@@ -23,7 +23,7 @@ export function InviteUserDialog() {
       apiClient.post('/invitations', { email, role_id }),
     onSuccess: (_, { email }) => {
       setOpen(false);
-      toast.success(`Invitation created for ${email}.`);
+      toast.success(`Invitation email sent to ${email}.`);
     },
   });
   const errors = getApiValidationErrors(invite.error);
