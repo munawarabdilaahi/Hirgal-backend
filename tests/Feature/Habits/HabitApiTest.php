@@ -66,6 +66,35 @@ class HabitApiTest extends TestCase
         $this->actingAs($this->userWithPermissions([]), 'sanctum')->getJson('/api/v1/habits/activity')->assertForbidden();
     }
 
+    public function test_weekly_list_returns_scoped_search_results_and_check_in_availability(): void
+    {
+        $user = $this->userWithPermissions(['habits.manage']);
+        $habit = Habit::factory()->for($user)->create([
+            'title' => 'Read architecture notes',
+            'frequency' => HabitFrequency::Custom,
+            'target_days' => ['mon', 'wed'],
+            'created_at' => '2026-11-01 00:00:00',
+        ]);
+        Habit::factory()->for($user)->create(['title' => 'Run']);
+        Habit::factory()->create(['title' => $habit->title]);
+        HabitLog::factory()->for($habit)->create(['logged_date' => '2026-11-04', 'status' => HabitLogStatus::Completed]);
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson('/api/v1/habits?search=architecture&week_start=2026-11-02')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonCount(7, 'data.0.week')
+            ->assertJsonPath('data.0.week.0.can_check_in', true)
+            ->assertJsonPath('data.0.week.1.is_scheduled', false)
+            ->assertJsonPath('data.0.week.2.log.status', 'completed');
+
+        $habit->update(['is_archived' => true]);
+        $this->getJson('/api/v1/habits?is_archived=1&week_start=2026-11-02')
+            ->assertOk()
+            ->assertJsonPath('data.0.week.2.can_check_in', false)
+            ->assertJsonPath('data.0.week.2.log.status', 'completed');
+    }
+
     public function test_invalid_legacy_profile_timezone_uses_utc(): void
     {
         $user = $this->userWithPermissions(['habits.manage']);

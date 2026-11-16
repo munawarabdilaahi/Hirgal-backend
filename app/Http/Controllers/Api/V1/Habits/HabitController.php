@@ -35,11 +35,13 @@ class HabitController extends Controller
     {
         $paginator = $this->habitService->list($request->user(), $request->validated());
         $userTz = $request->user()->timezone ?: 'UTC';
+        $start = $request->validated('week_start');
+        $week = $start ? $this->habitService->week($request->user(), $paginator->items(), $start) : [];
 
-        $items = collect($paginator->items())->map(function (Habit $habit) use ($userTz): HabitResource {
+        $items = collect($paginator->items())->map(function (Habit $habit) use ($userTz, $week): HabitResource {
             $stats = $this->streakService->calculateStats($habit, null, $userTz);
 
-            return (new HabitResource($habit))->withStats($stats);
+            return (new HabitResource($habit))->withStats($stats)->withWeek($week[$habit->id] ?? null);
         });
 
         return ApiResponse::success(

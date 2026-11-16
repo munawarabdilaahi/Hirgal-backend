@@ -277,6 +277,13 @@ export interface ApiHabitLog {
   updated_at: string | null;
 }
 
+export interface ApiHabitWeekDay {
+  date: string;
+  is_scheduled: boolean;
+  can_check_in: boolean;
+  log: ApiHabitLog | null;
+}
+
 export interface ApiHabit {
   uuid: string;
   title: string;
@@ -289,6 +296,7 @@ export interface ApiHabit {
   longest_streak: number | null;
   stats: HabitStats | null;
   latest_logs?: ApiHabitLog[];
+  week?: ApiHabitWeekDay[];
   created_at: string | null;
   updated_at: string | null;
 }
@@ -313,6 +321,8 @@ export interface HabitFilters {
   per_page?: number;
   is_archived?: boolean;
   frequency?: HabitFrequency;
+  search?: string;
+  week_start?: string;
 }
 
 export interface HabitLogFilters {

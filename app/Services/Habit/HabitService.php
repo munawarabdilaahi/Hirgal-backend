@@ -42,6 +42,11 @@ class HabitService
             $query->where('frequency', $filters['frequency']);
         }
 
+        if (isset($filters['search'])) {
+            $search = '%'.$filters['search'].'%';
+            $query->where(fn ($query) => $query->whereLike('title', $search)->orWhereLike('description', $search));
+        }
+
         $paginator = $query->orderBy('created_at', 'desc')->orderBy('id', 'desc')->paginate((int) ($filters['per_page'] ?? 15));
 
         $habitIds = collect($paginator->items())->pluck('id');
@@ -59,6 +64,44 @@ class HabitService
         }
 
         return $paginator;
+    }
+
+    /**
+     * @param  list<Habit>  $habits  A page already scoped to the user.
+     * @return array<int, list<array{date: string, is_scheduled: bool, can_check_in: bool, log: HabitLog|null}>>
+     */
+    public function week(User $user, array $habits, string $start): array
+    {
+        $timezone = $user->timezone ?: 'UTC';
+        $first = Carbon::parse($start, $timezone)->startOfDay();
+        $today = Carbon::today($timezone);
+        $earliestEditable = $today->copy()->subDays(30);
+        $logs = HabitLog::query()
+            ->where('user_id', $user->id)
+            ->whereIn('habit_id', array_map(fn (Habit $habit): int => $habit->id, $habits))
+            ->where('logged_date', '>=', $first->toDateString())
+            ->where('logged_date', '<', $first->copy()->addWeek()->toDateString())
+            ->get()
+            ->groupBy('habit_id')
+            ->map(fn ($habitLogs) => $habitLogs->keyBy(fn (HabitLog $log): string => $log->logged_date->toDateString()));
+
+        $week = [];
+        foreach ($habits as $habit) {
+            $created = $habit->created_at?->copy()->setTimezone($timezone)->startOfDay() ?? $today;
+            for ($offset = 0; $offset < 7; $offset++) {
+                $date = $first->copy()->addDays($offset);
+                $key = $date->toDateString();
+                $scheduled = $date->gte($created) && $this->streakService->isScheduledOn($habit, $date);
+                $week[$habit->id][] = [
+                    'date' => $key,
+                    'is_scheduled' => $scheduled,
+                    'can_check_in' => $scheduled && ! $habit->is_archived && $date->betweenIncluded($earliestEditable, $today),
+                    'log' => $logs->get($habit->id)?->get($key),
+                ];
+            }
+        }
+
+        return $week;
     }
 
     /**
