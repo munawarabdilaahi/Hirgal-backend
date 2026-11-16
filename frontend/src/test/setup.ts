@@ -13,6 +13,11 @@ Object.defineProperty(globalThis, 'ResizeObserver', {
   value: ResizeObserverMock,
 });
 
+Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+  configurable: true,
+  value: () => {},
+});
+
 const storage = new Map<string, string>();
 const localStorageMock: Storage = {
   get length() {

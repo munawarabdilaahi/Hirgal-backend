@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { MarkFormDirty } from '@/components/ui/form-dirty-context';
 
 const RequestClose = createContext<() => void>(() => {});
 
@@ -46,7 +47,9 @@ export function FormDialog({ title, description, pending = false, onClose, child
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 overflow-y-auto overscroll-contain p-5">
-          <RequestClose.Provider value={requestClose}>{children}</RequestClose.Provider>
+          <MarkFormDirty.Provider value={() => setDirty(true)}>
+            <RequestClose.Provider value={requestClose}>{children}</RequestClose.Provider>
+          </MarkFormDirty.Provider>
         </div>
       </DialogContent>
     </Dialog>

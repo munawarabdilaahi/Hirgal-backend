@@ -5,7 +5,7 @@ import { workspaceBreadcrumb } from '@/components/layout/workspace-breadcrumb';
 export function AuthenticatedRouteLayout() {
   const { pathname } = useLocation();
   return (
-    <AppShell breadcrumb={workspaceBreadcrumb(pathname)}>
+    <AppShell breadcrumb={workspaceBreadcrumb(pathname)} wide={pathname === '/tasks' || pathname === '/my-work'}>
       <Outlet />
     </AppShell>
   );

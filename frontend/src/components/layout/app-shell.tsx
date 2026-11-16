@@ -253,9 +253,10 @@ interface AppShellProps {
   children: React.ReactNode;
   breadcrumb: string;
   session?: WorkspaceSession;
+  wide?: boolean;
 }
 
-function AppShell({ breadcrumb, children, session }: AppShellProps) {
+function AppShell({ breadcrumb, children, session, wide = false }: AppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   return (
@@ -309,7 +310,7 @@ function AppShell({ breadcrumb, children, session }: AppShellProps) {
           </div>
         </header>
         <main className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-          <Container className="max-w-[69rem] px-0 sm:px-0 lg:px-0">{children}</Container>
+          <Container size={wide ? 'wide' : 'default'} className={cn('px-0 sm:px-0 lg:px-0', !wide && 'max-w-[69rem]')}>{children}</Container>
         </main>
       </div>
     </div>

@@ -55,7 +55,7 @@ export default function Workspace({ user, frontendUrl }: { user: ApiUser; fronte
 function WorkspaceRoutes({ session }: { session: { user: ApiUser; frontendUrl: string; logout: () => void } }) {
   const { pathname } = useLocation();
   return (
-    <AppShell breadcrumb={workspaceBreadcrumb(pathname)} session={session}>
+    <AppShell breadcrumb={workspaceBreadcrumb(pathname)} session={session} wide={pathname === '/tasks' || pathname === '/my-work'}>
       <Routes>
         <Route path="/projects" element={<ProjectsRoute />} />
         <Route path="/projects/new" element={<ProjectFormRoute />} />
