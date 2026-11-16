@@ -65,7 +65,7 @@ describe('session workspace appointments and habits', () => {
 });
 
 describe('session workspace task actions', () => {
-  it('opens task details from the list and restores focus when the drawer closes', async () => {
+  it('opens task details in a dialog and restores focus when it closes', async () => {
     window.history.replaceState(null, '', '/tasks');
     const task = {
       uuid: 'release', title: 'Review release', description: 'Check the rollout plan.', status: 'todo',
@@ -80,8 +80,8 @@ describe('session workspace task actions', () => {
     render(<AppProviders><Workspace user={user} frontendUrl="https://legacy.example" /></AppProviders>);
     const trigger = await screen.findByRole('button', { name: 'Review release' });
     fireEvent.click(trigger);
-    const drawer = await screen.findByRole('dialog', { name: 'Review release' });
-    expect(drawer).toHaveTextContent('Check the rollout plan.');
+    const detailsDialog = await screen.findByRole('dialog', { name: 'Review release' });
+    expect(detailsDialog).toHaveTextContent('Check the rollout plan.');
     expect(window.location.search).toBe('?task=release');
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit task' }));
@@ -89,7 +89,7 @@ describe('session workspace task actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(await screen.findByRole('dialog', { name: 'Review release' })).toBeInTheDocument();
 
-    fireEvent.keyDown(drawer, { key: 'Escape' });
+    fireEvent.keyDown(detailsDialog, { key: 'Escape' });
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(window.location.search).toBe('');

@@ -275,7 +275,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
       <Dialog open={Boolean(selectedTask)} onOpenChange={(open) => { if (!open) closeTask(); }}>
         <DialogContent
           id="task-details"
-          className="left-auto right-0 top-0 grid h-dvh max-h-none w-full max-w-lg translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-y-0 border-r-0 p-0"
+          className="max-w-2xl grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             const trigger = detailTrigger.current;
