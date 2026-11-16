@@ -85,6 +85,7 @@ Route::prefix('v1')->group(function (): void {
         // User Management
         Route::prefix('users')->group(function (): void {
             Route::get('/', [UserController::class, 'index'])->name('api.v1.users.index');
+            Route::post('/', [UserController::class, 'store'])->name('api.v1.users.store');
             Route::get('/directory', [UserController::class, 'directory'])->name('api.v1.users.directory');
             Route::get('/{id}', [UserController::class, 'show'])->name('api.v1.users.show');
             Route::put('/{id}', [UserController::class, 'update'])->name('api.v1.users.update');

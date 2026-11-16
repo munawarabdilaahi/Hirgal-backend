@@ -1,8 +1,11 @@
+import { SearchInput } from '@/components/ui/search-input';
+import { DateField } from '@/components/ui/date-field';
+import { DateTimeField } from '@/components/ui/date-time-field';
 import { ActionConfirmation } from '@/components/ui/action-confirmation';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { NativeSelect } from '@/components/ui/native-select';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -151,21 +154,21 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
           {!selected && (
             <>
               <label>Context
-                <NativeSelect className="ml-2" value={context} onChange={(event) => { setContext(event.target.value); setContextSearch(''); }}>
-                  <option value="personal">Personal</option>
-                  {hasPermission(user, 'projects.view') && <option value="project">Project</option>}
-                  {hasPermission(user, 'teams.view') && <option value="team">Team</option>}
-                </NativeSelect>
+                <ChoiceSelect aria-label="Context" value={context} onValueChange={(nextValue) => { setContext(nextValue); setContextSearch(''); }}>
+                  <ChoiceOption value="personal">Personal</ChoiceOption>
+                  {hasPermission(user, 'projects.view') && <ChoiceOption value="project">Project</ChoiceOption>}
+                  {hasPermission(user, 'teams.view') && <ChoiceOption value="team">Team</ChoiceOption>}
+                </ChoiceSelect>
               </label>
               {context !== 'personal' && (
                 <>
-                  <Input aria-label={`Search ${context}s`} placeholder={`Search ${context}s`} value={contextSearch} onChange={(event) => setContextSearch(event.target.value)} />
-                  <NativeSelect key={context} name={`${context}_uuid`} aria-label={`Choose ${context}`} required>
-                    <option value="">Choose {context}</option>
+                  <SearchInput aria-label={`Search ${context}s`} placeholder={`Search ${context}s`} value={contextSearch} onChange={(event) => setContextSearch(event.target.value)} />
+                  <ChoiceSelect key={context} name={`${context}_uuid`} aria-label={`Choose ${context}`} required>
+                    <ChoiceOption value="">Choose {context}</ChoiceOption>
                     {(context === 'project' ? projects.data : teams.data)?.data.map((item) => (
-                      <option key={item.uuid} value={item.uuid}>{item.name}</option>
+                      <ChoiceOption key={item.uuid} value={item.uuid}>{item.name}</ChoiceOption>
                     ))}
-                  </NativeSelect>
+                  </ChoiceSelect>
                   {(context === 'project' ? projects.isPending : teams.isPending) && <LoadingState label={`Loading ${context}s`} layout="inline" />}
                   {(context === 'project' ? projects.isError : teams.isError) && <p role="alert">The available contexts could not be loaded.</p>}
                 </>
@@ -175,8 +178,8 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
           <label>Title<Input name="title" defaultValue={appointment?.title} maxLength={255} required /></label>
           <label>Description<Input name="description" defaultValue={appointment?.description ?? ''} /></label>
           <label>Time zone<Input name="timezone" defaultValue={appointment?.timezone ?? 'UTC'} required /></label>
-          <label>Starts at<Input name="start_time" defaultValue={appointment && formatAppointmentTime(appointment.start_time, appointment.timezone)} placeholder="YYYY-MM-DDThh:mm:ssZ" required /></label>
-          <label>Ends at<Input name="end_time" defaultValue={appointment && formatAppointmentTime(appointment.end_time, appointment.timezone)} placeholder="YYYY-MM-DDThh:mm:ssZ" required /></label>
+          <DateTimeField label="Starts at" name="start_time" defaultValue={appointment && formatAppointmentTime(appointment.start_time, appointment.timezone)} />
+          <DateTimeField label="Ends at" name="end_time" defaultValue={appointment && formatAppointmentTime(appointment.end_time, appointment.timezone)} />
           <p className="text-sm text-muted-foreground">For local times, include the UTC offset for the chosen time zone. Use Z for UTC.</p>
           {mutation.isError && <p role="alert" className="text-sm text-destructive">{Object.values(getApiValidationErrors(mutation.error)).join(' ') || getSafeErrorMessage(mutation.error)}</p>}
           <FormDialogActions pending={mutation.isPending} submitLabel="Save appointment" />
@@ -209,14 +212,14 @@ function AppointmentsView({ user, closeCreateDialog }: { user: ApiUser | null; c
         setRange({ from, to });
         setPage(1);
       }}>
-        <label>From (UTC)<Input type="date" name="from" defaultValue={range.from} required /></label>
-        <label>Until (UTC)<Input type="date" name="to" defaultValue={range.to} required /></label>
+        <div className="grid gap-2"><label htmlFor="appointment-from">From (UTC)</label><DateField id="appointment-from" aria-label="From (UTC)" name="from" defaultValue={range.from} required /></div>
+        <div className="grid gap-2"><label htmlFor="appointment-to">Until (UTC)</label><DateField id="appointment-to" aria-label="Until (UTC)" name="to" defaultValue={range.to} required /></div>
         <label className="grid gap-2 text-sm font-medium">Status
-          <NativeSelect value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
-            <option value="">All statuses</option>
-            <option value="scheduled">Scheduled</option><option value="confirmed">Confirmed</option>
-            <option value="completed">Completed</option><option value="cancelled">Cancelled</option>
-          </NativeSelect>
+          <ChoiceSelect value={status} onValueChange={(nextValue) => { setStatus(nextValue); setPage(1); }}>
+            <ChoiceOption value="">All statuses</ChoiceOption>
+            <ChoiceOption value="scheduled">Scheduled</ChoiceOption><ChoiceOption value="confirmed">Confirmed</ChoiceOption>
+            <ChoiceOption value="completed">Completed</ChoiceOption><ChoiceOption value="cancelled">Cancelled</ChoiceOption>
+          </ChoiceSelect>
         </label>
         <Button type="submit" variant="outline">Show date range</Button>
       </form>

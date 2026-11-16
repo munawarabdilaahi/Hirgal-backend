@@ -1,5 +1,5 @@
 import { HabitFormDialog } from './HabitFormDialog';
-import { NativeSelect } from '@/components/ui/native-select';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -228,20 +228,20 @@ export function HabitDetailsRoute() {
             </div>
             <label className="space-y-1 text-sm">
               <span className="sr-only">Filter history by status</span>
-              <NativeSelect
+              <ChoiceSelect
                 aria-label="Filter history by status"
 
-                onChange={(event) => {
-                  setHistoryStatus(event.target.value);
+                onValueChange={(nextValue) => {
+                  setHistoryStatus(nextValue);
                   setHistoryPage(1);
                 }}
                 value={historyStatus}
               >
-                <option value="">All statuses</option>
-                <option value="completed">Completed</option>
-                <option value="skipped">Skipped</option>
-                <option value="failed">Failed</option>
-              </NativeSelect>
+                <ChoiceOption value="">All statuses</ChoiceOption>
+                <ChoiceOption value="completed">Completed</ChoiceOption>
+                <ChoiceOption value="skipped">Skipped</ChoiceOption>
+                <ChoiceOption value="failed">Failed</ChoiceOption>
+              </ChoiceSelect>
             </label>
           </div>
         </CardHeader>

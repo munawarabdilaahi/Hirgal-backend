@@ -1,5 +1,5 @@
 import { LoadingState } from '@/components/feedback/LoadingState';
-import { NativeSelect } from '@/components/ui/native-select';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { useState, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
@@ -52,10 +52,10 @@ export function InviteUserDialog() {
           </FormField>
           <FormField label="System role" htmlFor="invite-role" error={errors.role_id} required>
             {(props) => roles.isPending ? <LoadingState label="Loading roles" layout="control" /> : (
-              <NativeSelect {...props} name="role_id" required disabled={roles.isPending || roles.isError || invite.isPending}>
-                <option value="">Choose a role</option>
-                {roles.data?.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-              </NativeSelect>
+              <ChoiceSelect {...props} name="role_id" required disabled={roles.isPending || roles.isError || invite.isPending}>
+                <ChoiceOption value="">Choose a role</ChoiceOption>
+                {roles.data?.map((role) => <ChoiceOption key={role.id} value={role.id}>{role.name}</ChoiceOption>)}
+              </ChoiceSelect>
             )}
           </FormField>
           {roles.isError && <Button type="button" variant="outline" onClick={() => void roles.refetch()}>Retry loading roles</Button>}

@@ -1,4 +1,6 @@
-import { NativeSelect } from '@/components/ui/native-select';
+import { DateField } from '@/components/ui/date-field';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { Link } from 'react-router-dom';
@@ -64,9 +66,9 @@ export function NotificationsRoute() {
         </div>
       </PageHeader>
       <div className="rounded-xl border bg-card p-4">
-        <NativeSelect aria-label="Filter inbox by read status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
-          <option value="">All notifications</option><option value="unread">Unread</option><option value="read">Read</option>
-        </NativeSelect>
+        <ChoiceSelect aria-label="Filter inbox by read status" value={status} onValueChange={(nextValue) => { setStatus(nextValue); setPage(1); }}>
+          <ChoiceOption value="">All notifications</ChoiceOption><ChoiceOption value="unread">Unread</ChoiceOption><ChoiceOption value="read">Read</ChoiceOption>
+        </ChoiceSelect>
       </div>
       {unread.isError && <ErrorState title="Unread count unavailable" description="You can still read individual notifications." onRetry={() => void unread.refetch()} />}
       {markRead.isError && <p role="alert">Could not update the inbox. Try again.</p>}
@@ -123,7 +125,7 @@ export function ActivityRoute() {
       <PageHeader><h1 className="text-2xl font-semibold tracking-tight">Activity</h1></PageHeader>
       {canViewSystem && (
         <label className="flex items-center gap-2">
-          <input type="checkbox" checked={system} onChange={(event) => { setShowSystem(event.target.checked); setPage(1); }} />
+          <Checkbox checked={system} onCheckedChange={(checked) => { setShowSystem(checked === true); setPage(1); }} />
           Show system audit log
         </label>
       )}
@@ -134,8 +136,8 @@ export function ActivityRoute() {
         setPage(1);
       }} onReset={() => { setFilters({ action: '', from: '', to: '' }); setPage(1); }}>
         <label className="grid gap-2 text-sm font-medium">Exact action<Input name="action" placeholder="e.g. project.created" maxLength={100} /></label>
-        <label className="grid gap-2 text-sm font-medium">From<Input name="from" type="date" /></label>
-        <label className="grid gap-2 text-sm font-medium">Through<Input name="to" type="date" /></label>
+        <div className="grid gap-2 text-sm font-medium"><label htmlFor="activity-from">From</label><DateField id="activity-from" aria-label="From" name="from" /></div>
+        <div className="grid gap-2 text-sm font-medium"><label htmlFor="activity-through">Through</label><DateField id="activity-through" aria-label="Through" name="to" /></div>
         <Button type="submit" variant="outline">Apply filters</Button>
         <Button type="reset" variant="ghost">Clear</Button>
       </form>

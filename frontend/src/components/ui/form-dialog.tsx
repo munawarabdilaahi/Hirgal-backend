@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { ActionConfirmation } from '@/components/ui/action-confirmation';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { MarkFormDirty } from '@/components/ui/form-dirty-context';
 
@@ -14,6 +15,7 @@ export function FormDialog({ title, description, pending = false, onClose, child
   wide?: boolean;
 }) {
   const [dirty, setDirty] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [trigger] = useState(() => document.activeElement);
   useEffect(() => {
     if (!dirty && !pending) return;
@@ -25,7 +27,11 @@ export function FormDialog({ title, description, pending = false, onClose, child
     return () => window.removeEventListener('beforeunload', preventUnload);
   }, [dirty, pending]);
   function requestClose(): void {
-    if (pending || (dirty && !window.confirm('Discard unsaved changes?'))) return;
+    if (pending) return;
+    if (dirty) {
+      setConfirmDiscard(true);
+      return;
+    }
     onClose();
   }
 
@@ -51,6 +57,11 @@ export function FormDialog({ title, description, pending = false, onClose, child
             <RequestClose.Provider value={requestClose}>{children}</RequestClose.Provider>
           </MarkFormDirty.Provider>
         </div>
+        {confirmDiscard && (
+          <ActionConfirmation title="Discard unsaved changes?" description="Your changes will be lost if you close this form."
+            action="Discard changes" cancelLabel="Keep editing" pending={false} error={null}
+            onCancel={() => setConfirmDiscard(false)} onConfirm={onClose} />
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -6,8 +6,14 @@ use App\Actions\User\ActivateUserAction;
 use App\Actions\User\DeactivateUserAction;
 use App\Actions\User\UpdateUserAction;
 use App\Enums\AccountStatus;
+use App\Enums\UserRole;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class UserService
 {
@@ -16,6 +22,33 @@ class UserService
         protected ActivateUserAction $activateUserAction,
         protected DeactivateUserAction $deactivateUserAction,
     ) {}
+
+    /**
+     * @param  array{name: string, email: string, password: string}  $data
+     */
+    public function createUser(array $data): User
+    {
+        return DB::transaction(function () use ($data): User {
+            $role = Role::where('slug', UserRole::Member->value)->firstOrFail();
+
+            try {
+                $user = User::create([
+                    'name' => $data['name'],
+                    'email' => $data['email'],
+                    'password' => Hash::make($data['password']),
+                    'account_status' => AccountStatus::Active,
+                    'timezone' => 'UTC',
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                throw ValidationException::withMessages(['email' => 'An account with this email address already exists.']);
+            }
+
+            $user->roles()->attach($role->id);
+            $user->profile()->create();
+
+            return $user->load(['roles.permissions', 'profile']);
+        });
+    }
 
     /**
      * List users with optional filtering, sorting, and pagination.

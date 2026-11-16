@@ -134,6 +134,51 @@ class TaskManagementTest extends TestCase
             ->assertJsonPath('data.1.uuid', $titleMatch->uuid);
     }
 
+    public function test_task_schedule_groups_and_counts_respect_project_scope_and_filters(): void
+    {
+        $this->travelTo(now()->startOfDay()->addHours(12));
+
+        $tasks = Task::factory()->for($this->project, 'project')->inProgress();
+        $overdue = $tasks->create(['due_date' => today()->subDay()]);
+        $tasks->create(['due_date' => today()]);
+        $tasks->done()->create(['due_date' => today()]);
+        $tasks->create(['due_date' => today()->addDay()]);
+        $tasks->create(['due_date' => today()->addDays(2)]);
+        $unscheduled = $tasks->create(['due_date' => null]);
+        $closed = $tasks->done()->create(['due_date' => today()->subDay()]);
+        Task::factory()->inProgress()->create(['due_date' => today()->subDay()]);
+
+        $this->getJson('/api/v1/tasks?with_schedule=1', $this->auth($this->member))
+            ->assertOk()
+            ->assertJsonPath('meta.schedule', [
+                'overdue' => 1,
+                'today' => 2,
+                'tomorrow' => 1,
+                'upcoming' => 1,
+                'other' => 2,
+                'due_today' => 1,
+                'due_tomorrow' => 1,
+                'done_today' => 1,
+            ]);
+
+        $this->getJson('/api/v1/tasks?schedule=overdue', $this->auth($this->member))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.uuid', $overdue->uuid);
+
+        $this->getJson('/api/v1/tasks?schedule=other', $this->auth($this->member))
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['uuid' => $unscheduled->uuid])
+            ->assertJsonFragment(['uuid' => $closed->uuid]);
+
+        $this->getJson('/api/v1/tasks?with_schedule=1&status=done', $this->auth($this->member))
+            ->assertOk()
+            ->assertJsonPath('meta.schedule.due_today', 0)
+            ->assertJsonPath('meta.schedule.done_today', 1)
+            ->assertJsonPath('meta.schedule.overdue', 0);
+    }
+
     public function test_system_admin_can_list_all_tasks(): void
     {
         Task::factory()->create(['project_id' => $this->project->id, 'creator_id' => $this->owner->id]);

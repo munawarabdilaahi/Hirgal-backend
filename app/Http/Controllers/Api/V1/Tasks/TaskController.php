@@ -28,7 +28,8 @@ class TaskController extends Controller
      */
     public function index(ListTasksRequest $request): JsonResponse
     {
-        $paginator = $this->taskService->listTasks($request->user(), $request->validated());
+        $filters = $request->validated();
+        $paginator = $this->taskService->listTasks($request->user(), $filters);
 
         return ApiResponse::success(
             data: TaskResource::collection($paginator->items()),
@@ -38,6 +39,9 @@ class TaskController extends Controller
                 'last_page' => $paginator->lastPage(),
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
+                ...($request->boolean('with_schedule')
+                    ? ['schedule' => $this->taskService->scheduleSummary($request->user(), $filters)]
+                    : []),
             ]
         );
     }

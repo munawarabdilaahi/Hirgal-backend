@@ -1,3 +1,4 @@
+import { chooseOption } from '@/test/choose-option';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -12,6 +13,7 @@ import type { ApiDirectoryUser, ApiPaginatedResponse, ApiUser } from '@/services
 const { authMock, userApiMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
   userApiMock: {
+    createUser: vi.fn(),
     listUsers: vi.fn(),
     listDirectory: vi.fn(),
     getUser: vi.fn(),
@@ -104,6 +106,32 @@ describe('UsersRoute', () => {
     userApiMock.listUsers.mockResolvedValue(adminResponse());
   });
 
+  it('shows Add user only with create permission and refreshes the list after creation', async () => {
+    const inviteOnly = renderRoute(['users.view', 'users.invite']);
+    expect(screen.queryByRole('button', { name: 'Add user' })).not.toBeInTheDocument();
+    inviteOnly.unmount();
+
+    const created = { ...user([]), id: 8, name: 'Manual Member', email: 'manual@example.test' };
+    userApiMock.createUser.mockImplementation(async () => {
+      userApiMock.listUsers.mockResolvedValue({ ...adminResponse(), data: [created] });
+      return created;
+    });
+    renderRoute(['users.view', 'users.create']);
+    await screen.findAllByText('Amina Noor');
+    fireEvent.click(screen.getByRole('button', { name: 'Add user' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Full name' }), { target: { value: 'Manual Member' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Email address' }), { target: { value: 'manual@example.test' } });
+    fireEvent.change(screen.getByLabelText(/Initial password/), { target: { value: 'initial-password' } });
+    fireEvent.change(screen.getByLabelText(/Confirm password/), { target: { value: 'initial-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create user' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add user' })).not.toBeInTheDocument());
+    expect(userApiMock.createUser).toHaveBeenCalledWith({
+      name: 'Manual Member', email: 'manual@example.test',
+      password: 'initial-password', password_confirmation: 'initial-password',
+    });
+    expect((await screen.findAllByText('Manual Member')).length).toBeGreaterThan(0);
+  });
+
   it('shows Invite user only to authorized users and submits the selected role', async () => {
     const directory = renderRoute();
     expect(screen.queryByRole('button', { name: 'Invite user' })).not.toBeInTheDocument();
@@ -114,9 +142,8 @@ describe('UsersRoute', () => {
     try {
       renderRoute(['users.view', 'users.invite']);
       fireEvent.click(screen.getByRole('button', { name: 'Invite user' }));
-      await screen.findByRole('option', { name: 'Member' });
       fireEvent.change(screen.getByLabelText(/Email address/), { target: { value: 'invitee@example.test' } });
-      fireEvent.change(screen.getByLabelText(/System role/), { target: { value: String(memberRole.id) } });
+      await chooseOption(await screen.findByRole('combobox', { name: /System role/ }), memberRole.name);
       fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

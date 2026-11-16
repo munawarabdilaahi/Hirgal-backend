@@ -1,3 +1,4 @@
+import { chooseOption } from '@/test/choose-option';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -68,7 +69,7 @@ describe('ProjectsRoute', () => {
     renderWithProviders(<ProjectsRoute />);
     await screen.findByRole('link', { name: 'Atlas rollout' });
     fireEvent.change(screen.getByPlaceholderText('Search projects'), { target: { value: 'Atlas' } });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by status' }), { target: { value: 'active' } });
+    await chooseOption(screen.getByRole('combobox', { name: 'Filter by status' }), 'Active');
     await waitFor(() => expect(projectApi.list).toHaveBeenLastCalledWith({ page: 1, per_page: 12, search: 'Atlas', status: 'active' }));
   });
 
@@ -111,8 +112,7 @@ describe('Project details and form', () => {
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
     fireEvent.click(await screen.findByRole('button', { name: 'Add team' }));
     await screen.findByText('No teams are allocated to this project.');
-    await screen.findByRole('option', { name: 'Platform team' });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Select a team to allocate' }), { target: { value: 'team-uuid' } });
+    await chooseOption(await screen.findByRole('combobox', { name: 'Select a team to allocate' }), 'Platform team');
     fireEvent.click(screen.getByRole('button', { name: 'Allocate team' }));
     await waitFor(() => expect(projectApi.allocateTeam).toHaveBeenCalledWith('project-uuid', 'team-uuid'));
   });
@@ -150,17 +150,16 @@ describe('Project details and form', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Add team' }));
 
     const select = await screen.findByRole('combobox', { name: 'Select a team to allocate' });
-    await screen.findByRole('option', { name: 'Platform team' });
-    fireEvent.change(select, { target: { value: firstTeam.uuid } });
+    await chooseOption(select, 'Platform team');
     const nextPageButton = screen.getAllByRole('button', { name: 'Go to next page' }).find((button) => !button.hasAttribute('disabled'));
     fireEvent.click(nextPageButton!);
-    await screen.findByRole('option', { name: 'Core team' });
-    expect(select).toHaveValue(firstTeam.uuid);
+    await waitFor(() => expect(teamApi.list).toHaveBeenLastCalledWith({ page: 2, per_page: 12 }));
+    expect(select).toHaveTextContent('Platform team');
     expect(teamApi.list).toHaveBeenLastCalledWith({ page: 2, per_page: 12 });
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Search available teams' }), { target: { value: 'Core' } });
     await waitFor(() => expect(teamApi.list).toHaveBeenLastCalledWith({ page: 1, per_page: 12, search: 'Core' }));
-    expect(select).toHaveValue(firstTeam.uuid);
+    expect(select).toHaveTextContent('Platform team');
     fireEvent.click(screen.getByRole('button', { name: 'Allocate team' }));
     await waitFor(() => expect(projectApi.allocateTeam).toHaveBeenCalledWith('project-uuid', firstTeam.uuid));
   });
@@ -178,24 +177,20 @@ describe('Project details and form', () => {
   });
 
   it('keeps an edited draft when discarding is declined, then saves from the project list', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     projectApi.create.mockResolvedValue(project);
-    try {
-      renderWithProviders(<Routes><Route path="/projects" element={<ProjectsRoute />} /></Routes>, '/projects');
+    renderWithProviders(<Routes><Route path="/projects" element={<ProjectsRoute />} /></Routes>, '/projects');
       fireEvent.click(await screen.findByRole('link', { name: 'New project' }));
       expect(await screen.findByRole('dialog', { name: 'Create project' })).toBeInTheDocument();
       fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), { target: { value: 'Atlas rollout' } });
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-      expect(confirm).toHaveBeenCalledOnce();
+      expect(screen.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
       expect(screen.getByRole('textbox', { name: 'Project name' })).toHaveValue('Atlas rollout');
 
       fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
       expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
       expect(projectApi.create).toHaveBeenCalledWith(expect.objectContaining({ name: 'Atlas rollout' }));
-    } finally {
-      confirm.mockRestore();
-    }
   });
 
   it('preserves an archived project status when editing its metadata', async () => {
@@ -216,8 +211,7 @@ describe('Project details and form', () => {
     projectApi.addMember.mockResolvedValue({ ...projectMember, id: 19, user: { ...project.owner, id: 8, name: 'Omar Ali' }, role: 'member' });
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
     fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
-    await screen.findByRole('option', { name: /Omar Ali/ });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Select a person to add' }), { target: { value: '8' } });
+    await chooseOption(screen.getByRole('combobox', { name: 'Select a person to add' }), /Omar Ali/);
     fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
     await waitFor(() => expect(projectApi.addMember).toHaveBeenCalledWith('project-uuid', { user_id: 8, role: 'member' }));
   });

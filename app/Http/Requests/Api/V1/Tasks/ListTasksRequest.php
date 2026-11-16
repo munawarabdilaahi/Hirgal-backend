@@ -30,6 +30,8 @@ class ListTasksRequest extends FormRequest
             'assignee' => ['nullable', 'integer', 'exists:users,id'],
             'status' => ['nullable', 'string', 'in:backlog,todo,in_progress,in_review,done,cancelled'],
             'priority' => ['nullable', 'string', 'in:urgent,high,medium,low'],
+            'schedule' => ['nullable', 'string', 'in:overdue,today,tomorrow,upcoming,other'],
+            'with_schedule' => ['nullable', 'boolean'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'sort_by' => ['nullable', 'string', 'in:title,status,priority,due_date,order_column,created_at,updated_at'],
             'sort_direction' => ['nullable', 'string', 'in:asc,desc'],

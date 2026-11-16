@@ -1,12 +1,17 @@
+import { SearchInput } from '@/components/ui/search-input';
+import { ConfirmRemoveButton } from '@/components/ui/action-confirmation';
+import { DateField } from '@/components/ui/date-field';
+import { isCalendarDate } from '@/lib/calendar-date';
+import { FormField } from '@/components/ui/form-field';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
-import { NativeSelect } from '@/components/ui/native-select';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Archive, FolderKanban, Plus, Search, Trash2 } from 'lucide-react';
+import { Archive, FolderKanban, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,8 +37,8 @@ const formSchema = z.object({
   description: z.string().max(5000, 'Use 5000 characters or fewer.'),
   status: z.enum(['planning', 'active', 'paused', 'completed']),
   priority: z.enum(['urgent', 'high', 'medium', 'low']),
-  start_date: z.string(),
-  due_date: z.string(),
+  start_date: z.string().refine((value) => value === '' || isCalendarDate(value), 'Enter a valid date (YYYY-MM-DD).'),
+  due_date: z.string().refine((value) => value === '' || isCalendarDate(value), 'Enter a valid date (YYYY-MM-DD).'),
 });
 type ProjectFormValues = z.infer<typeof formSchema>;
 
@@ -74,26 +79,25 @@ export function ProjectsRoute() {
         <CardContent className="grid gap-3 pt-6 @min-[25rem]:grid-cols-2 @min-[48rem]:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,10rem))]">
           <label className="relative min-w-0 @min-[25rem]:col-span-2 @min-[48rem]:col-span-1">
             <span className="sr-only">Search projects</span>
-            <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-9" maxLength={100} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search projects" value={search} />
+            <SearchInput maxLength={100} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search projects" value={search} />
           </label>
           <label className="min-w-0">
             <span className="sr-only">Filter by status</span>
-            <NativeSelect aria-label="Filter by status" className="w-full" onChange={(event) => { setStatus(event.target.value); setPage(1); }} value={status}>
-              <option value="">All statuses</option>
-              {(['planning', 'active', 'paused', 'completed', 'archived'] as const).map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
-            </NativeSelect>
+            <ChoiceSelect aria-label="Filter by status" className="w-full" onValueChange={(nextValue) => { setStatus(nextValue); setPage(1); }} value={status}>
+              <ChoiceOption value="">All statuses</ChoiceOption>
+              {(['planning', 'active', 'paused', 'completed', 'archived'] as const).map((value) => <ChoiceOption key={value} value={value}>{statusLabel(value)}</ChoiceOption>)}
+            </ChoiceSelect>
           </label>
           <label className="min-w-0">
             <span className="sr-only">Filter by priority</span>
-            <NativeSelect aria-label="Filter by priority" className="w-full" onChange={(event) => { setPriority(event.target.value); setPage(1); }} value={priority}>
-              <option value="">All priorities</option>
-              {(['urgent', 'high', 'medium', 'low'] as const).map((value) => <option key={value} value={value}>{value.charAt(0).toUpperCase() + value.slice(1)}</option>)}
-            </NativeSelect>
+            <ChoiceSelect aria-label="Filter by priority" className="w-full" onValueChange={(nextValue) => { setPriority(nextValue); setPage(1); }} value={priority}>
+              <ChoiceOption value="">All priorities</ChoiceOption>
+              {(['urgent', 'high', 'medium', 'low'] as const).map((value) => <ChoiceOption key={value} value={value}>{value.charAt(0).toUpperCase() + value.slice(1)}</ChoiceOption>)}
+            </ChoiceSelect>
           </label>
-          <NativeSelect aria-label="Sort projects" value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); setPage(1); }}>
-            <option value="default">Newest first</option><option value="name">Name A–Z</option><option value="due_date">Due date</option>
-          </NativeSelect>
+          <ChoiceSelect aria-label="Sort projects" value={sort} onValueChange={(nextValue) => { setSort(nextValue as typeof sort); setPage(1); }}>
+            <ChoiceOption value="default">Newest first</ChoiceOption><ChoiceOption value="name">Name A–Z</ChoiceOption><ChoiceOption value="due_date">Due date</ChoiceOption>
+          </ChoiceSelect>
         </CardContent>
       </Card>
       {query.isPending ? <LoadingState label="Loading projects" layout="cards" /> : query.isError ? <ErrorState description={errorMessage(query.error)} onRetry={() => void query.refetch()} title="Projects could not be loaded" /> : projects.length === 0 ? <EmptyState description="Projects you can access will appear here. Try a different search or create a project if you have permission." title="No projects found" /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{projects.map((project) => <ProjectCard key={project.uuid} project={project} />)}</div>}
@@ -195,12 +199,12 @@ export function ProjectDetailsRoute() {
   return <section aria-labelledby="project-detail-title" className="space-y-6">
     <PageHeader className="items-start"><div className="space-y-2"><Link className="text-sm text-primary hover:underline" to="/projects">Projects</Link><h1 className="text-2xl font-semibold tracking-tight" id="project-detail-title">{project.name}</h1><p className="max-w-3xl text-sm leading-6 text-muted-foreground">{project.description || 'No description provided.'}</p></div><div className="flex flex-wrap gap-2">{canEdit ? <Button asChild variant="outline"><Link to="?editor=edit">Edit project</Link></Button> : null}{canArchive ? <Button onClick={() => setConfirmAction('archive')} variant="outline"><Archive aria-hidden="true" className="size-4" />Archive</Button> : null}{canDelete ? <Button onClick={() => setConfirmAction('remove')} variant="destructive"><Trash2 aria-hidden="true" className="size-4" />Delete</Button> : null}</div></PageHeader>
     {(action.isError || remove.isError) ? <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{errorMessage(action.error ?? remove.error)}</p> : null}
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(18rem,0.7fr)]"><Card><CardHeader><CardTitle>Project overview</CardTitle><CardDescription>Details returned by the project service.</CardDescription></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2"><Detail label="Status" value={statusLabel(project.status)} /><Detail label="Priority" value={project.priority} /><Detail label="Owner" value={project.owner?.name ?? 'Not listed'} /><Detail label="Members" value={membersQuery.data?.meta.total ?? project.members_count ?? 'Not available'} /><Detail label="Start date" value={project.start_date ?? 'Not set'} /><Detail label="Due date" value={project.due_date ?? 'Not set'} /></CardContent></Card><Card><CardHeader><CardTitle>Project teams</CardTitle><CardDescription>Teams allocated to this workspace.</CardDescription></CardHeader><CardContent className="space-y-3">{!hasPermission(user, 'teams.view') ? <p className="text-sm text-muted-foreground">Your account cannot view allocated team details.</p> : teamsQuery.isPending ? <LoadingState label="Loading project teams" /> : teamsQuery.isError ? <p className="text-sm text-muted-foreground">{errorMessage(teamsQuery.error)}</p> : teamsQuery.data?.data.length ? teamsQuery.data.data.map((team) => <div className="flex items-center justify-between gap-2 rounded-md border p-3 text-sm" key={team.uuid}><Link className="min-w-0 hover:text-primary" to={`/teams/${team.uuid}`}><span className="block truncate font-medium">{team.name}</span><span className="mt-1 block text-muted-foreground">{team.leader?.name ?? 'No team lead listed'}</span></Link>{canAllocateTeams ? <Button disabled={teamMutation.isPending} onClick={() => { if (window.confirm(`Remove ${team.name} from this project?`)) void teamMutation.mutateAsync({ teamUuid: team.uuid, remove: true }); }} size="sm" variant="outline">Remove</Button> : null}</div>) : <p className="text-sm text-muted-foreground">No teams are allocated to this project.</p>}{canAllocateTeams ? <><Button variant="outline" onClick={() => { teamMutation.reset(); selectCandidateTeam(null); setAllocationOpen(true); }}>Add team</Button>{allocationOpen && <FormDialog title="Allocate team" description="Choose a team to allocate to this project." pending={teamMutation.isPending} onClose={() => setAllocationOpen(false)}><form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (candidateTeam) teamMutation.mutate({ teamUuid: candidateTeam.uuid }, { onSuccess: () => { selectCandidateTeam(null); setAllocationOpen(false); } }); }}><ProjectTeamAllocationPicker allocatedTeamUuids={(teamsQuery.data?.data ?? []).map((team) => team.uuid)} enabled={canAllocateTeams} onSelect={selectCandidateTeam} selectedTeam={candidateTeam} />{teamMutation.isError && <p role="alert" className="text-sm text-destructive">{errorMessage(teamMutation.error)}</p>}<FormDialogActions pending={teamMutation.isPending} submitDisabled={!candidateTeam} submitLabel="Allocate team" /></form></FormDialog>}</> : null}{teamMutation.isError ? <p className="text-sm text-destructive" role="alert">{errorMessage(teamMutation.error)}</p> : null}</CardContent></Card></div>
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(18rem,0.7fr)]"><Card><CardHeader><CardTitle>Project overview</CardTitle><CardDescription>Details returned by the project service.</CardDescription></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2"><Detail label="Status" value={statusLabel(project.status)} /><Detail label="Priority" value={project.priority} /><Detail label="Owner" value={project.owner?.name ?? 'Not listed'} /><Detail label="Members" value={membersQuery.data?.meta.total ?? project.members_count ?? 'Not available'} /><Detail label="Start date" value={project.start_date ?? 'Not set'} /><Detail label="Due date" value={project.due_date ?? 'Not set'} /></CardContent></Card><Card><CardHeader><CardTitle>Project teams</CardTitle><CardDescription>Teams allocated to this workspace.</CardDescription></CardHeader><CardContent className="space-y-3">{!hasPermission(user, 'teams.view') ? <p className="text-sm text-muted-foreground">Your account cannot view allocated team details.</p> : teamsQuery.isPending ? <LoadingState label="Loading project teams" /> : teamsQuery.isError ? <p className="text-sm text-muted-foreground">{errorMessage(teamsQuery.error)}</p> : teamsQuery.data?.data.length ? teamsQuery.data.data.map((team) => <div className="flex items-center justify-between gap-2 rounded-md border p-3 text-sm" key={team.uuid}><Link className="min-w-0 hover:text-primary" to={`/teams/${team.uuid}`}><span className="block truncate font-medium">{team.name}</span><span className="mt-1 block text-muted-foreground">{team.leader?.name ?? 'No team lead listed'}</span></Link>{canAllocateTeams ? <ConfirmRemoveButton disabled={teamMutation.isPending} title={`Remove ${team.name} from this project?`} onRemove={() => teamMutation.mutateAsync({ teamUuid: team.uuid, remove: true })} /> : null}</div>) : <p className="text-sm text-muted-foreground">No teams are allocated to this project.</p>}{canAllocateTeams ? <><Button variant="outline" onClick={() => { teamMutation.reset(); selectCandidateTeam(null); setAllocationOpen(true); }}>Add team</Button>{allocationOpen && <FormDialog title="Allocate team" description="Choose a team to allocate to this project." pending={teamMutation.isPending} onClose={() => setAllocationOpen(false)}><form className="space-y-3" onSubmit={(event) => { event.preventDefault(); if (candidateTeam) teamMutation.mutate({ teamUuid: candidateTeam.uuid }, { onSuccess: () => { selectCandidateTeam(null); setAllocationOpen(false); } }); }}><ProjectTeamAllocationPicker allocatedTeamUuids={(teamsQuery.data?.data ?? []).map((team) => team.uuid)} enabled={canAllocateTeams} onSelect={selectCandidateTeam} selectedTeam={candidateTeam} />{teamMutation.isError && <p role="alert" className="text-sm text-destructive">{errorMessage(teamMutation.error)}</p>}<FormDialogActions pending={teamMutation.isPending} submitDisabled={!candidateTeam} submitLabel="Allocate team" /></form></FormDialog>}</> : null}{teamMutation.isError ? <p className="text-sm text-destructive" role="alert">{errorMessage(teamMutation.error)}</p> : null}</CardContent></Card></div>
     <Card><CardHeader><CardTitle>Project members</CardTitle><CardDescription>Contextual project roles, separate from global account roles.</CardDescription></CardHeader><CardContent>{membersQuery.isPending ? <LoadingState label="Loading project members" /> : membersQuery.isError ? <ErrorState description={errorMessage(membersQuery.error)} onRetry={() => void membersQuery.refetch()} title="Members could not be loaded" /> : <><ul className="divide-y">{membersQuery.data?.data.map((member) => {
       const isProjectOwner = member.user.id === project.owner?.id;
       const assignableRoles = actorRole === 'owner' ? ['lead', 'member', 'viewer'] as const : ['member', 'viewer'] as const;
-      return <li className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm" key={member.id}><span className="font-medium">{member.user.name}<span className="ml-2 font-normal text-muted-foreground">{member.user.email}</span></span><div className="flex items-center gap-2"><span className="capitalize text-muted-foreground">{member.role}</span>{canManageMembers && !isProjectOwner ? <><NativeSelect aria-label={`Change ${member.user.name} project role`} className="h-9" onChange={(event) => void memberMutation.mutateAsync({ memberId: member.id, role: event.target.value as 'lead' | 'member' | 'viewer' })} value={member.role}>{assignableRoles.map((role) => <option key={role} value={role}>{role}</option>)}</NativeSelect><Button disabled={memberMutation.isPending} onClick={() => { if (window.confirm(`Remove ${member.user.name} from this project?`)) void memberMutation.mutateAsync({ memberId: member.id, remove: true }); }} size="sm" variant="outline">Remove</Button></> : null}</div></li>;
-    })}</ul>{membersQuery.data?.meta ? <Pagination currentPage={membersQuery.data.meta.current_page} onPageChange={setMembersPage} totalPages={membersQuery.data.meta.last_page} /> : null}{canManageMembers && hasPermission(user, 'users.view_directory') ? <><Button variant="outline" onClick={() => { addMember.reset(); setCandidateUser(null); setMemberDialogOpen(true); }}>Invite member</Button>{memberDialogOpen && <FormDialog title="Invite member" description="Choose a person and their workspace role." pending={addMember.isPending} onClose={() => setMemberDialogOpen(false)}><form className="mt-5 space-y-2 border-t pt-5" onSubmit={(event) => { event.preventDefault(); if (candidateUser) void addMember.mutateAsync({ user_id: candidateUser.id, role: candidateRole }).then(() => { setCandidateUser(null); setMemberDialogOpen(false); }).catch(() => {}); }}><div className="flex flex-wrap items-end gap-2"><div className="min-w-48 flex-1"><DirectoryUserPicker ariaLabel="Select a person to add" enabled={canManageMembers} excludeIds={(membersQuery.data?.data ?? []).map((member) => member.user.id)} onSelect={setCandidateUser} selectedId={candidateUser ? String(candidateUser.id) : ''} selectedUser={candidateUser} /></div><label className="text-sm"><span className="sr-only">New project role</span><NativeSelect aria-label="New project role" onChange={(event) => setCandidateRole(event.target.value as 'lead' | 'member' | 'viewer')} value={candidateRole}><option value="member">Member</option><option value="viewer">Viewer</option>{actorRole === 'owner' ? <option value="lead">Lead</option> : null}</NativeSelect></label></div>{addMember.isError && <p className="text-sm text-destructive" role="alert">{errorMessage(addMember.error)}</p>}<FormDialogActions pending={addMember.isPending} submitDisabled={!candidateUser} submitLabel="Add member" /></form></FormDialog>}</> : null}{canManageMembers && !hasPermission(user, 'users.view_directory') ? <p className="mt-4 text-sm text-muted-foreground">The people directory permission is required to choose a member.</p> : null}{addMember.isError || memberMutation.isError ? <p className="mt-3 text-sm text-destructive" role="alert">{errorMessage(addMember.error ?? memberMutation.error)}</p> : null}</>}</CardContent></Card>
+      return <li className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm" key={member.id}><span className="font-medium">{member.user.name}<span className="ml-2 font-normal text-muted-foreground">{member.user.email}</span></span><div className="flex items-center gap-2"><span className="capitalize text-muted-foreground">{member.role}</span>{canManageMembers && !isProjectOwner ? <><ChoiceSelect aria-label={`Change ${member.user.name} project role`} className="h-9" onValueChange={(nextValue) => void memberMutation.mutateAsync({ memberId: member.id, role: nextValue as 'lead' | 'member' | 'viewer' })} value={member.role}>{assignableRoles.map((role) => <ChoiceOption key={role} value={role}>{role}</ChoiceOption>)}</ChoiceSelect><ConfirmRemoveButton disabled={memberMutation.isPending} title={`Remove ${member.user.name} from this project?`} onRemove={() => memberMutation.mutateAsync({ memberId: member.id, remove: true })} /></> : null}</div></li>;
+    })}</ul>{membersQuery.data?.meta ? <Pagination currentPage={membersQuery.data.meta.current_page} onPageChange={setMembersPage} totalPages={membersQuery.data.meta.last_page} /> : null}{canManageMembers && hasPermission(user, 'users.view_directory') ? <><Button variant="outline" onClick={() => { addMember.reset(); setCandidateUser(null); setMemberDialogOpen(true); }}>Invite member</Button>{memberDialogOpen && <FormDialog title="Invite member" description="Choose a person and their workspace role." pending={addMember.isPending} onClose={() => setMemberDialogOpen(false)}><form className="mt-5 space-y-2 border-t pt-5" onSubmit={(event) => { event.preventDefault(); if (candidateUser) void addMember.mutateAsync({ user_id: candidateUser.id, role: candidateRole }).then(() => { setCandidateUser(null); setMemberDialogOpen(false); }).catch(() => {}); }}><div className="flex flex-wrap items-end gap-2"><div className="min-w-48 flex-1"><DirectoryUserPicker ariaLabel="Select a person to add" enabled={canManageMembers} excludeIds={(membersQuery.data?.data ?? []).map((member) => member.user.id)} onSelect={setCandidateUser} selectedId={candidateUser ? String(candidateUser.id) : ''} selectedUser={candidateUser} /></div><label className="text-sm"><span className="sr-only">New project role</span><ChoiceSelect aria-label="New project role" onValueChange={(nextValue) => setCandidateRole(nextValue as 'lead' | 'member' | 'viewer')} value={candidateRole}><ChoiceOption value="member">Member</ChoiceOption><ChoiceOption value="viewer">Viewer</ChoiceOption>{actorRole === 'owner' ? <ChoiceOption value="lead">Lead</ChoiceOption> : null}</ChoiceSelect></label></div>{addMember.isError && <p className="text-sm text-destructive" role="alert">{errorMessage(addMember.error)}</p>}<FormDialogActions pending={addMember.isPending} submitDisabled={!candidateUser} submitLabel="Add member" /></form></FormDialog>}</> : null}{canManageMembers && !hasPermission(user, 'users.view_directory') ? <p className="mt-4 text-sm text-muted-foreground">The people directory permission is required to choose a member.</p> : null}{addMember.isError || memberMutation.isError ? <p className="mt-3 text-sm text-destructive" role="alert">{errorMessage(addMember.error ?? memberMutation.error)}</p> : null}</>}</CardContent></Card>
     <AlertDialog onOpenChange={(open) => { if (!open && !action.isPending && !remove.isPending) setConfirmAction(null); }} open={Boolean(confirmAction)}>
       <AlertDialogContent>
         <AlertDialogHeader><AlertDialogTitle>{confirmAction === 'archive' ? 'Archive this project?' : 'Delete this project?'}</AlertDialogTitle><AlertDialogDescription>{confirmAction === 'archive' ? 'The project status will change to archived and its data will remain available.' : 'The project will be soft-deleted and disappear from normal project access.'}</AlertDialogDescription></AlertDialogHeader>
@@ -259,7 +263,51 @@ function ProjectFormDialog({ onClose }: { onClose?: () => void }) {
     try { const project = await save.mutateAsync(request); if (onClose) onClose(); else navigate(`/projects/${project.uuid}`, { replace: true }); } catch { /* Mutation error is rendered below. */ }
   }
   return dialog(
-    <form className="space-y-5" noValidate onSubmit={form.handleSubmit(submit)}><Field label="Project name" error={errors.name}><Input {...form.register('name')} autoComplete="off" /></Field><Field label="Description" error={errors.description}><Textarea {...form.register('description')} rows={4} /></Field><div className="grid gap-4 sm:grid-cols-2">{seeded?.status === 'archived' ? <Field label="Status" error={undefined}><p className="flex h-10 items-center rounded-md border bg-muted px-3 text-sm">Archived (unchanged when editing)</p></Field> : <Field label="Status" error={errors.status}><NativeSelect className="w-full" {...form.register('status')}><option value="planning">Planning</option><option value="active">Active</option><option value="paused">Paused</option><option value="completed">Completed</option></NativeSelect></Field>}<Field label="Priority" error={errors.priority}><NativeSelect className="w-full" {...form.register('priority')}><option value="urgent">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></NativeSelect></Field><Field label="Start date" error={errors.start_date}><Input type="date" {...form.register('start_date')} /></Field><Field label="Due date" error={errors.due_date}><Input type="date" {...form.register('due_date')} /></Field></div>{save.isError ? <p className="text-sm text-destructive" role="alert">{errorMessage(save.error)}</p> : null}<FormDialogActions pending={save.isPending} submitLabel={projectUuid ? 'Save changes' : 'Create project'} /></form>
+    <form className="space-y-5" noValidate onSubmit={form.handleSubmit(submit)}>
+      <Field label="Project name" error={errors.name}>
+        <Input {...form.register('name')} autoComplete="off" />
+      </Field>
+      <Field label="Description" error={errors.description}>
+        <Textarea {...form.register('description')} rows={4} />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {seeded?.status === 'archived' ? (
+          <Field label="Status" error={undefined}>
+            <p className="flex h-10 items-center rounded-md border bg-muted px-3 text-sm">Archived (unchanged when editing)</p>
+          </Field>
+        ) : (
+          <FormField label="Status" error={errors.status} htmlFor="project-status">
+            {(props) => <Controller control={form.control} name="status" render={({ field }) => (
+              <ChoiceSelect {...props} name={field.name} value={field.value} onValueChange={field.onChange}>
+                <ChoiceOption value="planning">Planning</ChoiceOption>
+                <ChoiceOption value="active">Active</ChoiceOption>
+                <ChoiceOption value="paused">Paused</ChoiceOption>
+                <ChoiceOption value="completed">Completed</ChoiceOption>
+              </ChoiceSelect>
+            )} />}
+          </FormField>
+        )}
+        <FormField label="Priority" error={errors.priority} htmlFor="project-priority">
+          {(props) => <Controller control={form.control} name="priority" render={({ field }) => (
+            <ChoiceSelect {...props} name={field.name} value={field.value} onValueChange={field.onChange}>
+              <ChoiceOption value="urgent">Urgent</ChoiceOption>
+              <ChoiceOption value="high">High</ChoiceOption>
+              <ChoiceOption value="medium">Medium</ChoiceOption>
+              <ChoiceOption value="low">Low</ChoiceOption>
+            </ChoiceSelect>
+          )} />}
+        </FormField>
+        {([{ name: 'start_date', label: 'Start date' }, { name: 'due_date', label: 'Due date' }] as const).map(({ name, label }) => (
+          <FormField key={name} label={label} error={errors[name]} htmlFor={'project-' + name}>
+            {(props) => <Controller control={form.control} name={name} render={({ field }) => (
+              <DateField {...props} aria-label={label} name={name} value={field.value} onValueChange={field.onChange} />
+            )} />}
+          </FormField>
+        ))}
+      </div>
+      {save.isError && <p className="text-sm text-destructive" role="alert">{errorMessage(save.error)}</p>}
+      <FormDialogActions pending={save.isPending} submitLabel={projectUuid ? 'Save changes' : 'Create project'} />
+    </form>
   );
 }
 

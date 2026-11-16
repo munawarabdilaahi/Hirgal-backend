@@ -1,7 +1,8 @@
+import { SearchInput } from '@/components/ui/search-input';
 import { PageHeader } from '@/components/layout/primitives';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, UserRound } from 'lucide-react';
+import { UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/feedback/EmptyState';
@@ -31,6 +32,7 @@ import { AccountStatusBadge } from '@/features/auth/components/AccountStatusBadg
 import { useAdministrativeUsers, useUserDirectory } from '@/features/users/user-queries';
 import { useDebouncedValue } from '@/features/users/use-debounced-value';
 import { InviteUserDialog } from '@/features/users/InviteUserDialog';
+import { AddUserDialog } from '@/features/users/AddUserDialog';
 import { hasPermission } from '@/features/auth/permissions';
 import type { AccountStatus, ApiDirectoryUser, ApiUser } from '@/services/api/contracts';
 
@@ -83,6 +85,17 @@ function usePageSize(defaultValue: number) {
   return { changePageSize, page, perPage, setPage };
 }
 
+function UserCreationActions({ canCreate, canInvite }: { canCreate: boolean; canInvite: boolean }) {
+  if (!canCreate && !canInvite) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {canCreate && <AddUserDialog />}
+      {canInvite && <InviteUserDialog />}
+    </div>
+  );
+}
+
 export function UsersRoute() {
   const { user } = useAuth();
 
@@ -127,16 +140,14 @@ function CollaborativeDirectory() {
           Find active teammates by name, email, job title, or department.
         </p>
         </div>
-        {hasPermission(user, 'users.invite') && <InviteUserDialog />}
+        <UserCreationActions canCreate={hasPermission(user, 'users.create')} canInvite={hasPermission(user, 'users.invite')} />
       </PageHeader>
 
       <Card>
         <CardContent className="grid gap-3 pt-6 md:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.55fr)_auto]">
           <label className="relative block">
             <span className="sr-only">Search people</span>
-            <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
+            <SearchInput
               onChange={(event) => {
                 setSearch(event.target.value);
                 setPage(1);
@@ -298,16 +309,14 @@ function AdministrativeUserList() {
           with the backend-provided <code>users.view</code> permission.
         </p>
         </div>
-        {hasPermission(user, 'users.invite') && <InviteUserDialog />}
+        <UserCreationActions canCreate={hasPermission(user, 'users.create')} canInvite={hasPermission(user, 'users.invite')} />
       </PageHeader>
 
       <Card>
         <CardContent className="grid gap-3 pt-6 sm:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_minmax(9rem,0.45fr)_minmax(9rem,0.5fr)_minmax(11rem,0.55fr)_auto]">
           <label className="relative block">
             <span className="sr-only">Search users</span>
-            <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
+            <SearchInput
               onChange={(event) => {
                 setSearch(event.target.value);
                 setPage(1);

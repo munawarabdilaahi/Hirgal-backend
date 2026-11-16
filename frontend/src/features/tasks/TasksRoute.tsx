@@ -1,3 +1,4 @@
+import { SearchInput } from '@/components/ui/search-input';
 import { DateField } from '@/components/ui/date-field';
 import { ActionConfirmation } from '@/components/ui/action-confirmation';
 import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
@@ -10,10 +11,11 @@ import { PageHeader } from '@/components/layout/primitives';
 import { useDebouncedValue } from '@/features/users/use-debounced-value';
 import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Columns3, List, Plus, Search } from 'lucide-react';
+import { ChevronRight, CircleAlert, Columns3, List, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { UserIdentity } from '@/components/ui/user-identity';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { ErrorState } from '@/components/feedback/ErrorState';
@@ -23,7 +25,8 @@ import { hasPermission } from '@/features/auth/permissions';
 import { getSafeErrorMessage } from '@/features/auth/auth-validation';
 import { apiClient } from '@/services/api/apiClient';
 import { projectApi } from '@/services/api/projectApi';
-import type { ApiPaginatedResponse, ApiSuccess, ApiUser } from '@/services/api/contracts';
+import type { ApiSuccess, ApiUser } from '@/services/api/contracts';
+import { TaskAgenda, TaskSummary, type TaskListResponse, type TaskSchedule } from './TaskAgenda';
 
 export const statuses = {
   backlog: 'Backlog',
@@ -62,6 +65,7 @@ export function TaskCreateDialog({ user, onClose }: { user: ApiUser; onClose: ()
 
 function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: ApiUser | null; assignedToMe?: boolean; closeCreateDialog?: () => void }) {
   const queryClient = useQueryClient();
+  const [referenceDate] = useState(() => new Date());
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [taskSearch, setTaskSearch] = useState('');
   const searchTerm = useDebouncedValue(taskSearch.trim());
@@ -76,18 +80,35 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
   const detailTrigger = useRef<HTMLButtonElement>(null);
   const pageTitle = useRef<HTMLHeadingElement>(null);
   const [board, setBoard] = useState(false);
+  const [projectFilter, setProjectFilter] = useState('');
+  const [onlyMine, setOnlyMine] = useState(false);
+  const [agendaOpen, setAgendaOpen] = useState<Partial<Record<keyof TaskSchedule, boolean>>>({});
   const canCreate = hasPermission(user, 'tasks.create');
-  const assignee = assignedToMe ? user?.id : undefined;
+  const assignee = assignedToMe || onlyMine ? user?.id : undefined;
+  const listParams = {
+    assignee, status: status || undefined, sort_by: sortBy, sort_direction: sortDirection,
+    ...(searchTerm ? { search: searchTerm } : {}),
+    ...(priority ? { priority } : {}),
+    ...(projectFilter ? { project: projectFilter } : {}),
+  };
   const tasks = useQuery({
-    queryKey: ['tasks', 'list', user?.id, assignee, page, status, priority, searchTerm, sort],
-    queryFn: async () => (await apiClient.get<ApiPaginatedResponse<Task>>('/tasks', {
-      params: {
-        page, assignee, status: status || undefined, sort_by: sortBy, sort_direction: sortDirection,
-        ...(searchTerm ? { search: searchTerm } : {}),
-        ...(priority ? { priority } : {}),
-      },
+    queryKey: ['tasks', 'list', user?.id, listParams, page, assignedToMe],
+    queryFn: async () => (await apiClient.get<TaskListResponse>('/tasks', {
+      params: { ...listParams, page, ...(!assignedToMe ? { with_schedule: 1 } : {}) },
     })).data,
     enabled: !closeCreateDialog && taskSearch.trim() === searchTerm && (!assignedToMe || assignee !== undefined),
+  });
+  const filterProjects = useQuery({
+    queryKey: ['projects', 'task-filters', user?.id],
+    queryFn: async () => {
+      const first = await projectApi.list({ page: 1, per_page: 100 });
+      const all = [...first.data];
+      for (let page = 2; page <= first.meta.last_page; page++) {
+        all.push(...(await projectApi.list({ page, per_page: 100 })).data);
+      }
+      return all;
+    },
+    enabled: !closeCreateDialog && !assignedToMe && hasPermission(user, 'projects.view'),
   });
   const projects = useQuery({
     queryKey: ['projects', 'task-picker', project],
@@ -123,6 +144,17 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
     if (closeCreateDialog) { closeCreateDialog(); return; }
     if (hash === '#new-task') void navigate({ pathname, search }, { replace: true });
   };
+  const schedule = tasks.data?.meta.schedule;
+
+  function clearFilters() {
+    setTaskSearch('');
+    setStatus('');
+    setPriority('');
+    setProjectFilter('');
+    setOnlyMine(false);
+    setSort('created_at:desc');
+    setPage(1);
+  }
 
   function openTask(uuid: string, trigger: HTMLButtonElement) {
     detailTrigger.current = trigger;
@@ -176,7 +208,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
         <FormDialog title="Create task" description="Choose a project and enter the task details." pending={update.isPending} onClose={closeEditor}>
         <form className="grid gap-4" onSubmit={(event) => saveTask(event)}>
           {update.isError && <p role="alert" className="text-sm text-destructive">{getSafeErrorMessage(update.error)}</p>}
-          <Input aria-label="Search projects" placeholder="Search projects" value={project} onChange={(event) => setProject(event.target.value)} />
+          <SearchInput aria-label="Search projects" placeholder="Search projects" value={project} onChange={(event) => setProject(event.target.value)} />
           {projects.isPending && <LoadingState label="Loading projects for this task" layout="inline" />}
           {projects.isError && <p role="alert">Projects could not be loaded.</p>}
           <ChoiceSelect name="project" aria-label="Project" required>
@@ -196,11 +228,24 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
   return (
     <section className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 sm:gap-5">
       <PageHeader className="items-center">
-        <div className="space-y-2">
-          <h1 ref={pageTitle} tabIndex={-1} className="text-2xl font-semibold tracking-tight">{assignedToMe ? 'My work' : 'Tasks'}</h1>
-          {assignedToMe && <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Review and update tasks assigned to you.</p>}
+        <div className="flex flex-wrap items-center gap-3">
+          {!assignedToMe && user && <UserIdentity name={user.name} imageUrl={user.avatar_url} className="[&>div:last-child]:sr-only" />}
+          <div className="space-y-1">
+            <h1 ref={pageTitle} tabIndex={-1} className="text-2xl font-semibold tracking-tight">{assignedToMe ? 'My work' : 'Tasks'}</h1>
+            <p className="max-w-2xl text-sm text-muted-foreground">{assignedToMe ? 'Review and update tasks assigned to you.' :
+              new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeZone: user?.timezone ?? 'UTC' }).format(referenceDate)}</p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {!assignedToMe && (
+            <Button disabled={!schedule?.overdue} variant="outline" onClick={() => {
+              setBoard(false);
+              setAgendaOpen((current) => ({ ...current, overdue: true }));
+              requestAnimationFrame(() => document.getElementById('task-overdue')?.focus());
+            }}>
+              <CircleAlert aria-hidden="true" className="size-4" />Review overdue
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setBoard(!board)}>
             {board ? <List aria-hidden="true" className="size-4" /> : <Columns3 aria-hidden="true" className="size-4" />}
             {board ? 'List view' : 'Board view'}
@@ -211,11 +256,63 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
         </div>
       </PageHeader>
       {createTaskForm}
+      {!assignedToMe && <TaskSummary pending={tasks.isPending} schedule={schedule} />}
+      {!assignedToMe ? (
+        <div className="@container rounded-xl border bg-card p-3 shadow-card sm:p-4">
+          <div className="grid items-end gap-3 @min-[28rem]:grid-cols-2 @min-[61rem]:grid-cols-[minmax(12rem,1fr)_repeat(4,minmax(0,9rem))_auto]">
+            <label className="grid min-w-0 gap-1.5 text-xs font-medium text-muted-foreground @min-[28rem]:col-span-2 @min-[61rem]:col-span-1">
+              Search
+              <SearchInput aria-label="Search tasks" placeholder="Search tasks, projects, assignees…" maxLength={100} value={taskSearch}
+                onChange={(event) => { setTaskSearch(event.target.value); setPage(1); }} />
+            </label>
+            <label className="grid min-w-0 gap-1.5 text-xs font-medium text-muted-foreground">
+              Status
+              <ChoiceSelect aria-label="Status" value={status} onValueChange={(value) => { setStatus(value); setPage(1); }}>
+                <ChoiceOption value="">All statuses</ChoiceOption>
+                {Object.entries(statuses).map(([value, label]) => <ChoiceOption key={value} value={value}>{label}</ChoiceOption>)}
+              </ChoiceSelect>
+            </label>
+            <label className="grid min-w-0 gap-1.5 text-xs font-medium text-muted-foreground">
+              Project
+              <ChoiceSelect aria-label="Filter by project" disabled={!filterProjects.data?.length} value={projectFilter}
+                onValueChange={(value) => { setProjectFilter(value); setPage(1); }}>
+                <ChoiceOption value="">All projects</ChoiceOption>
+                {filterProjects.data?.map((item) => <ChoiceOption key={item.uuid} value={item.uuid}>{item.name}</ChoiceOption>)}
+              </ChoiceSelect>
+            </label>
+            <label className="grid min-w-0 gap-1.5 text-xs font-medium text-muted-foreground">
+              Priority
+              <ChoiceSelect aria-label="Filter by priority" value={priority} onValueChange={(value) => { setPriority(value); setPage(1); }}>
+                <ChoiceOption value="">All priorities</ChoiceOption>
+                {priorities.map((value) => <ChoiceOption className="capitalize" key={value} value={value}>{value}</ChoiceOption>)}
+              </ChoiceSelect>
+            </label>
+            <label className="grid min-w-0 gap-1.5 text-xs font-medium text-muted-foreground">
+              Assignment
+              <ChoiceSelect aria-label="Filter by assignment" value={onlyMine ? 'mine' : 'all'} onValueChange={(value) => { setOnlyMine(value === 'mine'); setPage(1); }}>
+                <ChoiceOption value="all">All work</ChoiceOption>
+                <ChoiceOption value="mine">Assigned to me</ChoiceOption>
+              </ChoiceSelect>
+            </label>
+            <Button variant="outline" disabled={!taskSearch && !status && !priority && !projectFilter && !onlyMine && sort === 'created_at:desc'} onClick={clearFilters}>
+              <X aria-hidden="true" className="size-4" />Clear
+            </Button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>{tasks.data ? `${tasks.data.meta.total} matching tasks` : ''}</span>
+            <ChoiceSelect aria-label="Sort tasks" className="h-8 w-36" value={sort} onValueChange={(value) => { setSort(value); setPage(1); }}>
+              <ChoiceOption value="created_at:desc">Newest first</ChoiceOption>
+              <ChoiceOption value="due_date:asc">Due date</ChoiceOption>
+              <ChoiceOption value="title:asc">Title A–Z</ChoiceOption>
+            </ChoiceSelect>
+          </div>
+          {filterProjects.isError && <Button size="sm" variant="link" onClick={() => void filterProjects.refetch()}>Retry loading project filters</Button>}
+        </div>
+      ) : (
       <div className="@container rounded-xl border bg-card p-3 shadow-card sm:p-4">
         <div className="grid gap-2.5 @min-[17rem]:grid-cols-2 @min-[43rem]:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,10rem))]">
           <div className="relative min-w-0 @min-[17rem]:col-span-2 @min-[43rem]:col-span-1">
-            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
-            <Input className="pl-9" aria-label="Search tasks" placeholder="Search tasks" maxLength={100} value={taskSearch} onChange={(event) => { setTaskSearch(event.target.value); setPage(1); }} />
+            <SearchInput aria-label="Search tasks" placeholder="Search tasks" maxLength={100} value={taskSearch} onChange={(event) => { setTaskSearch(event.target.value); setPage(1); }} />
           </div>
           <label className="sr-only" htmlFor="task-status-filter">Status</label>
           <ChoiceSelect id="task-status-filter" value={status} onValueChange={(nextValue) => { setStatus(nextValue); setPage(1); }}>
@@ -233,9 +330,14 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
           </ChoiceSelect>
         </div>
       </div>
+      )}
       {tasks.isPending && <LoadingState label="Loading tasks" layout={board ? "board" : "list"} />}
       {tasks.isError && <ErrorState title="Could not load tasks" description={getSafeErrorMessage(tasks.error)} onRetry={() => void tasks.refetch()} />}
-      {tasks.data && (
+      {!assignedToMe && !board && tasks.data ? (
+        <TaskAgenda actorId={user?.id} key={JSON.stringify(listParams)} params={listParams} schedule={schedule} open={agendaOpen}
+          onToggle={(group) => setAgendaOpen((current) => ({ ...current, [group]: !(current[group] ?? group === 'today') }))}
+          onOpenTask={openTask} statusLabels={statuses} />
+      ) : tasks.data && (
         <>
           {tasks.data.data.length === 0 && <EmptyState title={assignedToMe ? 'No assigned tasks match this view.' : 'No tasks match this view.'} />}
           {tasks.data.data.length > 0 && (board ? (
@@ -287,7 +389,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
       <Dialog open={Boolean(selectedTask)} onOpenChange={(open) => { if (!open) closeTask(); }}>
         <DialogContent
           id="task-details"
-          className="left-auto right-0 top-0 grid h-dvh max-h-none w-full max-w-lg translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-y-0 border-r-0 p-0"
+          className="max-w-2xl grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             const trigger = detailTrigger.current;

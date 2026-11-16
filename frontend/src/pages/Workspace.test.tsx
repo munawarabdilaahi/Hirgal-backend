@@ -63,7 +63,7 @@ describe('session workspace appointments and habits', () => {
 });
 
 describe('session workspace task actions', () => {
-  it('opens task details from the list and restores focus when the drawer closes', async () => {
+  it('opens task details in a dialog and restores focus when it closes', async () => {
     window.history.replaceState(null, '', '/tasks');
     const task = {
       uuid: 'release', title: 'Review release', description: 'Check the rollout plan.', status: 'todo',
@@ -78,8 +78,8 @@ describe('session workspace task actions', () => {
     render(<AppProviders><Workspace user={user} frontendUrl="https://legacy.example" /></AppProviders>);
     const trigger = await screen.findByRole('button', { name: 'Review release' });
     fireEvent.click(trigger);
-    const drawer = await screen.findByRole('dialog', { name: 'Review release' });
-    expect(drawer).toHaveTextContent('Check the rollout plan.');
+    const detailsDialog = await screen.findByRole('dialog', { name: 'Review release' });
+    expect(detailsDialog).toHaveTextContent('Check the rollout plan.');
     expect(window.location.search).toBe('?task=release');
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit task' }));
@@ -87,7 +87,7 @@ describe('session workspace task actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(await screen.findByRole('dialog', { name: 'Review release' })).toBeInTheDocument();
 
-    fireEvent.keyDown(drawer, { key: 'Escape' });
+    fireEvent.keyDown(detailsDialog, { key: 'Escape' });
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(window.location.search).toBe('');
@@ -125,7 +125,7 @@ describe('session workspace notifications and activity', () => {
     expect(await screen.findByText('Project invitation')).toBeInTheDocument();
     expect(get).toHaveBeenCalledWith('/notifications', { params: { page: 1 } });
     expect(screen.getByRole('link', { name: 'Follow-up inbox' })).toHaveAttribute('href', '/notifications');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter inbox by read status' }), { target: { value: 'unread' } });
+    await chooseOption(screen.getByRole('combobox', { name: 'Filter inbox by read status' }), 'Unread');
     await waitFor(() => expect(get).toHaveBeenCalledWith('/notifications', { params: { page: 1, status: 'unread' } }));
     await screen.findByText('Project invitation');
     fireEvent.click(screen.getByRole('button', { name: 'Mark as read' }));
@@ -168,8 +168,8 @@ describe('session workspace user administration', () => {
     render(<AppProviders><Workspace user={admin} frontendUrl="https://legacy.example" /></AppProviders>);
     fireEvent.click(await screen.findByRole('button', { name: 'Edit user details' }));
     const roleSelect = await screen.findByRole('combobox', { name: 'Global role' });
-    expect(roleSelect).toHaveValue('');
-    fireEvent.change(roleSelect, { target: { value: '2' } });
+    expect(roleSelect).toHaveTextContent('Keep current roles');
+    await chooseOption(roleSelect, 'Member');
     fireEvent.click(screen.getByRole('button', { name: 'Save user details' }));
 
     await waitFor(() => expect(update).toHaveBeenCalledWith(43, expect.objectContaining({ role_id: 2 })));
@@ -208,10 +208,9 @@ describe('session workspace user administration', () => {
     expect(await screen.findByRole('heading', { name: 'Users & access' })).toBeInTheDocument();
     await waitFor(() => expect(list).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: 'Invite user' }));
-    expect(await screen.findByRole('option', { name: 'Member' })).toBeInTheDocument();
     expect(roles).toHaveBeenCalledWith('/invitations/roles');
     fireEvent.change(screen.getByLabelText(/Email address/), { target: { value: 'new@example.test' } });
-    fireEvent.change(screen.getByLabelText(/System role/), { target: { value: '4' } });
+    await chooseOption(await screen.findByRole('combobox', { name: /System role/ }), 'Member');
     fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
     await waitFor(() => expect(invite).toHaveBeenCalledWith('/invitations', { email: 'new@example.test', role_id: 4 }));
   });
@@ -246,7 +245,11 @@ describe('session workspace tasks', () => {
     render(<AppProviders><Workspace user={user} frontendUrl="https://legacy.example" /></AppProviders>);
 
     expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
-    expect(await screen.findByText(assignee ? 'No assigned tasks match this view.' : 'No tasks match this view.')).toBeInTheDocument();
+    expect(await screen.findByText(assignee ? 'No assigned tasks match this view.' : 'No tasks in this group.')).toBeInTheDocument();
+    if (!assignee) {
+      expect(screen.getByRole('region', { name: 'Task overview' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Today’s tasks/ })).toHaveAttribute('aria-expanded', 'true');
+    }
     expect(get).toHaveBeenCalledWith('/tasks', {
       params: {
         page: 1,
@@ -254,6 +257,7 @@ describe('session workspace tasks', () => {
         status: undefined,
         sort_by: assignee ? 'due_date' : 'created_at',
         sort_direction: assignee ? 'asc' : 'desc',
+        ...(assignee ? {} : { with_schedule: 1 }),
       },
     });
     expect(screen.getByRole('link', { name: heading })).toHaveAttribute('href', path);

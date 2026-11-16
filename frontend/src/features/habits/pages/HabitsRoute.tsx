@@ -1,4 +1,5 @@
-import { Check, ChevronLeft, ChevronRight, Minus, Plus, Search, SkipForward, X } from 'lucide-react';
+import { SearchInput } from '@/components/ui/search-input';
+import { Check, ChevronLeft, ChevronRight, Minus, Plus, SkipForward, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { EmptyState } from '@/components/feedback/EmptyState';
@@ -13,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { DateField } from '@/components/ui/date-field';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -115,11 +115,8 @@ export function HabitsRoute() {
         </div>
 
         <Card className="p-4 shadow-card sm:p-6">
-          <div className="relative min-w-0">
-            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
-            <Input aria-label="Search habits" className="pl-9" maxLength={100} placeholder="Search habits" value={search}
-              onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
-          </div>
+          <SearchInput aria-label="Search habits" maxLength={100} placeholder="Search habits" value={search}
+            onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
         </Card>
 
         <HabitActivity today={today} selectedDate={viewDate} onSelectDate={setViewDate} />

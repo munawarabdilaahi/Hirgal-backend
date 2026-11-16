@@ -7,6 +7,7 @@ use App\Actions\Tasks\CreateTaskAction;
 use App\Actions\Tasks\DeleteTaskAction;
 use App\Actions\Tasks\UnassignTaskAction;
 use App\Actions\Tasks\UpdateTaskAction;
+use App\Enums\TaskStatus;
 use App\Models\Project;
 use App\Models\ProjectMember;
 use App\Models\Task;
@@ -15,7 +16,9 @@ use App\Models\User;
 use App\Policies\ProjectPolicy;
 use App\Services\Project\ProjectService;
 use App\Services\Team\TeamService;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 
 class TaskService
 {
@@ -49,6 +52,76 @@ class TaskService
      * @param  array<string, mixed>  $filters
      */
     public function listTasks(User $actor, array $filters): LengthAwarePaginator
+    {
+        $query = $this->taskQuery($actor, $filters);
+
+        if (isset($filters['schedule'])) {
+            $query = $this->scheduledTasks($query, $filters['schedule'], CarbonImmutable::today($actor->timezone));
+        }
+
+        $sortBy = $filters['sort_by'] ?? 'created_at';
+        $sortDirection = $filters['sort_direction'] ?? 'desc';
+        $perPage = (int) ($filters['per_page'] ?? 15);
+
+        return $query->orderBy($sortBy, $sortDirection)->orderBy('id')->paginate($perPage);
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return array{overdue: int, today: int, tomorrow: int, upcoming: int, other: int, due_today: int, due_tomorrow: int, done_today: int}
+     */
+    public function scheduleSummary(User $actor, array $filters): array
+    {
+        $query = $this->taskQuery($actor, $filters);
+        $today = CarbonImmutable::today($actor->timezone);
+        $groups = [];
+        foreach (['overdue', 'today', 'tomorrow', 'upcoming', 'other'] as $group) {
+            $groups[$group] = $this->scheduledTasks(clone $query, $group, $today);
+        }
+
+        return [
+            'overdue' => $groups['overdue']->count(),
+            'today' => (clone $groups['today'])->count(),
+            'tomorrow' => (clone $groups['tomorrow'])->count(),
+            'upcoming' => $groups['upcoming']->count(),
+            'other' => $groups['other']->count(),
+            'due_today' => $this->openTasks(clone $groups['today'])->count(),
+            'due_tomorrow' => $this->openTasks($groups['tomorrow'])->count(),
+            'done_today' => $groups['today']->where('status', TaskStatus::Done)->count(),
+        ];
+    }
+
+    /** @param Builder<Task> $query
+     * @return Builder<Task>
+     */
+    private function scheduledTasks(Builder $query, string $group, CarbonImmutable $today): Builder
+    {
+        return match ($group) {
+            'overdue' => $this->openTasks($query)->where('due_date', '<', $today->toDateString()),
+            'today' => $query->whereDate('due_date', $today->toDateString()),
+            'tomorrow' => $query->whereDate('due_date', $today->addDay()->toDateString()),
+            'upcoming' => $query->whereDate('due_date', $today->addDays(2)->toDateString()),
+            'other' => $query->where(fn ($other) => $other->whereNull('due_date')
+                ->orWhere('due_date', '>=', $today->addDays(3)->toDateString())
+                ->orWhere(fn ($closed) => $closed->where('due_date', '<', $today->toDateString())
+                    ->whereIn('status', [TaskStatus::Done, TaskStatus::Cancelled]))),
+        };
+    }
+
+    /**
+     * @param  Builder<Task>  $query
+     * @return Builder<Task>
+     */
+    private function openTasks(Builder $query): Builder
+    {
+        return $query->whereNotIn('status', [TaskStatus::Done, TaskStatus::Cancelled]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return Builder<Task>
+     */
+    private function taskQuery(User $actor, array $filters): Builder
     {
         $query = Task::query()
             ->with(self::EAGER)
@@ -85,14 +158,12 @@ class TaskService
         if ($search !== '') {
             $query->where(fn ($matching) => $matching
                 ->whereLike('title', "%{$search}%")
-                ->orWhereLike('description', "%{$search}%"));
+                ->orWhereLike('description', "%{$search}%")
+                ->orWhereHas('project', fn ($project) => $project->whereLike('name', "%{$search}%"))
+                ->orWhereHas('assignees', fn ($assignee) => $assignee->whereLike('users.name', "%{$search}%")));
         }
 
-        $sortBy = $filters['sort_by'] ?? 'created_at';
-        $sortDirection = $filters['sort_direction'] ?? 'desc';
-        $perPage = (int) ($filters['per_page'] ?? 15);
-
-        return $query->orderBy($sortBy, $sortDirection)->paginate($perPage);
+        return $query;
     }
 
     /**

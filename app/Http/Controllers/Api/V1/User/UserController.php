@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\User;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\User\ListDirectoryRequest;
 use App\Http\Requests\Api\V1\User\ListUsersRequest;
+use App\Http\Requests\Api\V1\User\StoreUserRequest;
 use App\Http\Requests\Api\V1\User\UpdateUserRequest;
 use App\Http\Resources\Api\V1\UserDirectoryResource;
 use App\Http\Resources\Api\V1\UserResource;
@@ -14,12 +15,24 @@ use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Symfony\Component\HttpFoundation\Response;
 
 class UserController extends Controller
 {
     public function __construct(
         protected UserService $userService,
     ) {}
+
+    public function store(StoreUserRequest $request): JsonResponse
+    {
+        $user = $this->userService->createUser($request->safe()->only(['name', 'email', 'password']));
+
+        return ApiResponse::success(
+            data: new UserResource($user),
+            message: 'User created successfully.',
+            status: Response::HTTP_CREATED,
+        );
+    }
 
     /**
      * List all users with pagination and filtering (administrative).

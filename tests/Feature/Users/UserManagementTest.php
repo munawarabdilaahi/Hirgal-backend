@@ -10,6 +10,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class UserManagementTest extends TestCase
@@ -56,6 +57,46 @@ class UserManagementTest extends TestCase
             ]);
 
         $this->assertGreaterThanOrEqual(7, $response->json('meta.total'));
+    }
+
+    public function test_admin_can_manually_create_an_active_member(): void
+    {
+        $this->actingAs($this->admin, 'sanctum');
+        $payload = [
+            'name' => 'Manual Member',
+            'email' => 'Manual.Member@example.test',
+            'password' => 'initial-password',
+            'password_confirmation' => 'initial-password',
+            'role_id' => $this->adminRole->id,
+        ];
+
+        $this->postJson('/api/v1/users', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.email', 'manual.member@example.test')
+            ->assertJsonPath('data.account_status', 'active')
+            ->assertJsonMissingPath('data.password');
+
+        $created = User::where('email', 'manual.member@example.test')->sole();
+        $this->assertTrue(Hash::check($payload['password'], $created->password));
+        $this->assertSame([$this->memberRole->id], $created->roles()->pluck('roles.id')->all());
+        $this->assertNotNull($created->profile);
+        $this->assertDatabaseMissing('user_invitations', ['email' => $created->email]);
+        $this->postJson('/api/v1/users', $payload)->assertUnprocessable()->assertJsonValidationErrors('email');
+    }
+
+    public function test_manual_creation_checks_permission_and_password_confirmation(): void
+    {
+        $payload = [
+            'name' => 'Manual Member',
+            'email' => 'manual.member@example.test',
+            'password' => 'initial-password',
+            'password_confirmation' => 'wrong-password',
+        ];
+        $this->actingAs($this->member, 'sanctum')->postJson('/api/v1/users', $payload)->assertForbidden();
+        $this->actingAs($this->admin, 'sanctum')->postJson('/api/v1/users', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('password');
+        $this->assertDatabaseMissing('users', ['email' => $payload['email']]);
     }
 
     public function test_admin_can_filter_users_by_search_status_and_role(): void
