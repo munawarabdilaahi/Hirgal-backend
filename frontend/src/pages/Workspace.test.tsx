@@ -84,10 +84,18 @@ describe('session workspace task actions', () => {
     }
   });
 
-  it('lets a user without task or project permissions submit a private task', async () => {
+  it('lets a user without task or project permissions create and open a private task', async () => {
     window.history.replaceState(null, '', '/tasks');
-    const get = vi.spyOn(apiClient, 'get');
-    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: {} });
+    const task = { uuid: 'private-work', title: 'Private work', project: null, assignees: [], status: 'todo', priority: 'medium', description: 'Owner only' };
+    let created = false;
+    const get = vi.spyOn(apiClient, 'get').mockImplementation(async (path) => ({
+      data: path === '/tasks/private-work' ? { data: task } :
+        { data: created ? [task] : [], meta: { current_page: 1, last_page: 1, total: Number(created), per_page: 15 } },
+    }));
+    const post = vi.spyOn(apiClient, 'post').mockImplementation(async () => {
+      created = true;
+      return { data: { data: task } };
+    });
 
     render(<AppProviders><Workspace user={{ ...user, permissions: [] }} frontendUrl="https://legacy.example" /></AppProviders>);
 
@@ -98,7 +106,10 @@ describe('session workspace task actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
     await waitFor(() => expect(post).toHaveBeenCalledWith('/tasks', expect.objectContaining({ title: 'Private work', context: 'other' })));
-    expect(get).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole('button', { name: 'Private work' }));
+    expect(await screen.findByRole('dialog', { name: 'Private work' })).toBeInTheDocument();
+    expect(screen.getByText('Owner only')).toBeInTheDocument();
+    expect(get.mock.calls.every(([path]) => path === '/tasks' || path === '/tasks/private-work')).toBe(true);
   });
 
   it('opens task details in a dialog and restores focus when it closes', async () => {

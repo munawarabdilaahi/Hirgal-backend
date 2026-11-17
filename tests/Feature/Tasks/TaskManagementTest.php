@@ -227,7 +227,7 @@ class TaskManagementTest extends TestCase
         $this->postJson($path, ['title' => 'Assigned task', 'assignees' => [$this->member->id]], $headers)->assertForbidden();
     }
 
-    public function test_user_without_a_role_can_create_a_personal_task_without_gaining_read_access(): void
+    public function test_user_without_a_role_can_create_and_read_only_their_own_private_tasks(): void
     {
         $actor = User::factory()->create();
         $path = '/api/v1/tasks';
@@ -238,13 +238,22 @@ class TaskManagementTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.project', null);
 
-        $this->getJson($path, $this->auth($actor))->assertForbidden();
-        $this->getJson($path.'/'.$task->json('data.uuid'), $this->auth($this->member))->assertNotFound();
-        $this->getJson($path, $this->auth($this->admin))->assertOk()->assertJsonCount(0, 'data');
+        $taskPath = $path.'/'.$task->json('data.uuid');
+        $foreignPrivateTask = Task::factory()->create(['project_id' => null, 'creator_id' => $this->member->id]);
+        ProjectMember::factory()->create(['project_id' => $this->project->id, 'user_id' => $actor->id]);
+        $projectTask = Task::factory()->create(['project_id' => $this->project->id, 'creator_id' => $actor->id]);
 
-        $actor->roles()->attach($this->member->roles()->firstOrFail()->id);
-        $this->getJson($path, $this->auth($actor))->assertOk()->assertJsonPath('data.0.uuid', $task->json('data.uuid'));
-        $this->getJson($path.'/'.$task->json('data.uuid'), $this->auth($actor))->assertOk();
+        $this->getJson($path, $this->auth($actor))->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.uuid', $task->json('data.uuid'));
+        $this->getJson($taskPath, $this->auth($actor))->assertOk()->assertJsonPath('data.title', 'Private task');
+        $this->getJson($path.'/'.$projectTask->uuid, $this->auth($actor))->assertForbidden();
+        $this->getJson($path.'/'.$foreignPrivateTask->uuid, $this->auth($actor))->assertNotFound();
+        $this->putJson($taskPath, ['status' => 'done'], $this->auth($actor))->assertForbidden();
+
+        foreach ([$this->member, $this->admin] as $otherUser) {
+            $this->getJson($path.'?search=Private%20task', $this->auth($otherUser))->assertOk()->assertJsonCount(0, 'data');
+            $this->getJson($taskPath, $this->auth($otherUser))->assertNotFound();
+        }
     }
 
     public function test_task_worker_with_global_permission_can_create_task(): void

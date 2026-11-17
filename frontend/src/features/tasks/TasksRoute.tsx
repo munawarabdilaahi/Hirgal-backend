@@ -87,7 +87,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
   const [status, setStatus] = useState('');
   const [searchParams] = useSearchParams();
   const canViewTasks = hasPermission(user, 'tasks.view');
-  const selectedTask = closeCreateDialog || !canViewTasks ? null : searchParams.get('task');
+  const selectedTask = closeCreateDialog ? null : searchParams.get('task');
   const detailTrigger = useRef<HTMLButtonElement>(null);
   const pageTitle = useRef<HTMLHeadingElement>(null);
   const [board, setBoard] = useState(false);
@@ -102,11 +102,11 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
     ...(projectFilter ? { project: projectFilter } : {}),
   };
   const tasks = useQuery({
-    queryKey: ['tasks', 'list', user?.id, listParams, page, assignedToMe, board],
+    queryKey: ['tasks', 'list', user?.id, listParams, page, assignedToMe, board, canViewTasks],
     queryFn: async () => (await apiClient.get<TaskListResponse>('/tasks', {
-      params: { ...listParams, page, ...(!assignedToMe ? { with_schedule: 1 } : {}), ...(board ? { with_move_permissions: 1 } : {}) },
+      params: { ...listParams, page, ...(!assignedToMe && canViewTasks ? { with_schedule: 1 } : {}), ...(board ? { with_move_permissions: 1 } : {}) },
     })).data,
-    enabled: canViewTasks && !closeCreateDialog && taskSearch.trim() === searchTerm && (!assignedToMe || assignee !== undefined),
+    enabled: Boolean(user) && !closeCreateDialog && taskSearch.trim() === searchTerm && (!assignedToMe || (canViewTasks && assignee !== undefined)),
   });
   const filterProjects = useQuery({
     queryKey: ['projects', 'task-filters', user?.id],
@@ -247,9 +247,8 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
         </div>
       </PageHeader>
       {createTaskForm}
-      {canViewTasks ? <>
-      {!assignedToMe && <TaskSummary pending={tasks.isPending} schedule={schedule} />}
-      {!assignedToMe ? (
+      {!assignedToMe && canViewTasks && <TaskSummary pending={tasks.isPending} schedule={schedule} />}
+      {!assignedToMe && canViewTasks ? (
         <div className="@container rounded-xl border bg-card p-3 shadow-card sm:p-4">
           <div className="grid items-end gap-3 @min-[28rem]:grid-cols-2 @min-[61rem]:grid-cols-[minmax(12rem,1fr)_repeat(4,minmax(0,9rem))_auto]">
             <label className="grid min-w-0 gap-1.5 text-xs font-medium text-muted-foreground @min-[28rem]:col-span-2 @min-[61rem]:col-span-1">
@@ -325,7 +324,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
       )}
       {tasks.isPending && <LoadingState label="Loading tasks" layout={board ? "board" : "list"} />}
       {tasks.isError && <ErrorState title="Could not load tasks" description={getSafeErrorMessage(tasks.error)} onRetry={() => void tasks.refetch()} />}
-      {!assignedToMe && !board && tasks.data ? (
+      {!assignedToMe && canViewTasks && !board && tasks.data ? (
         <TaskAgenda actorId={user?.id} key={JSON.stringify(listParams)} params={listParams} schedule={schedule} open={agendaOpen}
           onToggle={(group) => setAgendaOpen((current) => ({ ...current, [group]: !(current[group] ?? group === 'today') }))}
           onOpenTask={openTask} statusLabels={statuses} />
@@ -335,7 +334,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
           {board ? <TaskBoard tasks={tasks.data.data} statuses={statuses} onOpenTask={openTask} /> :
             tasks.data.data.length > 0 && <div className="@container overflow-hidden rounded-xl border bg-card shadow-card">
             <div className="flex items-center justify-between gap-3 border-b px-3 py-2.5 sm:px-4">
-              <h2 className="text-sm font-semibold">Task list</h2>
+            <h2 className="text-sm font-semibold">{canViewTasks ? 'Task list' : 'Private tasks'}</h2>
               <p className="text-xs tabular-nums text-muted-foreground">
                 {tasks.data.meta.total ?? tasks.data.data.length} {(tasks.data.meta.total ?? tasks.data.data.length) === 1 ? 'task' : 'tasks'}
               </p>
@@ -367,7 +366,6 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
           {tasks.data.meta.last_page > 1 && <Pagination currentPage={page} totalPages={tasks.data.meta.last_page} onPageChange={setPage} />}
         </>
       )}
-      </> : <EmptyState title="You can create tasks" description="Your account does not have access to the task list." />}
       <Dialog open={Boolean(selectedTask)} onOpenChange={(open) => { if (!open) closeTask(); }}>
         <DialogContent
           id="task-details"

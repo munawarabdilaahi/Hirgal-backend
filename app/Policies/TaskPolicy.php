@@ -23,11 +23,8 @@ class TaskPolicy
      */
     public function view(User $actor, Task $task): bool
     {
-        if (! $actor->hasPermission('tasks.view')) {
-            return false;
-        }
-
-        return static::isWithinScope($actor, $task);
+        return ($task->project_id === null || $this->viewAny($actor))
+            && static::isWithinScope($actor, $task);
     }
 
     public static function isWithinScope(User $actor, Task $task): bool

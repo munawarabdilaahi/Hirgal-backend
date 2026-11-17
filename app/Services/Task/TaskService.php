@@ -125,12 +125,18 @@ class TaskService
     {
         $query = Task::query()->with(self::EAGER)
             ->where(function (Builder $query) use ($actor): void {
-                $query->where(function (Builder $projects) use ($actor): void {
+                $query->where(fn (Builder $personal) => $personal->whereNull('project_id')->where('creator_id', $actor->id));
+
+                if (! $actor->can('viewAny', Task::class)) {
+                    return;
+                }
+
+                $query->orWhere(function (Builder $projects) use ($actor): void {
                     $projects->whereHas('project');
                     if (! $actor->isSystemAdmin()) {
                         $projects->whereIn('project_id', $this->accessibleProjectIds($actor));
                     }
-                })->orWhere(fn (Builder $personal) => $personal->whereNull('project_id')->where('creator_id', $actor->id));
+                });
             });
 
         if (! empty($filters['project'])) {
