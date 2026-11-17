@@ -27,6 +27,7 @@ import { apiClient } from '@/services/api/apiClient';
 import { projectApi } from '@/services/api/projectApi';
 import type { ApiSuccess, ApiUser } from '@/services/api/contracts';
 import { TaskAgenda, TaskSummary, type TaskListResponse, type TaskSchedule } from './TaskAgenda';
+import { TaskBoard } from './TaskBoard';
 
 export const statuses = {
   backlog: 'Backlog',
@@ -51,6 +52,7 @@ export interface Task {
   due_date?: string | null;
   project: { uuid: string; name: string };
   parent?: { uuid: string | null; title: string | null };
+  can_update?: boolean;
   assignees: { id: number; name: string }[];
 }
 
@@ -92,9 +94,9 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
     ...(projectFilter ? { project: projectFilter } : {}),
   };
   const tasks = useQuery({
-    queryKey: ['tasks', 'list', user?.id, listParams, page, assignedToMe],
+    queryKey: ['tasks', 'list', user?.id, listParams, page, assignedToMe, board],
     queryFn: async () => (await apiClient.get<TaskListResponse>('/tasks', {
-      params: { ...listParams, page, ...(!assignedToMe ? { with_schedule: 1 } : {}) },
+      params: { ...listParams, page, ...(!assignedToMe ? { with_schedule: 1 } : {}), ...(board ? { with_move_permissions: 1 } : {}) },
     })).data,
     enabled: !closeCreateDialog && taskSearch.trim() === searchTerm && (!assignedToMe || assignee !== undefined),
   });
@@ -340,19 +342,8 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
       ) : tasks.data && (
         <>
           {tasks.data.data.length === 0 && <EmptyState title={assignedToMe ? 'No assigned tasks match this view.' : 'No tasks match this view.'} />}
-          {tasks.data.data.length > 0 && (board ? (
-            <div className="grid grid-cols-[repeat(6,minmax(10rem,1fr))] gap-3 overflow-x-auto pb-2">
-              {Object.entries(statuses).map(([value, label]) => (
-                <section key={value} className="space-y-2 rounded-xl border bg-card p-3 shadow-card">
-                  <h2 className="text-sm font-semibold">{label}</h2>
-                  {tasks.data.data.filter((item) => item.status === value).map((item) => (
-                    <Button aria-haspopup="dialog" className="h-auto w-full justify-start text-left whitespace-normal wrap-anywhere" key={item.uuid} variant="outline"
-                      onClick={(event) => openTask(item.uuid, event.currentTarget)}>{item.title}</Button>
-                  ))}
-                </section>
-              ))}
-            </div>
-          ) : <div className="@container overflow-hidden rounded-xl border bg-card shadow-card">
+          {board ? <TaskBoard tasks={tasks.data.data} statuses={statuses} onOpenTask={openTask} /> :
+            tasks.data.data.length > 0 && <div className="@container overflow-hidden rounded-xl border bg-card shadow-card">
             <div className="flex items-center justify-between gap-3 border-b px-3 py-2.5 sm:px-4">
               <h2 className="text-sm font-semibold">Task list</h2>
               <p className="text-xs tabular-nums text-muted-foreground">
@@ -382,7 +373,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
               </li>
             ))}
             </ul>
-          </div>)}
+          </div>}
           {tasks.data.meta.last_page > 1 && <Pagination currentPage={page} totalPages={tasks.data.meta.last_page} onPageChange={setPage} />}
         </>
       )}

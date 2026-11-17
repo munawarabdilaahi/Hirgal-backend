@@ -116,6 +116,30 @@ class TaskManagementTest extends TestCase
         $this->assertSame(1, $response->json('meta.total'));
     }
 
+    public function test_board_move_permission_matches_the_task_update_policy(): void
+    {
+        $task = Task::factory()->for($this->project)->create(['status' => TaskStatus::Todo]);
+        $headers = $this->auth($this->taskWorker);
+
+        $this->getJson('/api/v1/tasks?with_move_permissions=1', $headers)
+            ->assertOk()
+            ->assertJsonPath('data.0.can_update', true);
+
+        $this->putJson('/api/v1/tasks/'.$task->uuid, ['status' => TaskStatus::Done->value], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.status', TaskStatus::Done->value);
+        $this->assertNotNull($task->fresh()->completed_at);
+
+        ProjectMember::where('project_id', $this->project->id)->where('user_id', $this->taskWorker->id)
+            ->update(['role' => ProjectMemberRole::Viewer]);
+
+        $headers = $this->auth($this->taskWorker);
+        $this->getJson('/api/v1/tasks?with_move_permissions=1', $headers)
+            ->assertOk()
+            ->assertJsonPath('data.0.can_update', false);
+        $this->putJson('/api/v1/tasks/'.$task->uuid, ['status' => TaskStatus::Todo->value], $headers)->assertForbidden();
+    }
+
     public function test_task_search_matches_title_and_description_without_widening_project_scope(): void
     {
         $titleMatch = Task::factory()->create(['project_id' => $this->project->id, 'title' => 'Release checklist']);

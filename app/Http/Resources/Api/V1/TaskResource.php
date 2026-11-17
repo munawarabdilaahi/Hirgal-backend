@@ -33,6 +33,10 @@ class TaskResource extends JsonResource
                 'title' => $this->parent?->title,
             ]),
             'title' => $this->title,
+            'can_update' => $this->when(
+                $request->routeIs('api.v1.tasks.index') && $request->boolean('with_move_permissions'),
+                fn () => $request->user()->can('update', $this->resource),
+            ),
             'capabilities' => $this->when($request->routeIs('api.v1.tasks.show'), fn () => [
                 'update' => $request->user()->can('update', $this->resource),
                 'delete' => $request->user()->can('delete', $this->resource),
