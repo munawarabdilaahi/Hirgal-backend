@@ -63,6 +63,27 @@ describe('session workspace appointments and habits', () => {
 });
 
 describe('session workspace task actions', () => {
+  it('keeps the same Add task button and creation wizard in list and board views', async () => {
+    window.history.replaceState(null, '', '/tasks');
+    vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: { data: [], meta: { current_page: 1, last_page: 1, total: 0, per_page: 15 } },
+    });
+
+    render(<AppProviders><Workspace user={{ ...user, permissions: ['tasks.view', 'tasks.create', 'projects.view'] }}
+      frontendUrl="https://legacy.example" /></AppProviders>);
+
+    const addTask = await screen.findByRole('button', { name: 'Add task' });
+    for (const view of ['Board view', 'List view']) {
+      fireEvent.click(addTask);
+      expect(await screen.findByRole('dialog', { name: 'Create task' })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'Task name' })).toBeRequired();
+      expect(screen.getByRole('navigation', { name: 'Creation steps' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      fireEvent.click(screen.getByRole('button', { name: view }));
+      expect(screen.getByRole('button', { name: 'Add task' })).toBe(addTask);
+    }
+  });
+
   it('opens task details in a dialog and restores focus when it closes', async () => {
     window.history.replaceState(null, '', '/tasks');
     const task = {
