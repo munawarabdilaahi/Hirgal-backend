@@ -67,11 +67,14 @@ export function FormDialog({ title, description, pending = false, onClose, child
   );
 }
 
-export function FormDialogActions({ pending = false, submitDisabled, submitLabel }: { pending?: boolean; submitDisabled?: boolean; submitLabel: string }) {
+export function FormDialogActions({ pending = false, submitDisabled, submitLabel, onBack }: {
+  pending?: boolean; submitDisabled?: boolean; submitLabel: string; onBack?: () => void;
+}) {
   const requestClose = useContext(RequestClose);
   return (
     <DialogFooter>
       <Button type="button" variant="outline" disabled={pending} onClick={requestClose}>Cancel</Button>
+      {onBack && <Button type="button" variant="outline" disabled={pending} onClick={onBack}>Back</Button>}
       <Button type="submit" loading={pending} disabled={submitDisabled}>{submitLabel}</Button>
     </DialogFooter>
   );

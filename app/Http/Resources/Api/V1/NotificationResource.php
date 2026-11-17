@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Notifications\AppointmentNotification;
+use App\Notifications\TaskReminder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Notifications\DatabaseNotification;
@@ -20,6 +21,7 @@ class NotificationResource extends JsonResource
      * @var array<string, array<int, string>>
      */
     private const TYPE_DATA_ALLOWLIST = [
+        TaskReminder::class => ['event', 'title', 'task_uuid'],
         AppointmentNotification::class => [
             'event',
             'appointment_uuid',

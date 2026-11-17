@@ -9,6 +9,8 @@ use App\Models\Task;
 use App\Models\TaskAssignment;
 use App\Models\User;
 use App\Services\Task\TaskService;
+use App\Support\TaskDescription;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -44,7 +46,18 @@ class CreateTaskAction
                 'project_id' => $project->id,
                 'parent_id' => $parentId,
                 'title' => $data['title'],
-                'description' => $data['description'] ?? null,
+                'description' => ($data['description_is_rich_text'] ?? false)
+                    ? TaskDescription::sanitize($data['description'] ?? null)
+                    : ($data['description'] ?? null),
+                'description_is_rich_text' => $data['description_is_rich_text'] ?? false,
+                'context' => $data['context'] ?? 'project',
+                'department' => $data['department'] ?? null,
+                'start_date' => $data['start_date'] ?? null,
+                'remind_on' => $data['remind_on'] ?? null,
+                'reminder_due_at' => isset($data['remind_on'])
+                    ? CarbonImmutable::parse($data['remind_on'], $actor->timezone)->startOfDay()->utc()
+                    : null,
+                'tags' => $data['tags'] ?? [],
                 'status' => $status,
                 'priority' => $data['priority'] ?? TaskPriority::Medium->value,
                 'creator_id' => $actor->id,
@@ -69,7 +82,9 @@ class CreateTaskAction
                 );
             }
 
-            return $task->load(TaskService::EAGER);
+            $task->followers()->sync($data['followers'] ?? []);
+
+            return $task->load([...TaskService::EAGER, 'followers.profile']);
         });
     }
 }

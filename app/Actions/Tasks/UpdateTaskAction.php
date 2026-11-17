@@ -6,6 +6,7 @@ use App\Enums\TaskStatus;
 use App\Models\Project;
 use App\Models\Task;
 use App\Services\Task\TaskService;
+use App\Support\TaskDescription;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -30,6 +31,13 @@ class UpdateTaskAction
                 'actual_hours',
                 'order_column',
             ]);
+
+            if (array_key_exists('description', $updates)) {
+                $updates['description_is_rich_text'] = (bool) ($data['description_is_rich_text'] ?? false);
+                if ($updates['description_is_rich_text']) {
+                    $updates['description'] = TaskDescription::sanitize($updates['description']);
+                }
+            }
 
             if (array_key_exists('parent', $data)) {
                 Project::query()->lockForUpdate()->findOrFail($task->project_id);

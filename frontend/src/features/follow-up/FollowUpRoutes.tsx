@@ -19,7 +19,7 @@ import type { ApiPaginatedResponse, ApiSuccess } from '@/services/api/contracts'
 
 interface NotificationItem {
   id: string;
-  data: { title?: string; event?: string; appointment_uuid?: string };
+  data: { title?: string; event?: string; appointment_uuid?: string; task_uuid?: string };
   read_at: string | null;
   created_at: string | null;
 }
@@ -86,6 +86,7 @@ export function NotificationsRoute() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                 {item.data.appointment_uuid && hasPermission(user, 'appointments.view') && <Button asChild variant="ghost" size="sm"><Link to={`/appointments?appointment=${encodeURIComponent(item.data.appointment_uuid)}#appointment-details`}>View appointment</Link></Button>}
+                {item.data.task_uuid && hasPermission(user, 'tasks.view') && <Button asChild variant="ghost" size="sm"><Link to={`/tasks?task=${encodeURIComponent(item.data.task_uuid)}`}>View task</Link></Button>}
                 {item.read_at ? <Badge variant="secondary">Read</Badge> : (
                   <Button size="sm" variant="outline" disabled={markRead.isPending} onClick={() => markRead.mutate(item.id)}>Mark as read</Button>
                 )}

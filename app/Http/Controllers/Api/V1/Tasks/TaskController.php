@@ -71,7 +71,7 @@ class TaskController extends Controller
 
         Gate::authorize('view', $task);
 
-        $task->load(TaskService::EAGER);
+        $task->load([...TaskService::EAGER, 'followers.profile']);
 
         return ApiResponse::success(
             data: new TaskResource($task),

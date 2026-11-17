@@ -23,6 +23,13 @@ class Task extends Model
         'parent_id',
         'title',
         'description',
+        'description_is_rich_text',
+        'context',
+        'department',
+        'start_date',
+        'remind_on',
+        'reminder_due_at',
+        'tags',
         'status',
         'priority',
         'creator_id',
@@ -44,6 +51,11 @@ class Task extends Model
             'status' => TaskStatus::class,
             'priority' => TaskPriority::class,
             'due_date' => 'datetime',
+            'start_date' => 'date',
+            'remind_on' => 'date',
+            'reminder_due_at' => 'datetime',
+            'description_is_rich_text' => 'boolean',
+            'tags' => 'array',
             'completed_at' => 'datetime',
             'estimated_hours' => 'decimal:2',
             'actual_hours' => 'decimal:2',
@@ -90,6 +102,11 @@ class Task extends Model
     public function assignments(): HasMany
     {
         return $this->hasMany(TaskAssignment::class);
+    }
+
+    public function followers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'task_followers');
     }
 
     public function comments(): HasMany

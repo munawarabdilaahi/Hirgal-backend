@@ -251,6 +251,79 @@ class TaskManagementTest extends TestCase
             ->assertJsonPath('error_code', 'VALIDATION_ERROR');
     }
 
+    public function test_creation_details_are_saved_and_only_one_reminder_is_delivered(): void
+    {
+        $this->travelTo(now()->startOfDay()->addHours(12));
+        $this->member->profile()->create(['department' => 'Engineering']);
+        $tomorrow = today()->addDay()->toDateString();
+        $response = $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
+            'title' => 'Release checklist',
+            'context' => 'department',
+            'department' => 'Engineering',
+            'description' => '<p onclick="alert(1)"><strong>Check</strong><img src=x onerror=alert(1)><script>alert(1)</script></p>',
+            'description_is_rich_text' => true,
+            'priority' => 'high',
+            'status' => 'in_progress',
+            'start_date' => today()->toDateString(),
+            'due_date' => $tomorrow,
+            'remind_on' => $tomorrow,
+            'tags' => ['Release', 'QA'],
+            'assignees' => [$this->member->id],
+            'followers' => [$this->owner->id],
+        ], $this->auth($this->taskWorker))
+            ->assertCreated()
+            ->assertJsonPath('data.context', 'department')
+            ->assertJsonPath('data.department', 'Engineering')
+            ->assertJsonPath('data.start_date', today()->toDateString())
+            ->assertJsonPath('data.remind_on', $tomorrow)
+            ->assertJsonPath('data.tags', ['Release', 'QA'])
+            ->assertJsonPath('data.assignees.0.id', $this->member->id)
+            ->assertJsonPath('data.followers.0.id', $this->owner->id);
+
+        $uuid = $response->json('data.uuid');
+        $this->getJson('/api/v1/tasks/'.$uuid, $this->auth($this->taskWorker))
+            ->assertOk()
+            ->assertJsonPath('data.description_html', '<p><strong>Check</strong></p>');
+
+        $this->artisan('tasks:send-reminders')->assertSuccessful();
+        $this->assertDatabaseCount('notifications', 0);
+
+        $this->travel(1)->day();
+        $this->artisan('tasks:send-reminders')->assertSuccessful();
+        $this->artisan('tasks:send-reminders')->assertSuccessful();
+        $this->assertDatabaseCount('notifications', 1);
+        $this->getJson('/api/v1/notifications', $this->auth($this->taskWorker))
+            ->assertOk()
+            ->assertJsonPath('data.0.data.task_uuid', $uuid);
+    }
+
+    public function test_creation_rejects_invalid_timeline_and_out_of_context_people(): void
+    {
+        $this->member->profile()->create(['department' => 'Engineering']);
+        $externalUser = User::factory()->create();
+        $url = '/api/v1/projects/'.$this->project->uuid.'/tasks';
+
+        $this->postJson($url, [
+            'title' => 'Invalid dates',
+            'start_date' => today()->toDateString(),
+            'due_date' => today()->subDay()->toDateString(),
+            'followers' => [$externalUser->id],
+        ], $this->auth($this->taskWorker))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['due_date', 'followers.0']);
+
+        $this->postJson($url, [
+            'title' => 'Invalid roster',
+            'context' => 'department',
+            'department' => 'Engineering',
+            'assignees' => [$this->owner->id],
+        ], $this->auth($this->taskWorker))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('assignees');
+
+        $this->assertDatabaseCount('tasks', 0);
+    }
+
     public function test_create_task_with_parent_from_same_project(): void
     {
         $parent = Task::factory()->create([

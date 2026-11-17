@@ -43,9 +43,10 @@ class UpdateTaskRequest extends FormRequest
         return [
             'title' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'sometimes', 'string', 'max:10000'],
+            'description_is_rich_text' => ['sometimes', 'boolean'],
             'status' => ['nullable', 'sometimes', 'string', 'in:backlog,todo,in_progress,in_review,done,cancelled'],
             'priority' => ['nullable', 'sometimes', 'string', 'in:urgent,high,medium,low'],
-            'due_date' => ['nullable', 'sometimes', 'date'],
+            'due_date' => ['nullable', 'sometimes', 'date', Rule::when($task?->start_date !== null, ['after_or_equal:'.$task?->start_date?->toDateString()])],
             'estimated_hours' => ['nullable', 'sometimes', 'numeric', 'min:0'],
             'actual_hours' => ['nullable', 'sometimes', 'numeric', 'min:0'],
             'order_column' => ['nullable', 'sometimes', 'integer', 'min:0'],

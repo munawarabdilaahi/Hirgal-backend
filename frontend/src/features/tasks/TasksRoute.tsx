@@ -28,6 +28,8 @@ import { projectApi } from '@/services/api/projectApi';
 import type { ApiSuccess, ApiUser } from '@/services/api/contracts';
 import { TaskAgenda, TaskSummary, type TaskListResponse, type TaskSchedule } from './TaskAgenda';
 import { TaskBoard } from './TaskBoard';
+import { NewTaskDialog } from './NewTaskDialog';
+import { FormattedTaskDescription, TaskDescriptionEditor } from './TaskDescriptionEditor';
 
 export const statuses = {
   backlog: 'Backlog',
@@ -50,9 +52,16 @@ export interface Task {
   priority: string;
   capabilities?: { update: boolean; delete: boolean; assign: boolean; create_subtask: boolean };
   due_date?: string | null;
+  can_update?: boolean;
+  description_html?: string | null;
+  context?: 'project' | 'department' | 'other';
+  department?: string | null;
+  start_date?: string | null;
+  remind_on?: string | null;
+  tags?: string[];
+  followers?: { id: number; name: string }[];
   project: { uuid: string; name: string };
   parent?: { uuid: string | null; title: string | null };
-  can_update?: boolean;
   assignees: { id: number; name: string }[];
 }
 
@@ -76,7 +85,6 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
   const [sortBy, sortDirection] = sort.split(':');
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
-  const [project, setProject] = useState('');
   const [searchParams] = useSearchParams();
   const selectedTask = closeCreateDialog ? null : searchParams.get('task');
   const detailTrigger = useRef<HTMLButtonElement>(null);
@@ -111,11 +119,6 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
       return all;
     },
     enabled: !closeCreateDialog && !assignedToMe && hasPermission(user, 'projects.view'),
-  });
-  const projects = useQuery({
-    queryKey: ['projects', 'task-picker', project],
-    queryFn: () => projectApi.list({ search: project, page: 1, per_page: 20 }),
-    enabled: !assignedToMe && canCreate && hasPermission(user, 'projects.view'),
   });
   const detail = useQuery({
     queryKey: ['tasks', selectedTask],
@@ -185,11 +188,12 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
     const fields = new FormData(form);
     const dueDate = fields.get('due_date');
     update.mutate({
-      path: task ? `/tasks/${task.uuid}` : `/projects/${parent?.project.uuid ?? fields.get('project')}/tasks`,
+      path: task ? `/tasks/${task.uuid}` : `/projects/${parent?.project.uuid}/tasks`,
       method: task ? 'put' : 'post',
       body: {
         title: fields.get('title'),
         description: fields.get('description') || null,
+        ...(task?.description_html !== undefined ? { description_is_rich_text: true } : {}),
         status: fields.get('status') ?? 'todo',
         ...(fields.has('priority') ? { priority: fields.get('priority') } : {}),
         ...(dueDate !== null && dueDate !== (task?.due_date?.slice(0, 10) ?? '')
@@ -206,25 +210,9 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
     });
   }
 
-  const createTaskForm = editor === 'create' && !assignedToMe && canCreate && hasPermission(user, 'projects.view') && (
-        <FormDialog title="Create task" description="Choose a project and enter the task details." pending={update.isPending} onClose={closeEditor}>
-        <form className="grid gap-4" onSubmit={(event) => saveTask(event)}>
-          {update.isError && <p role="alert" className="text-sm text-destructive">{getSafeErrorMessage(update.error)}</p>}
-          <SearchInput aria-label="Search projects" placeholder="Search projects" value={project} onChange={(event) => setProject(event.target.value)} />
-          {projects.isPending && <LoadingState label="Loading projects for this task" layout="inline" />}
-          {projects.isError && <p role="alert">Projects could not be loaded.</p>}
-          <ChoiceSelect name="project" aria-label="Project" required>
-            <ChoiceOption value="">Choose a project</ChoiceOption>
-            {projects.data?.data.map((item) => <ChoiceOption key={item.uuid} value={item.uuid}>{item.name}</ChoiceOption>)}
-          </ChoiceSelect>
-          <Input name="title" aria-label="New task title" placeholder="Task title" required maxLength={255} />
-          <Textarea name="description" aria-label="Task description" maxLength={10000} />
-          <TaskPrioritySelect />
-          <DateField name="due_date" aria-label="Due date" />
-          <FormDialogActions pending={update.isPending} submitLabel="Create task" />
-        </form>
-        </FormDialog>
-      );
+  const createTaskForm = editor === 'create' && !assignedToMe && user && canCreate && hasPermission(user, 'projects.view') && (
+    <NewTaskDialog actorId={user.id} statuses={statuses} priorities={priorities} onClose={closeEditor} />
+  );
   if (closeCreateDialog) return createTaskForm;
 
   return (
@@ -406,12 +394,22 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
                   <div><dt className="mb-1 text-xs text-muted-foreground">Status</dt><dd><Badge variant="secondary">{statuses[task.status]}</Badge></dd></div>
                   <div><dt className="mb-1 text-xs text-muted-foreground">Priority</dt><dd className="capitalize">{task.priority}</dd></div>
                   <div><dt className="mb-1 text-xs text-muted-foreground">Due date</dt><dd>{task.due_date ? <time dateTime={task.due_date}>{task.due_date.slice(0, 10)}</time> : 'No due date'}</dd></div>
+                  {task.start_date && <div><dt className="mb-1 text-xs text-muted-foreground">Start date</dt><dd>{task.start_date}</dd></div>}
+                  {task.remind_on && <div><dt className="mb-1 text-xs text-muted-foreground">Reminder date</dt><dd>{task.remind_on}</dd></div>}
+                  {task.context && <div><dt className="mb-1 text-xs text-muted-foreground">Context</dt><dd className="capitalize">{task.context}{task.department ? ` · ${task.department}` : ''}</dd></div>}
                   {task.parent?.title && <div><dt className="mb-1 text-xs text-muted-foreground">Parent task</dt><dd className="wrap-anywhere">{task.parent.title}</dd></div>}
                 </dl>
                 <div className="space-y-1.5">
                   <h2 className="text-sm font-semibold">Description</h2>
-                  <p className="text-sm leading-6 whitespace-pre-wrap wrap-anywhere text-muted-foreground">{task.description || 'No description provided.'}</p>
+                  {task.description_html ? <FormattedTaskDescription html={task.description_html} />
+                    : <p className="text-sm leading-6 whitespace-pre-wrap wrap-anywhere text-muted-foreground">{task.description || 'No description provided.'}</p>}
                 </div>
+                {!!task.tags?.length && <div className="space-y-2"><h2 className="text-sm font-semibold">Tags</h2>
+                  <ul className="flex flex-wrap gap-2">{task.tags.map((tag) => <li key={tag}><Badge variant="secondary">{tag}</Badge></li>)}</ul>
+                </div>}
+                {!!task.followers?.length && <div className="space-y-2"><h2 className="text-sm font-semibold">Followed by</h2>
+                  <p className="text-sm text-muted-foreground">{task.followers.map(({ name }) => name).join(', ')}</p>
+                </div>}
                 <div className="space-y-2">
                   <h2 className="text-sm font-semibold">Assignees</h2>
                   {task.assignees.length === 0 ? <p className="text-sm text-muted-foreground">Unassigned</p> : (
@@ -432,9 +430,10 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
                   <FormDialog title="Edit task" description="Update the task details and status." pending={update.isPending} onClose={closeEditor}>
                     <form key={task.uuid} className="grid gap-4" onSubmit={(event) => saveTask(event, task)}>
                       <Input name="title" label="Task title" defaultValue={task.title} required maxLength={255} />
-                      <label className="grid gap-2 text-sm font-medium">Description
-                        <Textarea name="description" aria-label="Task description" defaultValue={task.description ?? ''} maxLength={10000} />
-                      </label>
+                      {task.description_html !== undefined ? <TaskDescriptionEditor name="description" defaultValue={task.description_html ?? ''} />
+                        : <label className="grid gap-2 text-sm font-medium">Description
+                          <Textarea name="description" aria-label="Task description" defaultValue={task.description ?? ''} maxLength={10000} />
+                        </label>}
                       <ChoiceSelect aria-label="Task status" name="status" defaultValue={task.status}>
                         {Object.entries(statuses).map(([value, label]) => <ChoiceOption key={value} value={value}>{label}</ChoiceOption>)}
                       </ChoiceSelect>
