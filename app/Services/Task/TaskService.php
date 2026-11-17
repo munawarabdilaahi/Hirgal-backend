@@ -13,7 +13,7 @@ use App\Models\ProjectMember;
 use App\Models\Task;
 use App\Models\TaskAssignment;
 use App\Models\User;
-use App\Policies\ProjectPolicy;
+use App\Policies\TaskPolicy;
 use App\Services\Project\ProjectService;
 use App\Services\Team\TeamService;
 use Carbon\CarbonImmutable;
@@ -123,13 +123,15 @@ class TaskService
      */
     private function taskQuery(User $actor, array $filters): Builder
     {
-        $query = Task::query()
-            ->with(self::EAGER)
-            ->whereHas('project');
-
-        if (! $actor->isSystemAdmin()) {
-            $query->whereIn('project_id', $this->accessibleProjectIds($actor));
-        }
+        $query = Task::query()->with(self::EAGER)
+            ->where(function (Builder $query) use ($actor): void {
+                $query->where(function (Builder $projects) use ($actor): void {
+                    $projects->whereHas('project');
+                    if (! $actor->isSystemAdmin()) {
+                        $projects->whereIn('project_id', $this->accessibleProjectIds($actor));
+                    }
+                })->orWhere(fn (Builder $personal) => $personal->whereNull('project_id')->where('creator_id', $actor->id));
+            });
 
         if (! empty($filters['project'])) {
             $project = $this->projectService->resolveScopedProject((string) $filters['project'], $actor);
@@ -173,7 +175,7 @@ class TaskService
     {
         $task = Task::query()->with('project:id,uuid,name')->where('uuid', $uuid)->firstOrFail();
 
-        abort_unless(ProjectPolicy::isWithinScope($actor, $task->project), 404);
+        abort_unless(TaskPolicy::isWithinScope($actor, $task), 404);
 
         return $task;
     }
@@ -181,7 +183,7 @@ class TaskService
     /**
      * @param  array<string, mixed>  $data
      */
-    public function createTask(User $actor, Project $project, array $data): Task
+    public function createTask(User $actor, ?Project $project, array $data): Task
     {
         return $this->createTaskAction->execute($actor, $project, $data);
     }

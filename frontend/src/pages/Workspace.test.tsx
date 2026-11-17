@@ -69,7 +69,7 @@ describe('session workspace task actions', () => {
       data: { data: [], meta: { current_page: 1, last_page: 1, total: 0, per_page: 15 } },
     });
 
-    render(<AppProviders><Workspace user={{ ...user, permissions: ['tasks.view', 'tasks.create', 'projects.view'] }}
+    render(<AppProviders><Workspace user={{ ...user, permissions: ['tasks.view', 'projects.view'] }}
       frontendUrl="https://legacy.example" /></AppProviders>);
 
     const addTask = await screen.findByRole('button', { name: 'Add task' });
@@ -82,6 +82,23 @@ describe('session workspace task actions', () => {
       fireEvent.click(screen.getByRole('button', { name: view }));
       expect(screen.getByRole('button', { name: 'Add task' })).toBe(addTask);
     }
+  });
+
+  it('lets a user without task or project permissions submit a private task', async () => {
+    window.history.replaceState(null, '', '/tasks');
+    const get = vi.spyOn(apiClient, 'get');
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: {} });
+
+    render(<AppProviders><Workspace user={{ ...user, permissions: [] }} frontendUrl="https://legacy.example" /></AppProviders>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add task' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Task name' }), { target: { value: 'Private work' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('button', { name: 'Other' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/tasks', expect.objectContaining({ title: 'Private work', context: 'other' })));
+    expect(get).not.toHaveBeenCalled();
   });
 
   it('opens task details in a dialog and restores focus when it closes', async () => {

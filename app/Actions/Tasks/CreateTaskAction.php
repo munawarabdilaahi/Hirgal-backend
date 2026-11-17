@@ -21,7 +21,7 @@ class CreateTaskAction
      *
      * @param  array<string, mixed>  $data
      */
-    public function execute(User $actor, Project $project, array $data): Task
+    public function execute(User $actor, ?Project $project, array $data): Task
     {
         return DB::transaction(function () use ($actor, $project, $data): Task {
             $status = TaskStatus::tryFrom((string) ($data['status'] ?? TaskStatus::Todo->value))
@@ -32,7 +32,7 @@ class CreateTaskAction
             if (! empty($data['parent'])) {
                 $parentId = Task::query()
                     ->where('uuid', $data['parent'])
-                    ->where('project_id', $project->id)
+                    ->where('project_id', $project?->id)
                     ->value('id');
 
                 if ($parentId === null) {
@@ -43,7 +43,7 @@ class CreateTaskAction
             }
 
             $task = Task::create([
-                'project_id' => $project->id,
+                'project_id' => $project?->id,
                 'parent_id' => $parentId,
                 'title' => $data['title'],
                 'description' => ($data['description_is_rich_text'] ?? false)

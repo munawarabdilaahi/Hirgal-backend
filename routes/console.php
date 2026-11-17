@@ -3,7 +3,7 @@
 use App\Enums\AccountStatus;
 use App\Models\Task;
 use App\Notifications\TaskReminder;
-use App\Policies\ProjectPolicy;
+use App\Policies\TaskPolicy;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -25,9 +25,8 @@ Artisan::command('tasks:send-reminders', function (): void {
                 $creator = $task->creator;
                 if ($creator?->account_status === AccountStatus::Active
                     && ($creator->profile?->notification_preferences['in_app'] ?? true)
-                    && $task->project !== null
-                    && ProjectPolicy::isWithinScope($creator, $task->project)
-                    && $creator->can('view', $task)) {
+                    && TaskPolicy::isWithinScope($creator, $task)
+                    && ($task->project_id === null || $creator->can('view', $task))) {
                     $creator->notify(new TaskReminder($task));
                 }
 

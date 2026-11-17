@@ -116,7 +116,7 @@ const routes: RouteObject[] = [
       },
       {
         path: '/tasks',
-        element: <RequirePermission permission="tasks.view"><TasksPage /></RequirePermission>,
+        element: <TasksPage />,
       },
     ],
   },

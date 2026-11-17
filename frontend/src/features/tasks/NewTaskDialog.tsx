@@ -27,15 +27,17 @@ const initial = {
   assignees: [] as ApiDirectoryUser[], followers: [] as ApiDirectoryUser[],
 };
 
-export function NewTaskDialog({ actorId, statuses, priorities, onClose }: {
+export function NewTaskDialog({ actorId, canViewProjects, canAssign, statuses, priorities, onClose }: {
   actorId: number;
+  canViewProjects: boolean;
+  canAssign: boolean;
   statuses: Record<string, string>;
   priorities: readonly string[];
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const create = useMutation({
-    mutationFn: ({ project, details }: { project: string; details: typeof initial }) => apiClient.post(`/projects/${project}/tasks`, {
+    mutationFn: ({ project, details }: { project: string | null; details: typeof initial }) => apiClient.post(project ? `/projects/${project}/tasks` : '/tasks', {
       ...details,
       department: details.department || null,
       description: details.description.trim() || null,
@@ -55,23 +57,26 @@ export function NewTaskDialog({ actorId, statuses, priorities, onClose }: {
 
   return (
     <FormDialog title="Create task" description="Add details, choose who’s involved, and review your task." wide pending={create.isPending} onClose={onClose}>
-      <TaskCreationSteps actorId={actorId} statuses={statuses} priorities={priorities} pending={create.isPending}
+      <TaskCreationSteps actorId={actorId} canViewProjects={canViewProjects} canAssign={canAssign}
+        statuses={statuses} priorities={priorities} pending={create.isPending}
         error={create.isError ? Object.values(getApiValidationErrors(create.error)).join(' ') || getSafeErrorMessage(create.error) : null}
         onSubmit={(project, details) => create.mutate({ project, details })} />
     </FormDialog>
   );
 }
 
-function TaskCreationSteps({ actorId, statuses, priorities, pending, error, onSubmit }: {
+function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, priorities, pending, error, onSubmit }: {
   actorId: number;
+  canViewProjects: boolean;
+  canAssign: boolean;
   statuses: Record<string, string>;
   priorities: readonly string[];
   pending: boolean;
   error: string | null;
-  onSubmit: (project: string, details: typeof initial) => void;
+  onSubmit: (project: string | null, details: typeof initial) => void;
 }) {
   const [step, setStep] = useState(0);
-  const [details, setDetails] = useState(initial);
+  const [details, setDetails] = useState(() => ({ ...initial, context: canViewProjects ? initial.context : 'other' as const }));
   const [project, setProject] = useState<{ uuid: string; name: string } | null>(null);
   const [projectSearch, setProjectSearch] = useState('');
   const [tag, setTag] = useState('');
@@ -82,7 +87,7 @@ function TaskCreationSteps({ actorId, statuses, priorities, pending, error, onSu
   const projects = useQuery({
     queryKey: ['projects', 'new-task', actorId, projectSearch],
     queryFn: () => projectApi.list({ search: projectSearch.trim(), page: 1, per_page: 50 }),
-    enabled: step === 1,
+    enabled: step === 1 && canViewProjects,
   });
   const roster = useQuery({
     queryKey: ['projects', 'new-task-roster', actorId, project?.uuid],
@@ -139,11 +144,11 @@ function TaskCreationSteps({ actorId, statuses, priorities, pending, error, onSu
       }
       if (tag.trim()) return setValidation('Add the pending tag or clear the tag field before continuing.');
     }
-    if (step === 1 && (!project || (details.context === 'department' && !details.department))) {
-      return setValidation('Choose a project and, for Department context, a department.');
+    if (step === 1 && details.context !== 'other' && (!project || (details.context === 'department' && !details.department))) {
+      return setValidation('Choose a project and, for Department context, a department. For a private task, choose Other.');
     }
     if (step < 2) navigate(step + 1);
-    else if (project) onSubmit(project.uuid, { ...details, title: details.title.trim() });
+    else onSubmit(project?.uuid ?? null, { ...details, title: details.title.trim() });
   }
 
   const projectOptions = projects.data?.data ?? [];
@@ -198,16 +203,17 @@ function TaskCreationSteps({ actorId, statuses, priorities, pending, error, onSu
         <div className="grid gap-4">
           <fieldset className="grid grid-cols-3 gap-2">
             <legend className="mb-2 text-sm font-medium">Context</legend>
-            {Object.entries(contexts).map(([value, label]) => (
+            {Object.entries(contexts).filter(([value]) => canViewProjects || value === 'other').map(([value, label]) => (
               <Button key={value} type="button" aria-pressed={details.context === value} variant={details.context === value ? 'default' : 'outline'}
                 onClick={() => { if (details.context !== value) patch({ context: value as keyof typeof contexts, department: '', assignees: [] }); }}>
                 {label}
               </Button>
             ))}
           </fieldset>
-          <div className="grid gap-2">
+          {details.context === 'other' && <p className="text-sm text-muted-foreground">A task without a project is private to you.</p>}
+          {canViewProjects && <div className="grid gap-2">
             <SearchInput aria-label="Search projects" placeholder="Search projects" maxLength={100} value={projectSearch} onChange={(event) => setProjectSearch(event.target.value)} />
-            <Field label="Project">
+            <Field label={details.context === 'other' ? 'Project (optional)' : 'Project'}>
               <ChoiceSelect aria-label="Project" value={project?.uuid ?? ''} onValueChange={(uuid) => {
                 setProject(projectOptions.find((item) => item.uuid === uuid) ?? null);
                 patch({ department: '', assignees: [], followers: [] });
@@ -219,8 +225,10 @@ function TaskCreationSteps({ actorId, statuses, priorities, pending, error, onSu
             </Field>
             {projects.isPending && <LoadingState label="Loading projects" layout="inline" />}
             {projects.isError && <Button type="button" variant="link" onClick={() => void projects.refetch()}>Retry loading projects</Button>}
-            {projects.isSuccess && projectOptions.length === 0 && <p className="text-sm text-muted-foreground">No matching projects.</p>}
-          </div>
+            {projects.isSuccess && projectOptions.length === 0 && <p className="text-sm text-muted-foreground">
+              No matching projects. Choose Other to create a private task.
+            </p>}
+          </div>}
           {project && roster.isPending && <LoadingState label="Loading project members" layout="list" rows={2} />}
           {project && roster.isError && <Button type="button" variant="link" onClick={() => void roster.refetch()}>Retry loading project members</Button>}
           {details.context === 'department' && (
@@ -233,8 +241,8 @@ function TaskCreationSteps({ actorId, statuses, priorities, pending, error, onSu
               {roster.isSuccess && departments.length === 0 && <p className="text-xs text-muted-foreground">This project has no department members.</p>}
             </Field>
           )}
-          <PeopleField label="Assigned to" options={eligible} selected={details.assignees} onChange={(assignees) => patch({ assignees })} />
-          <PeopleField label="Followed by" options={members} selected={details.followers} onChange={(followers) => patch({ followers })} />
+          {project && canAssign && <PeopleField label="Assigned to" options={eligible} selected={details.assignees} onChange={(assignees) => patch({ assignees })} />}
+          {project && <PeopleField label="Followed by" options={members} selected={details.followers} onChange={(followers) => patch({ followers })} />}
         </div>
       )}
       {step === 2 && (

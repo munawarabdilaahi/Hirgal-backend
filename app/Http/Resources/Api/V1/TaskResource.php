@@ -40,8 +40,8 @@ class TaskResource extends JsonResource
             'capabilities' => $this->when($request->routeIs('api.v1.tasks.show'), fn () => [
                 'update' => $request->user()->can('update', $this->resource),
                 'delete' => $request->user()->can('delete', $this->resource),
-                'assign' => $request->user()->can('create', [TaskAssignment::class, $this->resource]),
-                'create_subtask' => $request->user()->can('create', [Task::class, $this->project]),
+                'assign' => $this->project !== null && $request->user()->can('create', [TaskAssignment::class, $this->resource]),
+                'create_subtask' => $this->project !== null && $request->user()->can('create', [Task::class, $this->project]),
             ]),
             'description' => $this->description,
             'description_html' => $this->when($request->routeIs('api.v1.tasks.show') && $this->description_is_rich_text, $this->description),

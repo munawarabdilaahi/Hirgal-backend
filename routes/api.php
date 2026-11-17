@@ -196,6 +196,7 @@ Route::prefix('v1')->group(function (): void {
         */
         Route::prefix('tasks')->group(function (): void {
             Route::get('/', [TaskController::class, 'index'])->name('api.v1.tasks.index');
+            Route::post('/', [TaskController::class, 'store'])->name('api.v1.tasks.store');
             Route::get('/{task}', [TaskController::class, 'show'])->name('api.v1.tasks.show');
             Route::put('/{task}', [TaskController::class, 'update'])->name('api.v1.tasks.update');
             Route::delete('/{task}', [TaskController::class, 'destroy'])->name('api.v1.tasks.destroy');

@@ -55,7 +55,7 @@ const navigationGroups: NavigationGroupConfig[] = [
       { label: 'My work', icon: CheckSquare, to: '/my-work', requiredPermission: 'tasks.view' },
       { label: 'Projects', icon: FolderKanban, to: '/projects', requiredPermission: 'projects.view' },
       { label: 'Teams', icon: UsersRound, to: '/teams', requiredPermission: 'teams.view' },
-      { label: 'Tasks', icon: CheckSquare, to: '/tasks', requiredPermission: 'tasks.view' },
+      { label: 'Tasks', icon: CheckSquare, to: '/tasks' },
     ],
   },
   {

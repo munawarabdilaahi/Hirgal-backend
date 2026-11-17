@@ -29,7 +29,6 @@ export function Dashboard({ user, frontendUrl = '' }: { user: ApiUser; frontendU
   const canViewProjects = hasPermission(user, 'projects.view');
   const canViewTasks = hasPermission(user, 'tasks.view');
   const canViewAppointments = hasPermission(user, 'appointments.view');
-  const canAddTask = canViewTasks && canViewProjects && hasPermission(user, 'tasks.create');
   const canAddBooking = canViewAppointments && hasPermission(user, 'appointments.create');
 
   const now = new Date();
@@ -104,14 +103,12 @@ export function Dashboard({ user, frontendUrl = '' }: { user: ApiUser; frontendU
           </time>
           <h1 className="text-2xl font-semibold tracking-tight">Today’s Workspace Agenda</h1>
         </div>
-        {(canAddTask || canAddBooking) && (
-          <div className="flex flex-wrap gap-2">
-            {canAddTask && <Button className="h-8 text-xs" size="sm" variant="outline" onClick={() => setEditor('task')}><Plus aria-hidden="true" className="size-3.5" /> Add task</Button>}
-            {canAddBooking && <Button className="h-8 text-xs" size="sm" onClick={() => setEditor('booking')}><Plus aria-hidden="true" className="size-3.5" /> Add booking</Button>}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Button className="h-8 text-xs" size="sm" variant="outline" onClick={() => setEditor('task')}><Plus aria-hidden="true" className="size-3.5" /> Add task</Button>
+          {canAddBooking && <Button className="h-8 text-xs" size="sm" onClick={() => setEditor('booking')}><Plus aria-hidden="true" className="size-3.5" /> Add booking</Button>}
+        </div>
       </PageHeader>
-      {editor === 'task' && canAddTask && <TaskCreateDialog user={user} onClose={() => setEditor(null)} />}
+      {editor === 'task' && <TaskCreateDialog user={user} onClose={() => setEditor(null)} />}
       {editor === 'booking' && canAddBooking && <BookingCreateDialog user={user} onClose={() => setEditor(null)} />}
 
       {metrics.length > 0 && (
@@ -186,7 +183,7 @@ export function Dashboard({ user, frontendUrl = '' }: { user: ApiUser; frontendU
                           <Badge className={overdue ? 'border-destructive/25 bg-destructive/10 text-destructive' : undefined} variant={overdue ? 'outline' : task.status === 'in_progress' ? 'info' : task.status === 'in_review' ? 'warning' : 'secondary'}>
                             {overdue ? 'Overdue' : statuses[task.status]}
                           </Badge>
-                          <span className="break-words">{task.project.name}</span>
+                          <span className="break-words">{task.project?.name ?? 'Personal task'}</span>
                           {dueDate && <time className="whitespace-nowrap" dateTime={dueDate}>Due {dueDate}</time>}
                         </div>
                         <p className="break-words text-sm font-medium leading-tight" id={`task-title-${task.uuid}`}>{task.title}</p>

@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Enums\ProjectMemberRole;
 use App\Models\Project;
 use App\Models\Task;
+use App\Models\TaskAssignment;
 use App\Models\User;
 
 class TaskPolicy
@@ -26,23 +27,30 @@ class TaskPolicy
             return false;
         }
 
-        return ProjectPolicy::isWithinScope($actor, $task->project);
+        return static::isWithinScope($actor, $task);
+    }
+
+    public static function isWithinScope(User $actor, Task $task): bool
+    {
+        return $task->project_id === null
+            ? $task->creator_id === $actor->id
+            : ProjectPolicy::isWithinScope($actor, $task->project);
     }
 
     /**
      * Determine whether the user can create tasks inside the project.
      */
-    public function create(User $actor, Project $project): bool
+    public function create(User $actor, ?Project $project = null): bool
     {
-        if (! $actor->hasPermission('tasks.create')) {
-            return false;
-        }
+        return $project === null || ProjectPolicy::isWithinScope($actor, $project);
+    }
 
-        return in_array(ProjectPolicy::contextualRole($actor, $project), [
-            ProjectMemberRole::Owner,
-            ProjectMemberRole::Lead,
-            ProjectMemberRole::Member,
-        ], true);
+    public function assignOnCreation(User $actor, Project $project): bool
+    {
+        return $actor->can('create', [TaskAssignment::class, new Task([
+            'project_id' => $project->id,
+            'creator_id' => $actor->id,
+        ])->setRelation('project', $project)]);
     }
 
     /**

@@ -60,7 +60,7 @@ export interface Task {
   remind_on?: string | null;
   tags?: string[];
   followers?: { id: number; name: string }[];
-  project: { uuid: string; name: string };
+  project: { uuid: string; name: string } | null;
   parent?: { uuid: string | null; title: string | null };
   assignees: { id: number; name: string }[];
 }
@@ -86,14 +86,14 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [searchParams] = useSearchParams();
-  const selectedTask = closeCreateDialog ? null : searchParams.get('task');
+  const canViewTasks = hasPermission(user, 'tasks.view');
+  const selectedTask = closeCreateDialog || !canViewTasks ? null : searchParams.get('task');
   const detailTrigger = useRef<HTMLButtonElement>(null);
   const pageTitle = useRef<HTMLHeadingElement>(null);
   const [board, setBoard] = useState(false);
   const [projectFilter, setProjectFilter] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
   const [agendaOpen, setAgendaOpen] = useState<Partial<Record<keyof TaskSchedule, boolean>>>({});
-  const canCreate = hasPermission(user, 'tasks.create');
   const assignee = assignedToMe || onlyMine ? user?.id : undefined;
   const listParams = {
     assignee, status: status || undefined, sort_by: sortBy, sort_direction: sortDirection,
@@ -106,7 +106,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
     queryFn: async () => (await apiClient.get<TaskListResponse>('/tasks', {
       params: { ...listParams, page, ...(!assignedToMe ? { with_schedule: 1 } : {}), ...(board ? { with_move_permissions: 1 } : {}) },
     })).data,
-    enabled: !closeCreateDialog && taskSearch.trim() === searchTerm && (!assignedToMe || assignee !== undefined),
+    enabled: canViewTasks && !closeCreateDialog && taskSearch.trim() === searchTerm && (!assignedToMe || assignee !== undefined),
   });
   const filterProjects = useQuery({
     queryKey: ['projects', 'task-filters', user?.id],
@@ -118,7 +118,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
       }
       return all;
     },
-    enabled: !closeCreateDialog && !assignedToMe && hasPermission(user, 'projects.view'),
+    enabled: canViewTasks && !closeCreateDialog && !assignedToMe && hasPermission(user, 'projects.view'),
   });
   const detail = useQuery({
     queryKey: ['tasks', selectedTask],
@@ -129,9 +129,9 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
   const canAssign = task?.capabilities?.assign === true;
   const [memberPage, setMemberPage] = useState(1);
   const members = useQuery({
-    queryKey: ['projects', task?.project.uuid, 'task-members', memberPage],
-    queryFn: () => projectApi.members(task!.project.uuid, memberPage),
-    enabled: Boolean(task) && canAssign && hasPermission(user, 'projects.view'),
+    queryKey: ['projects', task?.project?.uuid, 'task-members', memberPage],
+    queryFn: () => projectApi.members(task!.project!.uuid, memberPage),
+    enabled: Boolean(task?.project) && canAssign && hasPermission(user, 'projects.view'),
   });
   const update = useMutation({
     mutationFn: ({ path, method, body }: { path: string; method: 'post' | 'put' | 'delete'; body?: unknown }) =>
@@ -188,7 +188,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
     const fields = new FormData(form);
     const dueDate = fields.get('due_date');
     update.mutate({
-      path: task ? `/tasks/${task.uuid}` : `/projects/${parent?.project.uuid}/tasks`,
+      path: task ? `/tasks/${task.uuid}` : `/projects/${parent?.project?.uuid}/tasks`,
       method: task ? 'put' : 'post',
       body: {
         title: fields.get('title'),
@@ -210,8 +210,9 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
     });
   }
 
-  const createTaskForm = editor === 'create' && !assignedToMe && user && canCreate && hasPermission(user, 'projects.view') && (
-    <NewTaskDialog actorId={user.id} statuses={statuses} priorities={priorities} onClose={closeEditor} />
+  const createTaskForm = editor === 'create' && !assignedToMe && user && (
+    <NewTaskDialog actorId={user.id} canViewProjects={hasPermission(user, 'projects.view')} canAssign={hasPermission(user, 'tasks.assign')}
+      statuses={statuses} priorities={priorities} onClose={closeEditor} />
   );
   if (closeCreateDialog) return createTaskForm;
 
@@ -227,7 +228,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!assignedToMe && (
+          {!assignedToMe && canViewTasks && (
             <Button disabled={!schedule?.overdue} variant="outline" onClick={() => {
               setBoard(false);
               setAgendaOpen((current) => ({ ...current, overdue: true }));
@@ -236,16 +237,17 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
               <CircleAlert aria-hidden="true" className="size-4" />Review overdue
             </Button>
           )}
-          <Button variant="outline" onClick={() => setBoard(!board)}>
+          {canViewTasks && <Button variant="outline" onClick={() => setBoard(!board)}>
             {board ? <List aria-hidden="true" className="size-4" /> : <Columns3 aria-hidden="true" className="size-4" />}
             {board ? 'List view' : 'Board view'}
-          </Button>
-          {!assignedToMe && canCreate && hasPermission(user, 'projects.view') && (
+          </Button>}
+          {!assignedToMe && user && (
             <Button onClick={() => { update.reset(); setEditor('create'); }}><Plus aria-hidden="true" className="size-4" />Add task</Button>
           )}
         </div>
       </PageHeader>
       {createTaskForm}
+      {canViewTasks ? <>
       {!assignedToMe && <TaskSummary pending={tasks.isPending} schedule={schedule} />}
       {!assignedToMe ? (
         <div className="@container rounded-xl border bg-card p-3 shadow-card sm:p-4">
@@ -349,7 +351,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
                   variant="ghost" onClick={(event) => openTask(task.uuid, event.currentTarget)}>
                   <span className="font-semibold wrap-anywhere">{task.title}</span>
                   <ChevronRight aria-hidden="true" className="row-span-3 size-4 shrink-0 text-muted-foreground @min-[48rem]:order-last @min-[48rem]:row-span-1" />
-                  <span id={`task-project-${task.uuid}`} className="text-xs font-normal text-muted-foreground wrap-anywhere @min-[48rem]:text-sm">{task.project.name}</span>
+                  <span id={`task-project-${task.uuid}`} className="text-xs font-normal text-muted-foreground wrap-anywhere @min-[48rem]:text-sm">{task.project?.name ?? 'Personal task'}</span>
                   <span id={`task-meta-${task.uuid}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 @min-[48rem]:contents">
                     <Badge variant="secondary" className="w-fit">{statuses[task.status]}</Badge>
                     <span className="text-xs font-medium capitalize text-muted-foreground"><span className="sr-only">Priority: </span>{task.priority}</span>
@@ -365,6 +367,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
           {tasks.data.meta.last_page > 1 && <Pagination currentPage={page} totalPages={tasks.data.meta.last_page} onPageChange={setPage} />}
         </>
       )}
+      </> : <EmptyState title="You can create tasks" description="Your account does not have access to the task list." />}
       <Dialog open={Boolean(selectedTask)} onOpenChange={(open) => { if (!open) closeTask(); }}>
         <DialogContent
           id="task-details"
@@ -378,7 +381,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
         >
           <DialogHeader className="border-b px-5 py-4 pr-12 sm:px-6 sm:pr-12">
             <DialogTitle className="text-section-title wrap-anywhere">{task?.title ?? 'Task details'}</DialogTitle>
-            <DialogDescription>{task?.project.name ?? 'View task information and available actions.'}</DialogDescription>
+            <DialogDescription>{task ? task.project?.name ?? 'Personal task' : 'View task information and available actions.'}</DialogDescription>
           </DialogHeader>
           <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
             {detail.isPending && <LoadingState label="Loading task details" layout="list" rows={2} />}

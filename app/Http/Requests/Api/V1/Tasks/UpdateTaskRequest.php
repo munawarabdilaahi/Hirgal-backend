@@ -3,7 +3,7 @@
 namespace App\Http\Requests\Api\V1\Tasks;
 
 use App\Models\Task;
-use App\Policies\ProjectPolicy;
+use App\Policies\TaskPolicy;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,7 +25,7 @@ class UpdateTaskRequest extends FormRequest
             return false;
         }
 
-        abort_unless(ProjectPolicy::isWithinScope($actor, $task->project), 404);
+        abort_unless(TaskPolicy::isWithinScope($actor, $task), 404);
 
         return $actor->can('update', $task);
     }

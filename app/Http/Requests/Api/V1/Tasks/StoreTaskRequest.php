@@ -8,6 +8,7 @@ use App\Models\Task;
 use App\Policies\ProjectPolicy;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -23,11 +24,17 @@ class StoreTaskRequest extends FormRequest
         $actor = $this->user();
         $project = $this->route('project');
 
-        if (! $actor || ! $project instanceof Project) {
+        if (! $actor) {
             return false;
         }
 
-        abort_unless(ProjectPolicy::isWithinScope($actor, $project), 404);
+        if ($project instanceof Project) {
+            abort_unless(ProjectPolicy::isWithinScope($actor, $project), 404);
+            $assignees = $this->input('assignees');
+            if (is_array($assignees) && $assignees !== []) {
+                Gate::forUser($actor)->authorize('assignOnCreation', [Task::class, $project]);
+            }
+        }
 
         return $actor->can('create', [Task::class, $project]);
     }
@@ -46,7 +53,7 @@ class StoreTaskRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:10000'],
             'description_is_rich_text' => ['sometimes', 'boolean'],
-            'context' => ['sometimes', 'in:project,department,other'],
+            'context' => $project instanceof Project ? ['sometimes', 'in:project,department,other'] : ['required', 'in:other'],
             'department' => ['required_if:context,department', 'prohibited_unless:context,department', 'nullable', 'string', 'max:100'],
             'start_date' => ['nullable', 'date_format:Y-m-d'],
             'remind_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.now($this->user()?->timezone ?? 'UTC')->toDateString()],
@@ -57,13 +64,13 @@ class StoreTaskRequest extends FormRequest
             'due_date' => ['nullable', 'date', Rule::when($this->filled('start_date'), ['after_or_equal:start_date'])],
             'estimated_hours' => ['nullable', 'numeric', 'min:0'],
             'order_column' => ['nullable', 'integer', 'min:0'],
-            'parent' => ['nullable', 'string', 'uuid', Rule::exists('tasks', 'uuid')->where('project_id', $projectId)],
-            'assignees' => ['nullable', 'array'],
+            'parent' => ['nullable', 'string', 'uuid', Rule::prohibitedIf(! $project instanceof Project), Rule::exists('tasks', 'uuid')->where('project_id', $projectId)],
+            'assignees' => ['nullable', 'array', Rule::prohibitedIf(! $project instanceof Project)],
             'assignees.*' => [
                 'integer',
                 Rule::exists('project_members', 'user_id')->where('project_id', $projectId),
             ],
-            'followers' => ['nullable', 'array', 'list', 'max:100'],
+            'followers' => ['nullable', 'array', 'list', 'max:100', Rule::prohibitedIf(! $project instanceof Project)],
             'followers.*' => ['integer', 'distinct', Rule::exists('project_members', 'user_id')->where('project_id', $projectId)],
         ];
     }

@@ -53,7 +53,7 @@ describe('DashboardRoute', () => {
     expect(screen.getByRole('link', { name: 'Manage profile' })).toHaveAttribute('href', '/profile');
     expect(screen.getByRole('link', { name: 'People & access' })).toHaveAttribute('href', '/users');
     expect(screen.queryByRole('region', { name: 'Workspace overview' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add task' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add task' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add booking' })).not.toBeInTheDocument();
     expect(get).not.toHaveBeenCalled();
   });

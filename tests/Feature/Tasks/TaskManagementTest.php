@@ -215,13 +215,36 @@ class TaskManagementTest extends TestCase
         $this->assertSame(2, $response->json('meta.total'));
     }
 
-    public function test_member_without_tasks_create_cannot_create_task(): void
+    public function test_member_without_tasks_create_can_create_but_cannot_update_delete_or_assign(): void
     {
-        $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
-            'title' => 'Sneaky task',
-        ], $this->auth($this->member, 'member'))
-            ->assertStatus(403)
-            ->assertJsonPath('error_code', 'FORBIDDEN');
+        $headers = $this->auth($this->member);
+        $path = '/api/v1/projects/'.$this->project->uuid.'/tasks';
+        $task = $this->postJson($path, ['title' => 'Member task', 'assignees' => []], $headers)->assertCreated();
+        $taskPath = '/api/v1/tasks/'.$task->json('data.uuid');
+
+        $this->putJson($taskPath, ['status' => 'done'], $headers)->assertForbidden();
+        $this->deleteJson($taskPath, [], $headers)->assertForbidden();
+        $this->postJson($path, ['title' => 'Assigned task', 'assignees' => [$this->member->id]], $headers)->assertForbidden();
+    }
+
+    public function test_user_without_a_role_can_create_a_personal_task_without_gaining_read_access(): void
+    {
+        $actor = User::factory()->create();
+        $path = '/api/v1/tasks';
+        $payload = ['title' => 'Private task', 'context' => 'other', 'assignees' => [], 'followers' => []];
+        $this->postJson($path, $payload)->assertUnauthorized();
+        $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', $payload, $this->auth($actor))->assertNotFound();
+        $task = $this->postJson($path, $payload, $this->auth($actor))
+            ->assertCreated()
+            ->assertJsonPath('data.project', null);
+
+        $this->getJson($path, $this->auth($actor))->assertForbidden();
+        $this->getJson($path.'/'.$task->json('data.uuid'), $this->auth($this->member))->assertNotFound();
+        $this->getJson($path, $this->auth($this->admin))->assertOk()->assertJsonCount(0, 'data');
+
+        $actor->roles()->attach($this->member->roles()->firstOrFail()->id);
+        $this->getJson($path, $this->auth($actor))->assertOk()->assertJsonPath('data.0.uuid', $task->json('data.uuid'));
+        $this->getJson($path.'/'.$task->json('data.uuid'), $this->auth($actor))->assertOk();
     }
 
     public function test_task_worker_with_global_permission_can_create_task(): void
@@ -381,7 +404,7 @@ class TaskManagementTest extends TestCase
         $this->assertContains($this->member->id, $assigneeIds);
     }
 
-    public function test_viewer_contextual_role_cannot_create_task(): void
+    public function test_project_viewer_can_create_task(): void
     {
         ProjectMember::where('project_id', $this->project->id)
             ->where('user_id', $this->lead->id)
@@ -390,7 +413,7 @@ class TaskManagementTest extends TestCase
         $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
             'title' => 'Viewer task',
         ], $this->auth($this->lead, 'lead'))
-            ->assertStatus(403);
+            ->assertCreated();
     }
 
     public function test_foreign_project_filter_returns_404(): void

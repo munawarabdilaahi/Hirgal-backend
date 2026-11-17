@@ -127,7 +127,7 @@ function TaskGroup({ group, title, actorId, params, schedule, open, onToggle, on
                       <TableCell>
                         <Button className="h-auto p-0 text-left whitespace-normal text-foreground hover:text-primary" variant="link" aria-haspopup="dialog"
                           onClick={(event) => onOpenTask(task.uuid, event.currentTarget)}>{task.title}</Button>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{task.project.name} · <span className="capitalize">{task.priority}</span></p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{task.project?.name ?? 'Personal task'} · <span className="capitalize">{task.priority}</span></p>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{task.assignees.map((assignee) => assignee.name).join(', ') || 'Unassigned'}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap text-muted-foreground">

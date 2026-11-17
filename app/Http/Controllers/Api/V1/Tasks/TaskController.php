@@ -9,7 +9,7 @@ use App\Http\Requests\Api\V1\Tasks\UpdateTaskRequest;
 use App\Http\Resources\Api\V1\TaskResource;
 use App\Models\Project;
 use App\Models\Task;
-use App\Policies\ProjectPolicy;
+use App\Policies\TaskPolicy;
 use App\Services\Task\TaskService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -49,7 +49,7 @@ class TaskController extends Controller
     /**
      * Create a task inside the project.
      */
-    public function store(StoreTaskRequest $request, Project $project): JsonResponse
+    public function store(StoreTaskRequest $request, ?Project $project = null): JsonResponse
     {
         Gate::authorize('create', [Task::class, $project]);
 
@@ -67,7 +67,7 @@ class TaskController extends Controller
      */
     public function show(Request $request, Task $task): JsonResponse
     {
-        abort_unless(ProjectPolicy::isWithinScope($request->user(), $task->project), 404);
+        abort_unless(TaskPolicy::isWithinScope($request->user(), $task), 404);
 
         Gate::authorize('view', $task);
 
@@ -99,7 +99,7 @@ class TaskController extends Controller
      */
     public function destroy(Request $request, Task $task): JsonResponse
     {
-        abort_unless(ProjectPolicy::isWithinScope($request->user(), $task->project), 404);
+        abort_unless(TaskPolicy::isWithinScope($request->user(), $task), 404);
 
         Gate::authorize('delete', $task);
 
