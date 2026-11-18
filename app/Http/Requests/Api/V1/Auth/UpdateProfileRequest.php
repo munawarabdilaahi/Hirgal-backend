@@ -31,7 +31,19 @@ class UpdateProfileRequest extends FormRequest
             'department' => ['nullable', 'string', 'max:100'],
             'bio' => ['nullable', 'string', 'max:1000'],
             'theme_preference' => ['nullable', 'string', 'in:light,dark,system'],
+            'locale' => ['nullable', 'string', 'in:en'],
+            'date_format' => ['nullable', 'string', 'in:Y-m-d,d/m/Y,m/d/Y'],
+            'time_format' => ['nullable', 'string', 'in:12h,24h'],
             'notification_preferences' => ['nullable', 'array'],
+            'notification_preferences.email_notifications' => ['nullable', 'boolean'],
+            'notification_preferences.in_app_notifications' => ['nullable', 'boolean'],
+            'notification_preferences.security_alerts' => ['nullable', 'boolean'],
+            'notification_preferences.login_alerts' => ['nullable', 'boolean'],
+            'notification_preferences.workspace_invitations' => ['nullable', 'boolean'],
+            'notification_preferences.system_announcements' => ['nullable', 'boolean'],
+            'notification_preferences.activity_notifications' => ['nullable', 'boolean'],
+            'notification_preferences.email' => ['nullable', 'boolean'],
+            'notification_preferences.in_app' => ['nullable', 'boolean'],
         ];
     }
 }

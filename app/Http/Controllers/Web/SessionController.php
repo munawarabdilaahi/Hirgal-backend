@@ -26,11 +26,20 @@ class SessionController extends Controller
     public function store(LoginRequest $request, LoginUserAction $login): RedirectResponse
     {
         try {
-            $user = $login->authenticate($request->validated('email'), $request->validated('password'));
+            $user = $login->authenticate(
+                $request->validated('email'),
+                $request->validated('password'),
+                $request->validated('two_factor_code')
+            );
         } catch (AuthorizationException) {
             throw ValidationException::withMessages([
                 'email' => 'Unable to sign in. Please contact an administrator.',
             ]);
+        } catch (ValidationException $exception) {
+            return redirect()
+                ->route('login')
+                ->withErrors($exception->errors())
+                ->withInput($request->only('email'));
         }
 
         Auth::guard('web')->login($user);

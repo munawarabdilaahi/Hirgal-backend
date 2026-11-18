@@ -17,7 +17,7 @@ class ProfileController extends Controller
     {
         Inertia::encryptHistory();
 
-        return Inertia::render('Profile', [
+        return Inertia::render('AccountSettings', [
             'user' => (new UserResource($request->user()->load(['roles.permissions', 'profile'])))
                 ->response($request)->getData(true)['data'],
             'frontendUrl' => rtrim(config('app.frontend_url'), '/'),

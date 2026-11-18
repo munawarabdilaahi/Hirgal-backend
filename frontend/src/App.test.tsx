@@ -346,19 +346,18 @@ describe('authentication routes', () => {
         <App />
       </AppProviders>,
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit profile' }));
-    fireEvent.change(await screen.findByLabelText(/^Name/), { target: { value: 'Amina Ali' } });
+    fireEvent.change(await screen.findByLabelText(/^Full name/, {}, { timeout: 5000 }), { target: { value: 'Amina Ali' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
-    await waitFor(() =>
-      expect(authApi.updateProfile).toHaveBeenCalledWith({
+    await waitFor(
+      () => expect(authApi.updateProfile).toHaveBeenCalledWith({
         name: 'Amina Ali',
-        timezone: 'Africa/Nairobi',
         phone: null,
         job_title: null,
         department: null,
         bio: null,
       }),
+      { timeout: 5000 },
     );
   });
 

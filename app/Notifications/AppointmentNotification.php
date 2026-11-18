@@ -23,10 +23,10 @@ class AppointmentNotification extends Notification implements ShouldQueue
     {
         $preferences = $notifiable instanceof User ? ($notifiable->profile?->notification_preferences ?? []) : [];
         $channels = [];
-        if ($preferences['email'] ?? true) {
+        if ($preferences['email_notifications'] ?? $preferences['email'] ?? true) {
             $channels[] = 'mail';
         }
-        if ($preferences['in_app'] ?? true) {
+        if ($preferences['in_app_notifications'] ?? $preferences['in_app'] ?? true) {
             $channels[] = 'database';
         }
 

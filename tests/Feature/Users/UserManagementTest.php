@@ -140,6 +140,35 @@ class UserManagementTest extends TestCase
             ->assertJsonPath('data.name', 'Standard Member');
     }
 
+    public function test_account_owner_only_fields_are_not_exposed_to_other_users(): void
+    {
+        $this->member->forceFill([
+            'pending_email' => 'replacement@example.test',
+            'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
+            'two_factor_recovery_codes' => ['code-one', 'code-two'],
+        ])->save();
+
+        $ownerToken = $this->member->createToken('member-session')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$ownerToken)
+            ->getJson('/api/v1/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.pending_email', 'replacement@example.test')
+            ->assertJsonPath('data.two_factor_enabled', true)
+            ->assertJsonPath('data.recovery_codes_remaining', 2);
+
+        $adminToken = $this->admin->createToken('admin-session')->plainTextToken;
+        $this->app['auth']->forgetGuards();
+
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->getJson('/api/v1/users/'.$this->member->id)
+            ->assertOk()
+            ->assertJsonPath('data.two_factor_enabled', true)
+            ->assertJsonMissingPath('data.pending_email')
+            ->assertJsonMissingPath('data.recovery_codes_remaining');
+    }
+
     public function test_member_cannot_update_other_users(): void
     {
         $otherUser = User::factory()->create();

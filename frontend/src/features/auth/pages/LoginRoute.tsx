@@ -40,6 +40,8 @@ interface LoginFormProps {
 export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [requiresCode, setRequiresCode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -60,19 +62,31 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
     setIsSubmitting(true);
 
     try {
-      const errors = await authenticate(parsed.data);
+      const errors = await authenticate({
+        ...parsed.data,
+        ...(twoFactorCode.trim() ? { two_factor_code: twoFactorCode.trim() } : {}),
+      });
       if (errors.email === 'Invalid credentials.') {
         setFormError('Email or password is incorrect.');
       } else {
+        if (errors.two_factor_code) {
+          setRequiresCode(true);
+          setFormError('Enter the code from your authenticator app to continue.');
+        }
         setFieldErrors(errors);
       }
     } catch (error: unknown) {
       const apiErrors = getApiValidationErrors(error);
       setFieldErrors(apiErrors);
+      if (apiErrors.two_factor_code) {
+        setRequiresCode(true);
+      }
       setFormError(
         error instanceof ApiError && error.status === 422 && apiErrors.email === 'Invalid credentials.'
           ? 'Email or password is incorrect.'
-          : getSafeErrorMessage(error),
+          : apiErrors.two_factor_code
+            ? 'Enter the code from your authenticator app to continue.'
+            : getSafeErrorMessage(error),
       );
     } finally {
       setIsSubmitting(false);
@@ -143,6 +157,26 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
             </div>
           )}
         </FormField>
+        {requiresCode ? (
+          <FormField
+            description="Open your authenticator app and enter the current six-digit code, or use a recovery code."
+            error={fieldErrors.two_factor_code}
+            htmlFor="login-two-factor-code"
+            label="Authentication code"
+            required
+          >
+            {(controlProps) => (
+              <Input
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                onChange={(event) => setTwoFactorCode(event.target.value)}
+                type="text"
+                value={twoFactorCode}
+                {...controlProps}
+              />
+            )}
+          </FormField>
+        ) : null}
         {forgotPasswordUrl ? (
           <a className="justify-self-end text-sm font-medium text-primary hover:underline" href={forgotPasswordUrl}>
             Forgot password?

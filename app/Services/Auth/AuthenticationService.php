@@ -35,9 +35,9 @@ class AuthenticationService
     /**
      * @return array{user: User, token: string}
      */
-    public function login(string $email, string $password, ?string $deviceName = null): array
+    public function login(string $email, string $password, ?string $deviceName = null, ?string $twoFactorCode = null): array
     {
-        return $this->loginUserAction->execute($email, $password, $deviceName);
+        return $this->loginUserAction->execute($email, $password, $deviceName, $twoFactorCode);
     }
 
     public function logout(User $user, bool $allDevices = false): void

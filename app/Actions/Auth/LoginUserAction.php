@@ -4,12 +4,17 @@ namespace App\Actions\Auth;
 
 use App\Enums\AccountStatus;
 use App\Models\User;
+use App\Services\Security\TwoFactorAuthenticationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class LoginUserAction
 {
+    public function __construct(
+        protected TwoFactorAuthenticationService $twoFactor,
+    ) {}
+
     /**
      * Authenticate user credentials and issue an access token.
      *
@@ -17,15 +22,15 @@ class LoginUserAction
      *
      * @throws ValidationException|AuthorizationException
      */
-    public function execute(string $email, string $password, ?string $deviceName = null): array
+    public function execute(string $email, string $password, ?string $deviceName = null, ?string $twoFactorCode = null): array
     {
-        $user = $this->authenticate($email, $password);
+        $user = $this->authenticate($email, $password, $twoFactorCode);
         $token = $user->createToken($deviceName ?: 'auth-token')->plainTextToken;
 
         return ['user' => $user, 'token' => $token];
     }
 
-    public function authenticate(string $email, string $password): User
+    public function authenticate(string $email, string $password, ?string $twoFactorCode = null): User
     {
         $user = User::with(['roles.permissions', 'profile'])
             ->where('email', $email)
@@ -56,11 +61,41 @@ class LoginUserAction
             );
         }
 
+        if ($user->hasTwoFactorAuthentication()) {
+            $this->verifyTwoFactorChallenge($user, $twoFactorCode);
+        }
+
         // Record last login timestamp
         $user->forceFill([
             'last_login_at' => now(),
         ])->saveQuietly();
 
         return $user;
+    }
+
+    private function verifyTwoFactorChallenge(User $user, ?string $code): void
+    {
+        if ($code === null || trim($code) === '') {
+            throw ValidationException::withMessages([
+                'two_factor_code' => ['Enter the six-digit code from your authenticator app.'],
+            ]);
+        }
+
+        $secret = (string) $user->two_factor_secret;
+
+        if ($secret !== '' && $this->twoFactor->confirmCode($user, $secret, $code)) {
+            return;
+        }
+
+        $recoveryCodes = $user->two_factor_recovery_codes ?? [];
+        $remaining = $this->twoFactor->consumeRecoveryCode($recoveryCodes, $code);
+
+        if ($remaining === null) {
+            throw ValidationException::withMessages([
+                'two_factor_code' => ['The authentication code is invalid or has expired.'],
+            ]);
+        }
+
+        $user->forceFill(['two_factor_recovery_codes' => $remaining])->save();
     }
 }

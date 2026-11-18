@@ -4,16 +4,18 @@ namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Enums\AccountStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Api\V1\UserResource;
 use App\Models\ActivityLog;
 use App\Models\User;
 use App\Services\Audit\ActivityLogger;
+use App\Services\User\AccountSettingsService;
 use App\Support\ApiResponse;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -22,6 +24,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AccountSettingsController extends Controller
 {
+    public function __construct(
+        protected AccountSettingsService $settings,
+    ) {}
+
     public function sessions(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -55,8 +61,11 @@ class AccountSettingsController extends Controller
 
     public function revoke(Request $request, ActivityLogger $audit): JsonResponse
     {
-        $input = $request->validate(['target' => ['required', 'string', 'max:100']]);
-        $this->confirmPassword($request);
+        $input = $request->validate([
+            'target' => ['required', 'string', 'max:100'],
+            'current_password' => ['required', 'string', 'max:1024'],
+        ]);
+        $this->settings->verifyPassword($request->user(), $input['current_password']);
         $user = $request->user();
         $target = $input['target'];
         $currentSession = $request->hasSession() ? $request->session()->getId() : null;
@@ -99,6 +108,7 @@ class AccountSettingsController extends Controller
             ->where('action', 'like', 'account.%')->latest('id')->limit(20)->get()
             ->map(fn (ActivityLog $entry): array => [
                 'id' => $entry->id,
+                'action' => $entry->action,
                 'description' => $entry->description,
                 'created_at' => $entry->created_at->toIso8601String(),
             ]);
@@ -106,16 +116,13 @@ class AccountSettingsController extends Controller
         return ApiResponse::success(data: $events)->header('Cache-Control', 'no-store');
     }
 
-    public function export(Request $request, ActivityLogger $audit): JsonResponse
+    public function export(Request $request): JsonResponse
     {
-        $this->confirmPassword($request);
-        $user = $request->user()->load('profile');
-        $audit->record('account.data_exported', $user, $user, 'Downloaded personal account data.');
+        $request->validate(['current_password' => ['required', 'string', 'max:1024']]);
+        $this->settings->verifyPassword($request->user(), $request->input('current_password'));
 
-        return ApiResponse::success(data: [
-            'identity' => $user->only(['name', 'email', 'timezone', 'email_verified_at', 'created_at', 'last_login_at']),
-            'profile' => $user->profile?->only(['phone', 'job_title', 'department', 'bio', 'theme_preference', 'notification_preferences']),
-        ])->header('Cache-Control', 'no-store');
+        return ApiResponse::success(data: $this->settings->export($request->user()))
+            ->header('Cache-Control', 'no-store');
     }
 
     public function uploadAvatar(Request $request): JsonResponse
@@ -169,8 +176,107 @@ class AccountSettingsController extends Controller
         return Storage::disk('local')->response($path, headers: [
             'Content-Type' => 'image/png',
             'X-Content-Type-Options' => 'nosniff',
-            'Cache-Control' => 'private, no-store',
+            'Cache-Control' => 'private, max-age=900',
         ]);
+    }
+
+    public function requestEmailChange(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'current_password' => ['required', 'string', 'max:1024'],
+        ]);
+        $this->settings->verifyPassword($request->user(), $input['current_password']);
+        $this->settings->requestEmailChange($request->user(), $input['email']);
+
+        return ApiResponse::success(message: 'A verification code was sent to the new address.')
+            ->header('Cache-Control', 'no-store');
+    }
+
+    public function confirmEmailChange(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'code' => ['required', 'string', 'max:10'],
+            'current_password' => ['required', 'string', 'max:1024'],
+        ]);
+        $this->settings->verifyPassword($request->user(), $input['current_password']);
+        $user = $this->settings->confirmEmailChange($request->user(), $input['code']);
+
+        return ApiResponse::success(
+            data: new UserResource($user),
+            message: 'Your email address has been updated.'
+        );
+    }
+
+    public function setupTwoFactor(Request $request): JsonResponse
+    {
+        $request->validate(['current_password' => ['required', 'string', 'max:1024']]);
+        $this->settings->verifyPassword($request->user(), $request->input('current_password'));
+        $result = $this->settings->startTwoFactorSetup($request->user());
+
+        return ApiResponse::success(data: [
+            'secret' => $result['secret'],
+            'provisioning_uri' => $result['provisioning_uri'],
+            'issuer' => (string) config('app.name', 'Hirgal'),
+        ])->header('Cache-Control', 'no-store');
+    }
+
+    public function confirmTwoFactor(Request $request): JsonResponse
+    {
+        $input = $request->validate(['code' => ['required', 'string', 'max:32']]);
+        $codes = $this->settings->confirmTwoFactor($request->user(), $input['code']);
+
+        return ApiResponse::success(data: ['recovery_codes' => $codes])
+            ->header('Cache-Control', 'no-store');
+    }
+
+    public function disableTwoFactor(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'code' => ['required', 'string', 'max:32'],
+            'current_password' => ['required', 'string', 'max:1024'],
+        ]);
+        $this->settings->verifyPassword($request->user(), $input['current_password']);
+        $this->settings->disableTwoFactor($request->user(), $input['code']);
+
+        return ApiResponse::success(message: 'Two-factor authentication has been disabled.')
+            ->header('Cache-Control', 'no-store');
+    }
+
+    public function regenerateRecoveryCodes(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'code' => ['required', 'string', 'max:32'],
+            'current_password' => ['required', 'string', 'max:1024'],
+        ]);
+        $this->settings->verifyPassword($request->user(), $input['current_password']);
+        $codes = $this->settings->regenerateRecoveryCodes($request->user(), $input['code']);
+
+        return ApiResponse::success(data: ['recovery_codes' => $codes])
+            ->header('Cache-Control', 'no-store');
+    }
+
+    public function deactivate(Request $request): JsonResponse
+    {
+        $input = $request->validate(['current_password' => ['required', 'string', 'max:1024']]);
+        $this->settings->verifyPassword($request->user(), $input['current_password']);
+        $this->settings->deactivate($request->user());
+
+        return ApiResponse::success(message: 'Your account has been deactivated.')
+            ->header('Cache-Control', 'no-store');
+    }
+
+    public function destroy(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'current_password' => ['required', 'string', 'max:1024'],
+            'confirm' => ['required', 'string', 'in:DELETE'],
+        ]);
+        $this->settings->verifyPassword($request->user(), $input['current_password']);
+        $this->settings->delete($request->user());
+
+        return ApiResponse::success(message: 'Your account has been deleted.')
+            ->header('Cache-Control', 'no-store');
     }
 
     private function replaceAvatar(User $user, ?string $path): void
@@ -189,7 +295,7 @@ class AccountSettingsController extends Controller
 
     private function profileResponse(Request $request): JsonResponse
     {
-        return ApiResponse::success(data: new \App\Http\Resources\Api\V1\UserResource($request->user()->fresh(['profile', 'roles.permissions'])));
+        return ApiResponse::success(data: new UserResource($request->user()->fresh(['profile', 'roles.permissions'])));
     }
 
     private function browserSessions(User $user): ?Builder
@@ -202,7 +308,7 @@ class AccountSettingsController extends Controller
             ->where('user_id', $user->id)->where('last_activity', '>=', now()->subMinutes(config('session.lifetime'))->timestamp);
     }
 
-    private function activeTokens(User $user): \Illuminate\Database\Eloquent\Relations\MorphMany
+    private function activeTokens(User $user): MorphMany
     {
         $tokens = $user->tokens();
         $tokens->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()));
@@ -216,13 +322,5 @@ class AccountSettingsController extends Controller
     private function browserReference(string $id): string
     {
         return 'browser-'.hash_hmac('sha256', 'account-session:'.$id, config('app.key'));
-    }
-
-    private function confirmPassword(Request $request): void
-    {
-        $credentials = $request->validate(['current_password' => ['required', 'string', 'max:1024']]);
-        if (! Hash::check($credentials['current_password'], $request->user()->getAuthPassword())) {
-            throw ValidationException::withMessages(['current_password' => ['The current password is incorrect.']]);
-        }
     }
 }

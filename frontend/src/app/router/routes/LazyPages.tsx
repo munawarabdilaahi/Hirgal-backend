@@ -5,6 +5,10 @@ const AcceptInvitationRoute = lazy(async () => {
   const { AcceptInvitationRoute: Component } = await import('@/features/auth/pages/AcceptInvitationRoute');
   return { default: Component };
 });
+const AccountSettingsRoute = lazy(async () => {
+  const { AccountSettingsRoute: Component } = await import('@/features/account/AccountSettingsRoute');
+  return { default: Component };
+});
 const ChangePasswordRoute = lazy(async () => {
   const { ChangePasswordRoute: Component } = await import('@/features/auth/pages/ChangePasswordRoute');
   return { default: Component };
@@ -19,10 +23,6 @@ const ForgotPasswordRoute = lazy(async () => {
 });
 const LoginRoute = lazy(async () => {
   const { LoginRoute: Component } = await import('@/features/auth/pages/LoginRoute');
-  return { default: Component };
-});
-const ProfileRoute = lazy(async () => {
-  const { ProfileRoute: Component } = await import('@/features/auth/pages/ProfileRoute');
   return { default: Component };
 });
 const ResetPasswordRoute = lazy(async () => {
@@ -118,8 +118,8 @@ export function LoginPage() {
   return renderLazyPage(<LoginRoute />);
 }
 
-export function ProfilePage() {
-  return renderLazyPage(<ProfileRoute />);
+export function AccountSettingsPage() {
+  return renderLazyPage(<AccountSettingsRoute />);
 }
 
 export function ResetPasswordPage() {

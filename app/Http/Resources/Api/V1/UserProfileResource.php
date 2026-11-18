@@ -26,6 +26,9 @@ class UserProfileResource extends JsonResource
             'bio' => $this->bio,
             'notification_preferences' => $this->notification_preferences ?? [],
             'theme_preference' => $this->theme_preference ?? 'system',
+            'locale' => $this->locale ?? 'en',
+            'date_format' => $this->date_format ?? 'Y-m-d',
+            'time_format' => $this->time_format ?? '24h',
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

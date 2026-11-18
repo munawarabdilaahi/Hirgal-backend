@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\User;
+use App\Support\AccountAvatar;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -22,7 +23,7 @@ class UserDirectoryResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
-            'avatar_url' => $this->avatar_url,
+            'avatar_url' => AccountAvatar::url($this->avatar_url, $this->id),
             'timezone' => $this->timezone ?? 'UTC',
             'job_title' => $this->profile?->job_title,
             'department' => $this->profile?->department,

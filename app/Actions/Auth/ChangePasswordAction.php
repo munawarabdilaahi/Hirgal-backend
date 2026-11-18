@@ -3,10 +3,16 @@
 namespace App\Actions\Auth;
 
 use App\Models\User;
+use App\Notifications\PasswordChangedNotification;
+use App\Services\Audit\ActivityLogger;
 use Illuminate\Support\Facades\Hash;
 
 class ChangePasswordAction
 {
+    public function __construct(
+        protected ActivityLogger $audit,
+    ) {}
+
     /**
      * Change password for the authenticated user and optionally revoke other tokens.
      */
@@ -25,5 +31,15 @@ class ChangePasswordAction
                 $user->tokens()->delete();
             }
         }
+
+        $user->notify(new PasswordChangedNotification);
+
+        $this->audit->record(
+            'account.password_changed',
+            $user,
+            $user,
+            'Changed their account password.',
+            ['other_devices_revoked' => $logoutOtherDevices]
+        );
     }
 }

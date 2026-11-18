@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Activity\ActivityLogController;
 use App\Http\Controllers\Api\V1\Appointments\AppointmentController;
+use App\Http\Controllers\Api\V1\Auth\AccountSettingsController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\InvitationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
@@ -67,6 +68,15 @@ Route::prefix('v1')->group(function (): void {
             ->name('api.v1.invitations.accept');
     });
 
+    // Short-lived signed avatar links. Signatures are validated by the
+    // framework; the route is intentionally outside the auth group so that
+    // <img> requests work in both cookie and bearer-token sessions.
+    Route::get('/account/avatars/{user}/{version}', [AccountSettingsController::class, 'avatar'])
+        ->middleware('signed')
+        ->whereNumber('user')
+        ->where('version', '[A-Za-z0-9-]+')
+        ->name('api.v1.account.avatar');
+
     /*
     |----------------------------------------------------------------------
     | Protected Routes (Authenticated & Active Account)
@@ -80,6 +90,35 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/me', [AuthController::class, 'me'])->name('api.v1.auth.me');
             Route::put('/me/profile', [AuthController::class, 'updateProfile'])->name('api.v1.auth.update-profile');
             Route::post('/change-password', [PasswordController::class, 'changePassword'])->name('api.v1.auth.change-password');
+
+            // Personal account settings. Every endpoint is scoped to the
+            // authenticated user; no user identifier is accepted from the client.
+            Route::get('/me/sessions', [AccountSettingsController::class, 'sessions'])->name('api.v1.account.sessions');
+            Route::post('/me/sessions/revoke', [AccountSettingsController::class, 'revoke'])
+                ->middleware('throttle:10,1')->name('api.v1.account.sessions.revoke');
+            Route::get('/me/security-activity', [AccountSettingsController::class, 'securityActivity'])->name('api.v1.account.security-activity');
+            Route::post('/me/export', [AccountSettingsController::class, 'export'])
+                ->middleware('throttle:5,1')->name('api.v1.account.export');
+            Route::post('/me/avatar', [AccountSettingsController::class, 'uploadAvatar'])
+                ->middleware('throttle:10,1')->name('api.v1.account.avatar.upload');
+            Route::delete('/me/avatar', [AccountSettingsController::class, 'removeAvatar'])
+                ->middleware('throttle:10,1')->name('api.v1.account.avatar.remove');
+            Route::post('/me/email-change', [AccountSettingsController::class, 'requestEmailChange'])
+                ->middleware('throttle:3,1')->name('api.v1.account.email-change');
+            Route::post('/me/email-change/confirm', [AccountSettingsController::class, 'confirmEmailChange'])
+                ->middleware('throttle:5,1')->name('api.v1.account.email-change.confirm');
+            Route::post('/me/two-factor/setup', [AccountSettingsController::class, 'setupTwoFactor'])
+                ->middleware('throttle:5,1')->name('api.v1.account.two-factor.setup');
+            Route::post('/me/two-factor/confirm', [AccountSettingsController::class, 'confirmTwoFactor'])
+                ->middleware('throttle:5,1')->name('api.v1.account.two-factor.confirm');
+            Route::delete('/me/two-factor', [AccountSettingsController::class, 'disableTwoFactor'])
+                ->middleware('throttle:5,1')->name('api.v1.account.two-factor.disable');
+            Route::post('/me/two-factor/recovery-codes', [AccountSettingsController::class, 'regenerateRecoveryCodes'])
+                ->middleware('throttle:5,1')->name('api.v1.account.two-factor.recovery-codes');
+            Route::post('/me/deactivate', [AccountSettingsController::class, 'deactivate'])
+                ->middleware('throttle:3,1')->name('api.v1.account.deactivate');
+            Route::delete('/me', [AccountSettingsController::class, 'destroy'])
+                ->middleware('throttle:3,1')->name('api.v1.account.destroy');
         });
 
         // User Management

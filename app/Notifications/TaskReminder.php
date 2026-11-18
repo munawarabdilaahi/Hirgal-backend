@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Task;
+use App\Models\User;
 use Illuminate\Notifications\Notification;
 
 class TaskReminder extends Notification
@@ -12,7 +13,9 @@ class TaskReminder extends Notification
     /** @return list<string> */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $preferences = $notifiable instanceof User ? ($notifiable->profile?->notification_preferences ?? []) : [];
+
+        return ($preferences['in_app_notifications'] ?? $preferences['in_app'] ?? true) ? ['database'] : [];
     }
 
     /** @return array{event: string, title: string, task_uuid: string} */

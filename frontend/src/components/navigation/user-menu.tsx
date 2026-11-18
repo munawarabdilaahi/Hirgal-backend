@@ -1,8 +1,8 @@
-import { LogOut, Settings, UserRound } from 'lucide-react';
+import { Bell, LogOut, Settings, ShieldCheck, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -24,7 +24,6 @@ interface UserMenuProps {
 function UserMenu({ detail: passedDetail, name: demoName, session }: UserMenuProps) {
   const { logout, user: apiUser } = useAuth();
   const user = session?.user ?? apiUser;
-  const frontendUrl = session?.frontendUrl ?? '';
   const navigate = useNavigate();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const name = demoName ?? user?.name;
@@ -68,12 +67,13 @@ function UserMenu({ detail: passedDetail, name: demoName, session }: UserMenuPro
           variant="ghost"
         >
           <Avatar aria-hidden="true" className="size-8">
+            {user?.avatar_url ? <AvatarImage alt="" src={user.avatar_url} /> : null}
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
           <span className="hidden max-w-36 truncate text-sm font-medium sm:inline">{name}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="font-normal">
           <span className="block truncate text-sm font-medium text-foreground">{name}</span>
           <span className="mt-1 block truncate text-xs text-muted-foreground">{detail}</span>
@@ -98,15 +98,27 @@ function UserMenu({ detail: passedDetail, name: demoName, session }: UserMenuPro
         ) : (
           <>
             <DropdownMenuItem asChild>
-              <Link reloadDocument={Boolean(session)} to="/profile">
+              <Link reloadDocument={Boolean(session)} to="/profile?section=profile">
                 <UserRound aria-hidden="true" />
-                Profile
+                Profile and account
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link reloadDocument={Boolean(session)} to={`${frontendUrl}/change-password`}>
-                <Settings aria-hidden="true" />
+              <Link reloadDocument={Boolean(session)} to="/profile?section=security">
+                <ShieldCheck aria-hidden="true" />
                 Password &amp; security
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link reloadDocument={Boolean(session)} to="/profile?section=notifications">
+                <Bell aria-hidden="true" />
+                Notifications
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link reloadDocument={Boolean(session)} to="/profile?section=preferences">
+                <Settings aria-hidden="true" />
+                Preferences
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

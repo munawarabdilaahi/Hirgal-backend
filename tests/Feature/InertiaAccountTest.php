@@ -26,7 +26,7 @@ class InertiaAccountTest extends TestCase
 
         $this->actingAs($user)->put('/profile', ['name' => 'Updated Name', 'department' => 'Operations'])
             ->assertRedirectToRoute('profile.edit');
-        $this->get('/profile')->assertInertia(fn (Assert $page) => $page->component('Profile', false)
+        $this->get('/profile')->assertInertia(fn (Assert $page) => $page->component('AccountSettings', false)
             ->where('user.name', 'Updated Name')
             ->where('user.profile.department', 'Operations'));
         $this->assertSame('Updated Name', $user->fresh()->name);

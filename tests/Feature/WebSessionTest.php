@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\AccountStatus;
 use App\Models\User;
+use App\Services\Security\TwoFactorAuthenticationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -58,6 +59,42 @@ class WebSessionTest extends TestCase
         ])->assertRedirectToRoute('login')->assertSessionHasErrors(['email' => 'Invalid credentials.']);
 
         $this->assertGuest('web');
+    }
+
+    public function test_two_factor_challenge_returns_to_the_login_page(): void
+    {
+        $user = User::factory()->create([
+            'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
+        ]);
+
+        $this->from('/')->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertRedirectToRoute('login')->assertSessionHasErrors([
+            'two_factor_code' => 'Enter the six-digit code from your authenticator app.',
+        ])->assertSessionHasInput('email', $user->email);
+
+        $this->assertGuest('web');
+    }
+
+    public function test_two_factor_code_completes_a_browser_session_login(): void
+    {
+        $secret = 'JBSWY3DPEHPK3PXP';
+        $user = User::factory()->create([
+            'two_factor_secret' => $secret,
+            'two_factor_confirmed_at' => now(),
+        ]);
+
+        $code = app(TwoFactorAuthenticationService::class)->currentCode($secret);
+
+        $this->from(route('login'))->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+            'two_factor_code' => $code,
+        ])->assertRedirectToRoute('dashboard');
+
+        $this->assertAuthenticatedAs($user, 'web');
     }
 
     public function test_a_disabled_account_cannot_start_a_session(): void

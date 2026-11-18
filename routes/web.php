@@ -41,7 +41,7 @@ Route::middleware(HandleInertiaRequests::class)->group(function (): void {
         Route::get('/teams/new', WorkspaceController::class)->name('teams.create');
         Route::get('/teams/{team}/edit', WorkspaceController::class)->name('teams.edit');
         Route::get('/teams/{team}', WorkspaceController::class)->name('teams.show');
-        Route::get('/tasks', WorkspaceController::class)->name('tasks.index');
+        Route::get('/tasks', WorkspaceController::class)->can('viewAny', Task::class)->name('tasks.index');
         Route::get('/my-work', WorkspaceController::class)->can('viewAny', Task::class)->name('my-work.index');
         Route::get('/appointments', WorkspaceController::class)->can('viewAny', Appointment::class)->name('appointments.index');
         Route::get('/habits', WorkspaceController::class)->can('viewAny', Habit::class)->name('habits.index');

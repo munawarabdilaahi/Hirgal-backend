@@ -15,6 +15,7 @@ import {
   getValidationErrors,
 } from '@/features/auth/auth-validation';
 import { authApi } from '@/services/api/authApi';
+import { passwordStrength, strengthColors } from '@/features/auth/password-strength';
 
 export function ChangePasswordRoute() {
   return (
@@ -104,6 +105,29 @@ export function ChangePasswordDialog({ initialOpen = false }: { initialOpen?: bo
                 />
               )}
             </FormField>
+            {password ? (
+              <div aria-live="polite" className="-mt-2 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium">Password strength</span>
+                  <span className="text-muted-foreground">{passwordStrength(password).label}</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {[1, 2, 3, 4].map((level) => (
+                    <span
+                      className={`h-1.5 rounded-full ${level <= passwordStrength(password).score ? strengthColors[passwordStrength(password).score] : 'bg-muted'}`}
+                      key={level}
+                    />
+                  ))}
+                </div>
+                <ul className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                  {passwordStrength(password).checks.map((check) => (
+                    <li className={check.met ? 'text-success' : undefined} key={check.id}>
+                      {check.met ? '✓' : '•'} {check.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <FormField
               error={fieldErrors.password_confirmation}
               htmlFor="confirm-new-password"

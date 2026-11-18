@@ -39,6 +39,9 @@ export interface ApiUserProfile {
   bio: string | null;
   notification_preferences: Record<string, unknown>;
   theme_preference: string;
+  locale: string;
+  date_format: string;
+  time_format: string;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -59,6 +62,9 @@ export interface ApiUser {
   avatar_url: string | null;
   timezone: string;
   email_verified_at?: string | null;
+  pending_email?: string | null;
+  two_factor_enabled?: boolean;
+  recovery_codes_remaining?: number;
   last_login_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -122,6 +128,7 @@ export interface LoginRequest {
   email: string;
   password: string;
   device_name?: string;
+  two_factor_code?: string;
 }
 
 export interface ForgotPasswordRequest {
@@ -151,7 +158,63 @@ export interface UpdateProfileRequest {
   department?: string | null;
   bio?: string | null;
   theme_preference?: 'light' | 'dark' | 'system';
+  locale?: 'en';
+  date_format?: 'Y-m-d' | 'd/m/Y' | 'm/d/Y';
+  time_format?: '12h' | '24h';
   notification_preferences?: Record<string, unknown>;
+}
+
+export interface AccountSession {
+  id: string;
+  kind: 'browser' | 'token';
+  label: string;
+  ip_address: string | null;
+  last_active_at: string | null;
+  created_at: string | null;
+  current: boolean;
+}
+
+export interface AccountSessionList {
+  sessions: AccountSession[];
+  tracks_browser_sessions: boolean;
+}
+
+export interface AccountSecurityEvent {
+  id: number;
+  action: string;
+  description: string;
+  created_at: string;
+}
+
+export interface TwoFactorSetup {
+  secret: string;
+  provisioning_uri: string;
+  issuer: string;
+}
+
+export interface TwoFactorConfirmation {
+  recovery_codes: string[];
+}
+
+export interface AccountExport {
+  exported_at?: string;
+  identity?: Record<string, unknown>;
+  profile?: Record<string, unknown> | null;
+  roles?: string[];
+  security?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface AccountNotificationPreferences {
+  email_notifications?: boolean;
+  in_app_notifications?: boolean;
+  security_alerts?: boolean;
+  login_alerts?: boolean;
+  workspace_invitations?: boolean;
+  system_announcements?: boolean;
+  activity_notifications?: boolean;
+  email?: boolean;
+  in_app?: boolean;
 }
 
 export type ProjectStatus = 'planning' | 'active' | 'paused' | 'completed' | 'archived';

@@ -8,6 +8,7 @@ import { DesignSystemLoadingFallback } from '@/app/router/routes/DesignSystemLoa
 import { NotFoundRoute } from '@/app/router/routes/NotFoundRoute';
 import {
   AcceptInvitationPage,
+  AccountSettingsPage,
   ActivityPage,
   AppointmentsPage,
   ChangePasswordPage,
@@ -19,7 +20,6 @@ import {
   LoginPage,
   MyWorkPage,
   NotificationsPage,
-  ProfilePage,
   ProjectDetailsPage,
   ProjectFormPage,
   ProjectsPage,
@@ -62,7 +62,8 @@ const routes: RouteObject[] = [
     ),
     children: [
       { path: '/dashboard', element: <DashboardPage /> },
-      { path: '/profile', element: <ProfilePage /> },
+      { path: '/profile', element: <AccountSettingsPage /> },
+      { path: '/settings/account', element: <AccountSettingsPage /> },
       { path: '/change-password', element: <ChangePasswordPage /> },
       { path: '/notifications', element: <NotificationsPage /> },
       { path: '/activity', element: <ActivityPage /> },

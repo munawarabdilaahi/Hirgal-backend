@@ -42,7 +42,8 @@ class AuthController extends Controller
         $result = $this->authService->login(
             email: $request->validated('email'),
             password: $request->validated('password'),
-            deviceName: $request->validated('device_name')
+            deviceName: $request->validated('device_name'),
+            twoFactorCode: $request->validated('two_factor_code')
         );
 
         return ApiResponse::success(

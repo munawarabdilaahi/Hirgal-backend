@@ -30,7 +30,11 @@ apiClient.interceptors.request.use((config) => {
   const token = getAccessToken();
 
   config.headers.set('Accept', 'application/json');
-  config.headers.set('Content-Type', 'application/json');
+  if (config.data instanceof FormData) {
+    config.headers.delete('Content-Type');
+  } else {
+    config.headers.set('Content-Type', 'application/json');
+  }
   if (usesWebSession) {
     config.headers.set('X-Hirgal-Session', '1');
   }

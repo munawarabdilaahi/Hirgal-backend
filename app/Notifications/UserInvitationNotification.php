@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Models\User;
 use App\Models\UserInvitation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -23,7 +24,12 @@ class UserInvitationNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        $preferences = $notifiable instanceof User ? ($notifiable->profile?->notification_preferences ?? []) : [];
+
+        $wantsInvitations = $preferences['workspace_invitations'] ?? true;
+        $wantsEmail = $preferences['email_notifications'] ?? $preferences['email'] ?? true;
+
+        return $wantsInvitations && $wantsEmail ? ['mail'] : [];
     }
 
     /**
