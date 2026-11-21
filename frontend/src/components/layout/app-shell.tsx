@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ThemeSwitcher } from '@/components/navigation/theme-switcher';
 import { UserMenu } from '@/components/navigation/user-menu';
+import { BrandLogo } from '@/components/common/BrandLogo';
 import { useAuth } from '@/features/auth/auth-hooks';
 import { hasPermission } from '@/features/auth/permissions';
 import { hasAnyPermission } from '@/features/auth/permissions';
@@ -118,12 +119,10 @@ function Sidebar({ onNavigate, session }: SidebarProps) {
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 items-center gap-3 px-5">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-          H
-        </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold tracking-tight">Hirgal</p>
-          <p className="truncate text-xs text-sidebar-muted">Workspace</p>
+          <div className="w-fit max-w-full rounded-lg bg-brand-navy px-2 py-1">
+            <BrandLogo className="h-8 w-auto max-w-full object-contain" />
+          </div>
         </div>
         <Button
           aria-label="Select workspace"

@@ -1,6 +1,7 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ThemeSwitcher } from '@/components/navigation/theme-switcher';
+import { BrandLogo } from '@/components/common/BrandLogo';
 
 interface AuthPageLayoutProps extends PropsWithChildren {
   title: string;
@@ -28,10 +29,9 @@ export function AuthPageLayout({
           to="/login"
           reloadDocument={web}
         >
-          <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">
-            H
+          <span className="rounded-lg bg-brand-navy px-3 py-1.5">
+            <BrandLogo className="h-10 w-auto object-contain" />
           </span>
-          <span className="text-xl font-semibold tracking-tight">Hirgal</span>
         </Link>
         <section className="rounded-xl border bg-card p-6 text-card-foreground shadow-card sm:p-8">
           <div className="mb-6 space-y-2 text-center">

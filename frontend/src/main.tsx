@@ -6,7 +6,7 @@ import { appConfig } from '@/app/config/env';
 import App from '@/App';
 import '@/styles/globals.css';
 
-document.title = appConfig.name;
+document.title = 'Hirgal | Workspace';
 
 const rootElement = document.getElementById('root');
 const legacyEmailPath = ['/reset-password', '/invitations/accept'].includes(window.location.pathname);
