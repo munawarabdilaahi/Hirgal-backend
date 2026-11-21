@@ -119,11 +119,10 @@ function Sidebar({ onNavigate, session }: SidebarProps) {
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 items-center gap-3 px-5">
-        <div className="min-w-0 flex-1">
-          <div className="w-fit max-w-full rounded-lg bg-brand-navy px-2 py-1">
-            <BrandLogo className="h-8 w-auto max-w-full object-contain" />
-          </div>
-        </div>
+        <BrandLogo className="shrink-0 object-contain" height={36} variant="compact" width={36} />
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-[0.08em]">
+          HIRGAL
+        </span>
         <Button
           aria-label="Select workspace"
           className="size-8 text-sidebar-muted hover:text-sidebar-foreground"

@@ -8,7 +8,15 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js', 'frontend/src/inertia.tsx'],
+            input: [
+                'resources/css/app.css',
+                'resources/js/app.js',
+                'frontend/src/inertia.tsx',
+                'frontend/src/assets/brand/hirgal-favicon-16.png',
+                'frontend/src/assets/brand/hirgal-favicon-32.png',
+                'frontend/src/assets/brand/hirgal-favicon-48.png',
+                'frontend/src/assets/brand/hirgal-apple-touch-icon.png',
+            ],
             refresh: true,
             fonts: [
                 bunny('Instrument Sans', {

@@ -23,7 +23,7 @@ export function LoadingState({ label = 'Loading', layout = 'list', rows, columns
         <div aria-hidden="true" className="space-y-4">
           {(layout === 'page' || layout === 'detail' || layout === 'form') && (
             <div className="space-y-2 border-b pb-4">
-              {layout === 'page' ? <BrandLogo className="mb-4 size-8" variant="icon" /> : null}
+              {layout === 'page' ? <BrandLogo className="mb-4 size-8" variant="compact" /> : null}
               <Skeleton className="h-3 w-24" />
               <Skeleton className="h-7 w-2/3 max-w-64" />
               <Skeleton className="h-4 w-4/5 max-w-96" />

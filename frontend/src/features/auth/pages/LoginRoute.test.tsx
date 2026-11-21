@@ -15,6 +15,15 @@ function renderLogin(authenticate: (credentials: { email: string; password: stri
 }
 
 describe('LoginForm two-factor challenge', () => {
+  it('renders the split Hirgal branding and keeps remember-me disabled', () => {
+    renderLogin(vi.fn().mockResolvedValue({}));
+
+    expect(screen.getByRole('heading', { name: 'Bring your team’s work into focus.' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Remember me (not available for this session)')).toBeDisabled();
+    expect(screen.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute('href', '/forgot-password');
+  });
+
   it('reveals the authentication code field and retries with the submitted code', async () => {
     const authenticate = vi.fn()
       .mockResolvedValueOnce({ two_factor_code: 'Enter the six-digit code from your authenticator app.' })

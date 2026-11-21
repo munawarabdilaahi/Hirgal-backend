@@ -104,6 +104,7 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
           </a>
         </span>
       }
+      layout="split"
       title="Welcome back"
     >
       {sessionMessage ? (
@@ -177,28 +178,26 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
             )}
           </FormField>
         ) : null}
-        {forgotPasswordUrl ? (
-          <a className="justify-self-end text-sm font-medium text-primary hover:underline" href={forgotPasswordUrl}>
-            Forgot password?
-          </a>
-        ) : (
-          <>
-          <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Checkbox aria-label="Keep me signed in for this tab" id="session-tab" disabled />
+            <Checkbox aria-label="Remember me (not available for this session)" id="session-tab" disabled />
             <Label className="text-sm text-muted-foreground" htmlFor="session-tab">
-              Memory-only session
+              Remember me
             </Label>
           </div>
-          <Link className="text-sm font-medium text-primary hover:underline" to="/forgot-password">
-            Forgot password?
-          </Link>
+          {forgotPasswordUrl ? (
+            <a className="text-sm font-medium text-primary hover:underline" href={forgotPasswordUrl}>
+              Forgot password?
+            </a>
+          ) : (
+            <Link className="text-sm font-medium text-primary hover:underline" to="/forgot-password">
+              Forgot password?
+            </Link>
+          )}
         </div>
         <p className="-mt-3 text-xs text-muted-foreground">
           Refreshing or closing this tab ends your session.
         </p>
-          </>
-        )}
         <Button className="w-full" loading={isSubmitting} type="submit">
           Sign in
         </Button>

@@ -5,8 +5,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <title>Hirgal | Workspace</title>
+        <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}" sizes="any">
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-            <link rel="icon" type="image/png" href="{{ Vite::asset('frontend/src/assets/brand/hirgal-app-icon.png') }}">
+            <link rel="icon" type="image/png" sizes="16x16" href="{{ Vite::asset('frontend/src/assets/brand/hirgal-favicon-16.png') }}">
+            <link rel="icon" type="image/png" sizes="32x32" href="{{ Vite::asset('frontend/src/assets/brand/hirgal-favicon-32.png') }}">
+            <link rel="icon" type="image/png" sizes="48x48" href="{{ Vite::asset('frontend/src/assets/brand/hirgal-favicon-48.png') }}">
+            <link rel="apple-touch-icon" sizes="180x180" href="{{ Vite::asset('frontend/src/assets/brand/hirgal-apple-touch-icon.png') }}">
         @endif
 
         @fonts
@@ -143,9 +147,9 @@
                 <div class="bg-[#fff2f2] dark:bg-[#1D0002] relative lg:-ml-px -mb-px lg:mb-0 rounded-t-lg lg:rounded-t-none lg:rounded-r-lg aspect-[335/364] lg:aspect-auto w-full lg:w-[438px] shrink-0 overflow-hidden">
                     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
                         <img
-                            alt="Hirgal"
-                            class="mx-auto mt-8 w-full max-w-[438px] rounded-xl bg-[#163B65] p-2"
-                            src="{{ Vite::asset('frontend/src/assets/brand/hirgal-sidebar-logo.png') }}"
+                            alt="HIRGAL — Work & Project Management"
+                            class="mx-auto mt-8 block h-auto w-full max-w-[438px] rounded-xl bg-white p-2"
+                            src="{{ Vite::asset('frontend/src/assets/brand/hirgal-logo-full.png') }}"
                         >
                     @else
                         <p class="mt-8 text-center text-3xl font-semibold text-[#163B65]">Hirgal</p>
@@ -154,7 +158,7 @@
                         <img
                             alt=""
                             class="relative mx-auto mt-8 size-40 object-contain"
-                            src="{{ Vite::asset('frontend/src/assets/brand/hirgal-app-icon.png') }}"
+                            src="{{ Vite::asset('frontend/src/assets/brand/hirgal-app-icon-512.png') }}"
                         >
                     @endif
                     <div class="absolute inset-0 rounded-t-lg lg:rounded-t-none lg:rounded-r-lg shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d]"></div>
