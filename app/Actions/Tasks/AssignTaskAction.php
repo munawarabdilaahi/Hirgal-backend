@@ -20,9 +20,9 @@ class AssignTaskAction
      *
      * @throws ValidationException
      */
-    public function execute(User $actor, Task $task, array $userIds): Task
+    public function execute(User $actor, Task $task, array $userIds, bool $isReassignment = false): Task
     {
-        return DB::transaction(function () use ($actor, $task, $userIds): Task {
+        return DB::transaction(function () use ($actor, $task, $userIds, $isReassignment): Task {
             $candidateIds = collect($userIds)->map(fn ($id): int => (int) $id)->unique()->values();
 
             $memberIds = ProjectMember::query()
@@ -39,6 +39,23 @@ class AssignTaskAction
                 throw ValidationException::withMessages([
                     'user_ids' => "Assignees must be members of the task's project. Not a project member: {$missingNames}.",
                 ]);
+            }
+
+            if ($isReassignment) {
+                $previousAssignments = TaskAssignment::query()
+                    ->where('task_id', $task->id)
+                    ->whereNotIn('user_id', $candidateIds)
+                    ->with('user')
+                    ->get();
+
+                foreach ($previousAssignments as $previous) {
+                    $unassignedUser = $previous->user;
+                    $previous->delete();
+
+                    if ($unassignedUser !== null && $unassignedUser->id !== $actor->id) {
+                        app(NotificationService::class)->notifyTask($task, 'task_unassigned', $actor, [$unassignedUser]);
+                    }
+                }
             }
 
             $newlyAssignedIds = [];
@@ -61,8 +78,9 @@ class AssignTaskAction
             }
 
             if (! empty($newlyAssignedIds)) {
+                $event = $isReassignment ? 'task_reassigned' : 'task_assigned';
                 $recipients = User::query()->whereIn('id', $newlyAssignedIds)->get();
-                app(NotificationService::class)->notifyTask($task, 'task_assigned', $actor, $recipients);
+                app(NotificationService::class)->notifyTask($task, $event, $actor, $recipients);
             }
 
             return $task->fresh(TaskService::EAGER);

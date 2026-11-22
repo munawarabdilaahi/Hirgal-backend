@@ -26,7 +26,8 @@ export const accountApi = {
   },
   async uploadAvatar(avatar: Blob): Promise<ApiUser> {
     const form = new FormData();
-    form.append('avatar', avatar, 'avatar.png');
+    const filename = avatar instanceof File && avatar.name ? avatar.name : 'avatar.png';
+    form.append('avatar', avatar, filename);
     return (await apiClient.post<ApiSuccess<ApiUser>>(`${root}/avatar`, form)).data.data;
   },
   async removeAvatar(): Promise<ApiUser> {

@@ -277,4 +277,31 @@ class TaskAssignmentTest extends TestCase
         ], $this->auth($this->owner, 'owner'))
             ->assertStatus(404);
     }
+
+    public function test_reassign_replaces_existing_assignees(): void
+    {
+        TaskAssignment::create([
+            'task_id' => $this->task->id,
+            'user_id' => $this->assignable->id,
+            'assigned_by' => $this->owner->id,
+            'assigned_at' => now(),
+        ]);
+
+        $this->postJson('/api/v1/tasks/'.$this->task->uuid.'/assign', [
+            'user_ids' => [$this->member->id],
+            'reassign' => true,
+        ], $this->auth($this->owner, 'owner'))
+            ->assertOk()
+            ->assertJsonPath('message', 'Task reassigned successfully.');
+
+        $this->assertDatabaseMissing('task_assignments', [
+            'task_id' => $this->task->id,
+            'user_id' => $this->assignable->id,
+        ]);
+
+        $this->assertDatabaseHas('task_assignments', [
+            'task_id' => $this->task->id,
+            'user_id' => $this->member->id,
+        ]);
+    }
 }

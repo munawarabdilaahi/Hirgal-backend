@@ -319,12 +319,13 @@ class TaskManagementTest extends TestCase
             ->assertJsonPath('data.description_html', '<p><strong>Check</strong></p>');
 
         $this->artisan('tasks:send-reminders')->assertSuccessful();
-        $this->assertDatabaseCount('notifications', 0);
+        $this->assertSame(0, $this->taskWorker->notifications()->count());
+        $this->assertSame(1, $this->member->notifications()->count());
 
         $this->travel(1)->day();
         $this->artisan('tasks:send-reminders')->assertSuccessful();
         $this->artisan('tasks:send-reminders')->assertSuccessful();
-        $this->assertDatabaseCount('notifications', 1);
+        $this->assertSame(1, $this->taskWorker->notifications()->count());
         $this->getJson('/api/v1/notifications', $this->auth($this->taskWorker))
             ->assertOk()
             ->assertJsonPath('data.0.data.task_uuid', $uuid);
@@ -685,5 +686,127 @@ class TaskManagementTest extends TestCase
     {
         $this->getJson('/api/v1/tasks/'.Str::uuid(), $this->auth($this->member, 'member'))
             ->assertStatus(404);
+    }
+
+    public function test_assigned_member_can_update_status_and_complete_task(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'creator_id' => $this->owner->id,
+            'status' => TaskStatus::Todo,
+            'priority' => TaskPriority::Medium,
+        ]);
+
+        TaskAssignment::create([
+            'task_id' => $task->id,
+            'user_id' => $this->member->id,
+            'assigned_by' => $this->owner->id,
+            'assigned_at' => now(),
+        ]);
+
+        // Member without global tasks.update can update their assigned task status
+        $this->putJson('/api/v1/tasks/'.$task->uuid, [
+            'status' => TaskStatus::InProgress->value,
+        ], $this->auth($this->member, 'member'))
+            ->assertOk()
+            ->assertJsonPath('data.status', TaskStatus::InProgress->value);
+
+        $this->assertNull($task->fresh()->completed_at);
+
+        // Member can mark assigned task as done
+        $this->putJson('/api/v1/tasks/'.$task->uuid, [
+            'status' => TaskStatus::Done->value,
+        ], $this->auth($this->member, 'member'))
+            ->assertOk()
+            ->assertJsonPath('data.status', TaskStatus::Done->value);
+
+        $this->assertNotNull($task->fresh()->completed_at);
+    }
+
+    public function test_followers_receive_notifications_on_status_change_and_completion(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'creator_id' => $this->owner->id,
+            'status' => TaskStatus::Todo,
+            'priority' => TaskPriority::High,
+        ]);
+
+        TaskAssignment::create([
+            'task_id' => $task->id,
+            'user_id' => $this->taskWorker->id,
+            'assigned_by' => $this->owner->id,
+            'assigned_at' => now(),
+        ]);
+
+        // Add member as follower
+        $task->followers()->attach($this->member->id);
+
+        // Worker updates status to in_progress
+        $this->putJson('/api/v1/tasks/'.$task->uuid, [
+            'status' => TaskStatus::InProgress->value,
+        ], $this->auth($this->taskWorker, 'worker'))->assertOk();
+
+        $statusNotification = $this->member->notifications()->latest('id')->first();
+        $this->assertNotNull($statusNotification);
+        $this->assertSame('task_status_changed', $statusNotification->data['event']);
+
+        // Worker marks task as done
+        $this->putJson('/api/v1/tasks/'.$task->uuid, [
+            'status' => TaskStatus::Done->value,
+        ], $this->auth($this->taskWorker, 'worker'))->assertOk();
+
+        $notifications = $this->member->notifications()->get();
+        $this->assertCount(2, $notifications);
+        $doneNotification = $notifications->firstWhere('data.event', 'task_completed');
+        $this->assertNotNull($doneNotification);
+        $this->assertNotNull($doneNotification);
+        $this->assertSame('task_completed', $doneNotification->data['event']);
+    }
+
+    public function test_update_task_syncs_followers_and_notifies_new_followers(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'creator_id' => $this->owner->id,
+            'status' => TaskStatus::Todo,
+        ]);
+
+        $this->putJson('/api/v1/tasks/'.$task->uuid, [
+            'followers' => [$this->member->id],
+        ], $this->auth($this->lead, 'lead'))->assertOk();
+
+        $this->assertDatabaseHas('task_followers', [
+            'task_id' => $task->id,
+            'user_id' => $this->member->id,
+        ]);
+
+        $followedNotification = $this->member->notifications()->latest('id')->first();
+        $this->assertNotNull($followedNotification);
+        $this->assertSame('task_followed', $followedNotification->data['event']);
+    }
+
+    public function test_task_assignment_supports_updating_followers(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'creator_id' => $this->owner->id,
+            'status' => TaskStatus::Todo,
+        ]);
+
+        $this->postJson('/api/v1/tasks/'.$task->uuid.'/assign', [
+            'user_ids' => [$this->taskWorker->id],
+            'followers' => [$this->member->id],
+        ], $this->auth($this->owner, 'owner'))->assertOk();
+
+        $this->assertDatabaseHas('task_assignments', [
+            'task_id' => $task->id,
+            'user_id' => $this->taskWorker->id,
+        ]);
+
+        $this->assertDatabaseHas('task_followers', [
+            'task_id' => $task->id,
+            'user_id' => $this->member->id,
+        ]);
     }
 }

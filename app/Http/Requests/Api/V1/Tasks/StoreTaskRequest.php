@@ -76,6 +76,19 @@ class StoreTaskRequest extends FormRequest
         ];
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'assignees.*.exists' => 'The selected assignee is not a member of this project.',
+            'assignees.*.distinct' => 'Each assignee can only be selected once.',
+            'assignees.*.integer' => 'Invalid assignee ID provided.',
+            'followers.*.exists' => 'The selected follower is not a member of this project.',
+        ];
+    }
+
     /** @return list<callable(Validator): void> */
     public function after(): array
     {

@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { apiClient } from '@/services/api/apiClient';
 import type { ApiDirectoryUser } from '@/services/api/contracts';
 import { projectApi } from '@/services/api/projectApi';
+import { taskApi } from '@/services/api/taskApi';
 
 const steps = ['Details', 'Context', 'Review'] as const;
 const contexts = { project: 'Project', department: 'Department', other: 'Other' };
@@ -50,8 +51,11 @@ export function NewTaskDialog({ actorId, canViewProjects, canAssign, statuses, p
       assignees: details.assignees.map(({ id }) => id),
       followers: details.followers.map(({ id }) => id),
     }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+      ]);
       toast.success('Task created.');
       onClose();
     },
@@ -80,7 +84,9 @@ function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, prio
 }) {
   const [step, setStep] = useState(0);
   const [details, setDetails] = useState(() => ({ ...initial, context: canViewProjects ? initial.context : 'other' as const }));
-  const [project, setProject] = useState<{ uuid: string; name: string } | null>(null);
+  const [project, setProject] = useState<{ uuid: string; name: string } | null>(() => (
+    initialProjectUuid ? { uuid: initialProjectUuid, name: '' } : null
+  ));
   const [projectSearch, setProjectSearch] = useState('');
   const [tag, setTag] = useState('');
   const [validation, setValidation] = useState('');
@@ -96,27 +102,24 @@ function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, prio
   const projectOptions = projectsData ?? [];
 
   useEffect(() => {
-    if (!project && projectsData && projectsData.length > 0 && details.context === 'project') {
-      const match = initialProjectUuid ? projectsData.find((item) => item.uuid === initialProjectUuid) : null;
-      const target = match ?? projectsData[0];
-      if (target) {
-        setProject({ uuid: target.uuid, name: target.name });
+    if (project && (!project.name || project.name === '') && projectsData && projectsData.length > 0) {
+      const match = projectsData.find((item) => item.uuid === project.uuid);
+      if (match) {
+        setProject({ uuid: match.uuid, name: match.name });
       }
     }
-  }, [project, projectsData, details.context, initialProjectUuid]);
+  }, [project, projectsData]);
 
   const roster = useQuery({
-    queryKey: ['projects', 'new-task-roster', actorId, project?.uuid],
+    queryKey: ['tasks', 'assignees', actorId, project?.uuid],
     queryFn: async () => {
-      const uuid = project!.uuid;
-      const first = await projectApi.members(uuid);
-      const members = [...first.data];
-      for (let page = 2; page <= first.meta.last_page; page++) {
-        members.push(...(await projectApi.members(uuid, page)).data);
-      }
-      return members.map(({ user }) => user).filter(Boolean);
+      const response = await taskApi.getAssignees({
+        project: project?.uuid,
+        per_page: 100,
+      });
+      return response.data;
     },
-    enabled: Boolean(project),
+    enabled: canAssign,
   });
   const members = roster.data ?? [];
   const departments = [...new Set(members.flatMap(({ department }) => department ? [department] : []))].sort();
@@ -160,11 +163,42 @@ function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, prio
       }
       if (tag.trim()) return setValidation('Add the pending tag or clear the tag field before continuing.');
     }
-    if (step === 1 && details.context !== 'other' && (!project || (details.context === 'department' && !details.department))) {
-      return setValidation('Choose a project and, for Department context, a department. For a private task, choose Other.');
+    if (step === 1 && details.context !== 'other') {
+      if (!project || (details.context === 'department' && !details.department)) {
+        return setValidation('Choose a project and, for Department context, a department. For a private task, choose Other.');
+      }
+      if (details.assignees.length > 0 && roster.isPending) {
+        return setValidation('Please wait for project members to finish loading.');
+      }
+      if (details.assignees.length > 0 && members.length > 0) {
+        const eligibleIds = new Set(eligible.map((item) => item.id));
+        const ineligible = details.assignees.filter((item) => !eligibleIds.has(item.id));
+        if (ineligible.length > 0) {
+          return setValidation(
+            `The following assignees are not members of ${project.name || 'this project'}: ${ineligible.map((item) => item.name).join(', ')}. Please remove them or choose a different project.`
+          );
+        }
+      }
     }
-    if (step < 2) navigate(step + 1);
-    else onSubmit(project?.uuid ?? null, { ...details, title: details.title.trim() });
+    if (step < 2) {
+      navigate(step + 1);
+    } else {
+      if (details.context !== 'other' && project && details.assignees.length > 0) {
+        if (roster.isPending) {
+          return setValidation('Please wait for project members to finish loading.');
+        }
+        if (members.length > 0) {
+          const eligibleIds = new Set(eligible.map((item) => item.id));
+          const ineligible = details.assignees.filter((item) => !eligibleIds.has(item.id));
+          if (ineligible.length > 0) {
+            return setValidation(
+              `The following assignees are not members of ${project.name || 'this project'}: ${ineligible.map((item) => item.name).join(', ')}.`
+            );
+          }
+        }
+      }
+      onSubmit(project?.uuid ?? null, { ...details, title: details.title.trim() });
+    }
   }
 
   return (
@@ -248,8 +282,9 @@ function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, prio
             <Field label={details.context === 'other' ? 'Project (optional)' : 'Project'}>
               <ChoiceSelect aria-label="Project" value={project?.uuid ?? ''} onValueChange={(uuid) => {
                 const nextProject = projectOptions.find((item) => item.uuid === uuid) ?? null;
+                const prev = project;
                 setProject(nextProject);
-                if (nextProject?.uuid !== project?.uuid) {
+                if (prev && nextProject?.uuid !== prev.uuid) {
                   patch({ department: '', assignees: [], followers: [] });
                 }
               }}>

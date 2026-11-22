@@ -59,6 +59,23 @@ class UpdateTaskRequest extends FormRequest
                     ->where('project_id', $projectId)
                     ->whereNull('deleted_at'),
             ],
+            'followers' => ['nullable', 'sometimes', 'array', 'list', 'max:100', Rule::prohibitedIf($task?->project_id === null)],
+            'followers.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('project_members', 'user_id')->where('project_id', $projectId),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'followers.*.exists' => 'The selected follower is not a member of this project.',
+            'followers.*.distinct' => 'Each follower can only be added once.',
         ];
     }
 }

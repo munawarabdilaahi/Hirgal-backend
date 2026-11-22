@@ -40,6 +40,7 @@ class NotificationResource extends JsonResource
             'title',
             'message',
             'task_uuid',
+            'task_title',
             'project_uuid',
             'actor_id',
             'actor_name',

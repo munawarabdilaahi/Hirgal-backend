@@ -47,6 +47,26 @@ class StoreTaskAssignmentRequest extends FormRequest
                 'integer',
                 Rule::exists('project_members', 'user_id')->where('project_id', $projectId),
             ],
+            'reassign' => ['nullable', 'boolean'],
+            'is_reassignment' => ['nullable', 'boolean'],
+            'followers' => ['nullable', 'array', 'list', 'max:100'],
+            'followers.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('project_members', 'user_id')->where('project_id', $projectId),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'user_ids.*.exists' => 'Assignees must be members of this project.',
+            'followers.*.exists' => 'Followers must be members of this project.',
+            'followers.*.distinct' => 'Each follower can only be added once.',
         ];
     }
 }

@@ -11,9 +11,10 @@ import { PageHeader } from '@/components/layout/primitives';
 import { useDebouncedValue } from '@/features/users/use-debounced-value';
 import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, CircleAlert, Columns3, List, Plus, X } from 'lucide-react';
+import { CheckCircle2, ChevronRight, CircleAlert, Columns3, Eye, EyeOff, List, Plus, RotateCcw, UserCheck, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { UserIdentity } from '@/components/ui/user-identity';
 import { Input } from '@/components/ui/input';
@@ -25,10 +26,11 @@ import { hasPermission } from '@/features/auth/permissions';
 import { getSafeErrorMessage } from '@/features/auth/auth-validation';
 import { apiClient } from '@/services/api/apiClient';
 import { projectApi } from '@/services/api/projectApi';
-import type { ApiSuccess, ApiUser } from '@/services/api/contracts';
+import type { ApiDirectoryUser, ApiSuccess, ApiUser } from '@/services/api/contracts';
 import { TaskAgenda, TaskSummary, type TaskListResponse, type TaskSchedule } from './TaskAgenda';
 import { TaskBoard } from './TaskBoard';
 import { NewTaskDialog } from './NewTaskDialog';
+import { TaskAssignmentsDialog } from './TaskAssignmentsDialog';
 import { FormattedTaskDescription, TaskDescriptionEditor } from './TaskDescriptionEditor';
 
 export const statuses = {
@@ -59,10 +61,13 @@ export interface Task {
   start_date?: string | null;
   remind_on?: string | null;
   tags?: string[];
-  followers?: { id: number; name: string }[];
+  followers?: ApiDirectoryUser[];
   project: { uuid: string; name: string } | null;
   parent?: { uuid: string | null; title: string | null };
-  assignees: { id: number; name: string }[];
+  assignees: ApiDirectoryUser[];
+  creator?: ApiDirectoryUser | null;
+  created_at?: string | null;
+  completed_at?: string | null;
 }
 
 export function TasksRoute({ assignedToMe = false }: { assignedToMe?: boolean }) {
@@ -127,17 +132,14 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
   });
   const task = detail.data;
   const canAssign = task?.capabilities?.assign === true;
-  const [memberPage, setMemberPage] = useState(1);
-  const members = useQuery({
-    queryKey: ['projects', task?.project?.uuid, 'task-members', memberPage],
-    queryFn: () => projectApi.members(task!.project!.uuid, memberPage),
-    enabled: Boolean(task?.project) && canAssign && hasPermission(user, 'projects.view'),
-  });
   const update = useMutation({
     mutationFn: ({ path, method, body }: { path: string; method: 'post' | 'put' | 'delete'; body?: unknown }) =>
       apiClient.request({ url: path, method, data: body }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+      ]);
     },
   });
 
@@ -163,7 +165,6 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
 
   function openTask(uuid: string, trigger: HTMLButtonElement) {
     detailTrigger.current = trigger;
-    setMemberPage(1);
     update.reset();
     const params = new URLSearchParams(searchParams);
     params.set('task', uuid);
@@ -206,6 +207,37 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
         form.reset();
         closeEditor();
         toast.success(task ? 'Task updated.' : parent ? 'Subtask created.' : 'Task created.');
+      },
+    });
+  }
+
+  function updateTaskStatus(newStatus: TaskStatus) {
+    if (!task) return;
+    update.mutate({
+      path: `/tasks/${task.uuid}`,
+      method: 'put',
+      body: { status: newStatus },
+    }, {
+      onSuccess: () => {
+        toast.success(newStatus === 'done' ? 'Task marked as complete!' : `Task status updated to ${statuses[newStatus]}.`);
+      },
+    });
+  }
+
+  function toggleWatchTask(currentTask: Task, isWatching: boolean) {
+    if (!user) return;
+    const currentFollowerIds = (currentTask.followers ?? []).map((f) => f.id);
+    const newFollowerIds = isWatching
+      ? currentFollowerIds.filter((id) => id !== user.id)
+      : [...new Set([...currentFollowerIds, user.id])];
+
+    update.mutate({
+      path: `/tasks/${currentTask.uuid}`,
+      method: 'put',
+      body: { followers: newFollowerIds },
+    }, {
+      onSuccess: () => {
+        toast.success(isWatching ? 'Unwatched task.' : 'Now watching task.');
       },
     });
   }
@@ -387,19 +419,160 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
             {detail.isError && <ErrorState title="Could not load task" description={getSafeErrorMessage(detail.error)} onRetry={() => void detail.refetch()} />}
             {task && (
               <div className="space-y-5">
-                <div className="flex flex-wrap gap-2 empty:hidden">
-                  {task.capabilities?.update && <Button size="sm" onClick={() => { update.reset(); setEditor('edit'); }}>Edit task</Button>}
-                  {canAssign && hasPermission(user, 'projects.view') && <Button size="sm" variant="outline" onClick={() => { update.reset(); setEditor('assign'); }}>Assign member</Button>}
-                  {task.capabilities?.create_subtask && <Button size="sm" variant="outline" onClick={() => { update.reset(); setEditor('subtask'); }}>Add subtask</Button>}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-4 empty:hidden">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {task.capabilities?.update && (
+                      task.status === 'done' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          disabled={update.isPending}
+                          onClick={() => updateTaskStatus('todo')}
+                        >
+                          <RotateCcw className="size-4 text-muted-foreground" aria-hidden="true" />
+                          Reopen task
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                          disabled={update.isPending}
+                          onClick={() => updateTaskStatus('done')}
+                        >
+                          <CheckCircle2 className="size-4" aria-hidden="true" />
+                          Mark as Complete
+                        </Button>
+                      )
+                    )}
+                    {task.capabilities?.update && (
+                      <Button size="sm" variant="outline" onClick={() => { update.reset(); setEditor('edit'); }}>
+                        Edit task
+                      </Button>
+                    )}
+                    {canAssign && (
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { update.reset(); setEditor('assign'); }}>
+                        <Users className="size-4 text-muted-foreground" aria-hidden="true" />
+                        Assignees & Watchers
+                      </Button>
+                    )}
+                    {task.capabilities?.create_subtask && (
+                      <Button size="sm" variant="outline" onClick={() => { update.reset(); setEditor('subtask'); }}>
+                        Add subtask
+                      </Button>
+                    )}
+                  </div>
+                  {user && task.project && (
+                    <div>
+                      {(() => {
+                        const isWatching = (task.followers ?? []).some((f) => f.id === user.id);
+                        return (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                            disabled={update.isPending}
+                            onClick={() => toggleWatchTask(task, isWatching)}
+                          >
+                            {isWatching ? (
+                              <>
+                                <EyeOff className="size-4 text-amber-500" aria-hidden="true" />
+                                <span>Unwatch</span>
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="size-4" aria-hidden="true" />
+                                <span>Watch task</span>
+                              </>
+                            )}
+                          </Button>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border bg-card p-4 text-sm">
-                  <div><dt className="mb-1 text-xs text-muted-foreground">Status</dt><dd><Badge variant="secondary">{statuses[task.status]}</Badge></dd></div>
-                  <div><dt className="mb-1 text-xs text-muted-foreground">Priority</dt><dd className="capitalize">{task.priority}</dd></div>
-                  <div><dt className="mb-1 text-xs text-muted-foreground">Due date</dt><dd>{task.due_date ? <time dateTime={task.due_date}>{task.due_date.slice(0, 10)}</time> : 'No due date'}</dd></div>
-                  {task.start_date && <div><dt className="mb-1 text-xs text-muted-foreground">Start date</dt><dd>{task.start_date}</dd></div>}
-                  {task.remind_on && <div><dt className="mb-1 text-xs text-muted-foreground">Reminder date</dt><dd>{task.remind_on}</dd></div>}
-                  {task.context && <div><dt className="mb-1 text-xs text-muted-foreground">Context</dt><dd className="capitalize">{task.context}{task.department ? ` · ${task.department}` : ''}</dd></div>}
-                  {task.parent?.title && <div><dt className="mb-1 text-xs text-muted-foreground">Parent task</dt><dd className="wrap-anywhere">{task.parent.title}</dd></div>}
+                  <div>
+                    <dt className="mb-1 text-xs text-muted-foreground">Status</dt>
+                    <dd>
+                      {task.capabilities?.update ? (
+                        <ChoiceSelect
+                          aria-label="Update task status"
+                          className="h-8 text-xs font-medium"
+                          value={task.status}
+                          onValueChange={(nextStatus) => updateTaskStatus(nextStatus as TaskStatus)}
+                          disabled={update.isPending}
+                        >
+                          {Object.entries(statuses).map(([value, label]) => (
+                            <ChoiceOption key={value} value={value}>
+                              {label}
+                            </ChoiceOption>
+                          ))}
+                        </ChoiceSelect>
+                      ) : (
+                        <Badge variant="secondary">{statuses[task.status]}</Badge>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="mb-1 text-xs text-muted-foreground">Priority</dt>
+                    <dd className="capitalize">{task.priority}</dd>
+                  </div>
+                  <div>
+                    <dt className="mb-1 text-xs text-muted-foreground">Due date</dt>
+                    <dd>{task.due_date ? <time dateTime={task.due_date}>{task.due_date.slice(0, 10)}</time> : 'No due date'}</dd>
+                  </div>
+                  {task.start_date && (
+                    <div>
+                      <dt className="mb-1 text-xs text-muted-foreground">Start date</dt>
+                      <dd>{task.start_date}</dd>
+                    </div>
+                  )}
+                  {task.remind_on && (
+                    <div>
+                      <dt className="mb-1 text-xs text-muted-foreground">Reminder date</dt>
+                      <dd>{task.remind_on}</dd>
+                    </div>
+                  )}
+                  {task.context && (
+                    <div>
+                      <dt className="mb-1 text-xs text-muted-foreground">Context</dt>
+                      <dd className="capitalize">{task.context}{task.department ? ` · ${task.department}` : ''}</dd>
+                    </div>
+                  )}
+                  {task.parent?.title && (
+                    <div>
+                      <dt className="mb-1 text-xs text-muted-foreground">Parent task</dt>
+                      <dd className="wrap-anywhere">{task.parent.title}</dd>
+                    </div>
+                  )}
+                  {task.creator && (
+                    <div>
+                      <dt className="mb-1 text-xs text-muted-foreground">Created by</dt>
+                      <dd className="flex items-center gap-1.5">
+                        <Avatar className="size-5 shrink-0">
+                          {task.creator.avatar_url && <AvatarImage src={task.creator.avatar_url} alt={task.creator.name} />}
+                          <AvatarFallback className="text-[10px]">
+                            {task.creator.name.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium wrap-anywhere">{task.creator.name}</span>
+                        {task.created_at && (
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            · <time dateTime={task.created_at}>{task.created_at.slice(0, 10)}</time>
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                  )}
+                  {task.completed_at && task.status === 'done' && (
+                    <div>
+                      <dt className="mb-1 text-xs text-muted-foreground">Completed at</dt>
+                      <dd className="text-emerald-500 font-medium">
+                        <time dateTime={task.completed_at}>{task.completed_at.slice(0, 10)}</time>
+                      </dd>
+                    </div>
+                  )}
                 </dl>
                 <div className="space-y-1.5">
                   <h2 className="text-sm font-semibold">Description</h2>
@@ -409,19 +582,93 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
                 {!!task.tags?.length && <div className="space-y-2"><h2 className="text-sm font-semibold">Tags</h2>
                   <ul className="flex flex-wrap gap-2">{task.tags.map((tag) => <li key={tag}><Badge variant="secondary">{tag}</Badge></li>)}</ul>
                 </div>}
-                {!!task.followers?.length && <div className="space-y-2"><h2 className="text-sm font-semibold">Followed by</h2>
-                  <p className="text-sm text-muted-foreground">{task.followers.map(({ name }) => name).join(', ')}</p>
-                </div>}
                 <div className="space-y-2">
-                  <h2 className="text-sm font-semibold">Assignees</h2>
-                  {task.assignees.length === 0 ? <p className="text-sm text-muted-foreground">Unassigned</p> : (
-                    <ul className="divide-y rounded-lg border">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold flex items-center gap-1.5">
+                      <Eye className="size-4 text-muted-foreground" aria-hidden="true" />
+                      Followed by ({task.followers?.length ?? 0})
+                    </h2>
+                    {canAssign && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => { update.reset(); setEditor('assign'); }}
+                      >
+                        Manage watchers
+                      </Button>
+                    )}
+                  </div>
+                  {!task.followers?.length ? (
+                    <p className="text-sm text-muted-foreground">No watchers following this task.</p>
+                  ) : (
+                    <ul className="flex flex-wrap gap-2">
+                      {task.followers.map((follower) => (
+                        <li key={follower.id}>
+                          <div className="flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-1 text-xs">
+                            <Avatar className="size-4 shrink-0">
+                              {follower.avatar_url && <AvatarImage src={follower.avatar_url} alt={follower.name} />}
+                              <AvatarFallback className="text-[9px]">
+                                {follower.name.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span>{follower.name}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold flex items-center gap-1.5">
+                      <UserCheck className="size-4 text-muted-foreground" aria-hidden="true" />
+                      Assignees ({task.assignees.length})
+                    </h2>
+                    {canAssign && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => { update.reset(); setEditor('assign'); }}
+                      >
+                        Manage assignees
+                      </Button>
+                    )}
+                  </div>
+                  {task.assignees.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Unassigned</p>
+                  ) : (
+                    <ul className="divide-y rounded-lg border bg-card">
                       {task.assignees.map((member) => (
                         <li className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm" key={member.id}>
-                          <span className="wrap-anywhere">{member.name}</span>
-                          {canAssign && <Button aria-label={`Unassign ${member.name}`} size="sm" variant="ghost" disabled={update.isPending} onClick={() =>
-                            update.mutate({ path: `/tasks/${selectedTask}/assignees/${member.id}`, method: 'delete' })
-                          }>Unassign</Button>}
+                          <div className="flex items-center gap-2">
+                            <Avatar className="size-6 shrink-0">
+                              {member.avatar_url && <AvatarImage src={member.avatar_url} alt={member.name} />}
+                              <AvatarFallback className="text-[10px]">
+                                {member.name.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium wrap-anywhere">{member.name}</span>
+                            {member.role && (
+                              <Badge variant="outline" className="text-[10px] capitalize">
+                                {member.role}
+                              </Badge>
+                            )}
+                          </div>
+                          {canAssign && (
+                            <Button
+                              aria-label={`Unassign ${member.name}`}
+                              size="sm"
+                              variant="ghost"
+                              disabled={update.isPending}
+                              onClick={() =>
+                                update.mutate({ path: `/tasks/${selectedTask}/assignees/${member.id}`, method: 'delete' })
+                              }
+                            >
+                              Unassign
+                            </Button>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -450,22 +697,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
                   </FormDialog>
                 )}
                 {editor === 'assign' && canAssign && (
-                  <FormDialog title="Assign member" description="Choose a member of the task’s project." pending={update.isPending} onClose={closeEditor}>
-                    {members.isPending ? <LoadingState label="Loading project members" layout="control" /> : members.isError ? <ErrorState title="Could not load project members" description={getSafeErrorMessage(members.error)} onRetry={() => void members.refetch()} /> : members.data && <form className="grid gap-2" onSubmit={(event) => {
-                      event.preventDefault();
-                      const member = new FormData(event.currentTarget).get('member');
-                      update.mutate({ path: `/tasks/${selectedTask}/assign`, method: 'post', body: { user_ids: [Number(member)] } }, { onSuccess: () => setEditor(null) });
-                    }}>
-                      <ChoiceSelect name="member" aria-label="Project member" required>
-                        <ChoiceOption value="">Choose a project member</ChoiceOption>
-                        {members.data.data.filter(({ user: member }) => !task?.assignees.some((person) => person.id === member.id))
-                          .map(({ user: member }) => <ChoiceOption key={member.id} value={member.id}>{member.name}</ChoiceOption>)}
-                      </ChoiceSelect>
-                      <Pagination currentPage={memberPage} totalPages={members.data.meta.last_page} onPageChange={setMemberPage} />
-                      {update.isError && <p role="alert" className="text-sm text-destructive">{getSafeErrorMessage(update.error)}</p>}
-                      <FormDialogActions pending={update.isPending} submitLabel="Assign member" />
-                    </form>}
-                  </FormDialog>
+                  <TaskAssignmentsDialog task={task} onClose={closeEditor} />
                 )}
                 {editor === 'subtask' && task.capabilities?.create_subtask && (
                   <FormDialog title="Add subtask" description="Create a task under this task." pending={update.isPending} onClose={closeEditor}>

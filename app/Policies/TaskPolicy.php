@@ -55,11 +55,24 @@ class TaskPolicy
      */
     public function update(User $actor, Task $task): bool
     {
+        if ($task->project_id === null) {
+            return $task->creator_id === $actor->id && $actor->hasPermission('tasks.update');
+        }
+
+        $contextualRole = ProjectPolicy::contextualRole($actor, $task->project);
+        if ($contextualRole === null || $contextualRole === ProjectMemberRole::Viewer) {
+            return false;
+        }
+
+        if ($task->assignments()->where('user_id', $actor->id)->exists()) {
+            return true;
+        }
+
         if (! $actor->hasPermission('tasks.update')) {
             return false;
         }
 
-        return in_array(ProjectPolicy::contextualRole($actor, $task->project), [
+        return in_array($contextualRole, [
             ProjectMemberRole::Owner,
             ProjectMemberRole::Lead,
             ProjectMemberRole::Member,

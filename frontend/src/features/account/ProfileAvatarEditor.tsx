@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Alert } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { getSafeErrorMessage } from '@/features/auth/auth-validation';
+import { getApiValidationErrors, getSafeErrorMessage } from '@/features/auth/auth-validation';
 import { accountApi } from '@/services/api/accountApi';
 import type { ApiUser } from '@/services/api/contracts';
 
@@ -73,7 +73,10 @@ export function ProfileAvatarEditor({ user, onChanged }: { user: ApiUser; onChan
       }
       toast.success('Profile picture updated.');
     } catch (caught) {
-      setError(getSafeErrorMessage(caught));
+      console.error('Avatar upload failed:', caught);
+      const fieldErrors = getApiValidationErrors(caught);
+      const validationMessage = Object.values(fieldErrors).join(' ');
+      setError(validationMessage || getSafeErrorMessage(caught));
     } finally {
       setPending(false);
     }
@@ -87,7 +90,10 @@ export function ProfileAvatarEditor({ user, onChanged }: { user: ApiUser; onChan
       onChanged(updated);
       toast.success('Profile picture removed.');
     } catch (caught) {
-      setError(getSafeErrorMessage(caught));
+      console.error('Avatar upload failed:', caught);
+      const fieldErrors = getApiValidationErrors(caught);
+      const validationMessage = Object.values(fieldErrors).join(' ');
+      setError(validationMessage || getSafeErrorMessage(caught));
     } finally {
       setPending(false);
     }

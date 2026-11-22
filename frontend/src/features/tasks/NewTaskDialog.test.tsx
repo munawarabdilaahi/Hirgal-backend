@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '@/services/api/apiClient';
 import { projectApi } from '@/services/api/projectApi';
+import { taskApi } from '@/services/api/taskApi';
 import type { ApiDirectoryUser, ApiProject } from '@/services/api/contracts';
 import { NewTaskDialog } from './NewTaskDialog';
 
@@ -16,6 +17,12 @@ vi.mock('@/services/api/projectApi', () => ({
   projectApi: {
     list: vi.fn(),
     members: vi.fn(),
+  },
+}));
+
+vi.mock('@/services/api/taskApi', () => ({
+  taskApi: {
+    getAssignees: vi.fn(),
   },
 }));
 
@@ -35,6 +42,17 @@ const mockProject: ApiProject = {
   updated_at: null,
 };
 
+const mockAdminUser: ApiDirectoryUser = {
+  id: 1,
+  name: 'System Administrator',
+  email: 'admin@hirgal.local',
+  avatar_url: null,
+  timezone: 'UTC',
+  job_title: null,
+  department: null,
+  role: 'System Administrator',
+};
+
 const mockMember1: ApiDirectoryUser = {
   id: 101,
   name: 'Alice Smith',
@@ -43,6 +61,7 @@ const mockMember1: ApiDirectoryUser = {
   timezone: 'UTC',
   job_title: 'Backend Dev',
   department: 'Engineering',
+  role: 'Member',
 };
 
 const mockMember2: ApiDirectoryUser = {
@@ -53,16 +72,30 @@ const mockMember2: ApiDirectoryUser = {
   timezone: 'UTC',
   job_title: 'Frontend Dev',
   department: 'Engineering',
+  role: 'Member',
+};
+
+const mockPmUser: ApiDirectoryUser = {
+  id: 103,
+  name: 'Sarah Project Manager',
+  email: 'pm@hirgal.local',
+  avatar_url: null,
+  timezone: 'UTC',
+  job_title: 'Lead PM',
+  department: 'Product',
+  role: 'Project Manager',
 };
 
 function renderDialog({
   onClose = vi.fn(),
   canAssign = true,
   canViewProjects = true,
+  initialProjectUuid,
 }: {
   onClose?: () => void;
   canAssign?: boolean;
   canViewProjects?: boolean;
+  initialProjectUuid?: string | undefined;
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -76,6 +109,7 @@ function renderDialog({
         canAssign={canAssign}
         statuses={{ todo: 'To Do', in_progress: 'In Progress', done: 'Done' }}
         priorities={['low', 'medium', 'high', 'urgent']}
+        initialProjectUuid={initialProjectUuid}
         onClose={onClose}
       />
     </QueryClientProvider>,
@@ -83,6 +117,9 @@ function renderDialog({
 }
 
 describe('NewTaskDialog Assignee Selection Workflow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
   it('allows selecting assignees in step 0, preserves them across wizard steps, and submits them together', async () => {
     vi.mocked(projectApi.list).mockResolvedValue({
       success: true,
@@ -91,13 +128,10 @@ describe('NewTaskDialog Assignee Selection Workflow', () => {
       meta: { current_page: 1, last_page: 1, per_page: 50, total: 1 },
     });
 
-    vi.mocked(projectApi.members).mockResolvedValue({
+    vi.mocked(taskApi.getAssignees).mockResolvedValue({
       success: true,
       message: 'ok',
-      data: [
-        { id: 1, project_id: 1, user: mockMember1, role: 'member', joined_at: null, created_at: null, updated_at: null },
-        { id: 2, project_id: 1, user: mockMember2, role: 'member', joined_at: null, created_at: null, updated_at: null },
-      ],
+      data: [mockMember1, mockMember2],
       meta: { current_page: 1, last_page: 1, per_page: 100, total: 2 },
     });
 
@@ -106,7 +140,7 @@ describe('NewTaskDialog Assignee Selection Workflow', () => {
     });
 
     const onClose = vi.fn();
-    renderDialog({ onClose });
+    renderDialog({ onClose, initialProjectUuid: 'project-uuid-1' });
 
     // Step 0: Fill task name
     const titleInput = screen.getByRole('textbox', { name: 'Task name' });
@@ -116,7 +150,7 @@ describe('NewTaskDialog Assignee Selection Workflow', () => {
     const assigneesTrigger = await screen.findByRole('combobox', { name: 'Assignees' });
     fireEvent.click(assigneesTrigger);
 
-    // Wait for roster members to appear
+    // Wait for assignees to appear
     const aliceOption = await screen.findByRole('option', { name: /Alice Smith/i });
     fireEvent.click(aliceOption);
 
@@ -171,6 +205,49 @@ describe('NewTaskDialog Assignee Selection Workflow', () => {
     });
   });
 
+  it('displays multiple workspace assignees and does not restrict dropdown to authenticated user', async () => {
+    vi.mocked(projectApi.list).mockResolvedValue({
+      success: true,
+      message: 'ok',
+      data: [mockProject],
+      meta: { current_page: 1, last_page: 1, per_page: 50, total: 1 },
+    });
+
+    vi.mocked(taskApi.getAssignees).mockResolvedValue({
+      success: true,
+      message: 'ok',
+      data: [mockAdminUser, mockPmUser, mockMember1, mockMember2],
+      meta: { current_page: 1, last_page: 1, per_page: 100, total: 4 },
+    });
+
+    renderDialog({ initialProjectUuid: undefined });
+
+    // Verify taskApi.getAssignees was called without a project
+    await waitFor(() => {
+      expect(taskApi.getAssignees).toHaveBeenCalledWith(
+        expect.objectContaining({ project: undefined }),
+      );
+    });
+
+    // Open Assignees selector
+    const assigneesTrigger = await screen.findByRole('combobox', { name: 'Assignees' });
+    fireEvent.click(assigneesTrigger);
+
+    // All 4 users should appear, not just admin
+    expect(await screen.findByRole('option', { name: /System Administrator/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Sarah Project Manager/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Alice Smith/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Bob Jones/i })).toBeInTheDocument();
+
+    // Search by name filters correctly
+    const searchInput = screen.getByLabelText('Search assignees');
+    fireEvent.change(searchInput, { target: { value: 'Sarah' } });
+
+    expect(screen.getByRole('option', { name: /Sarah Project Manager/i })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Alice Smith/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /System Administrator/i })).not.toBeInTheDocument();
+  });
+
   it('preserves entered data and assignees if API submission fails', async () => {
     vi.mocked(projectApi.list).mockResolvedValue({
       success: true,
@@ -179,12 +256,10 @@ describe('NewTaskDialog Assignee Selection Workflow', () => {
       meta: { current_page: 1, last_page: 1, per_page: 50, total: 1 },
     });
 
-    vi.mocked(projectApi.members).mockResolvedValue({
+    vi.mocked(taskApi.getAssignees).mockResolvedValue({
       success: true,
       message: 'ok',
-      data: [
-        { id: 1, project_id: 1, user: mockMember1, role: 'member', joined_at: null, created_at: null, updated_at: null },
-      ],
+      data: [mockMember1],
       meta: { current_page: 1, last_page: 1, per_page: 100, total: 1 },
     });
 
@@ -196,7 +271,7 @@ describe('NewTaskDialog Assignee Selection Workflow', () => {
     vi.mocked(apiClient.post).mockRejectedValue(error);
 
     const onClose = vi.fn();
-    renderDialog({ onClose });
+    renderDialog({ onClose, initialProjectUuid: 'project-uuid-1' });
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Task name' }), {
       target: { value: 'Failing Task' },
@@ -225,5 +300,72 @@ describe('NewTaskDialog Assignee Selection Workflow', () => {
 
     // Form data and assignees still intact
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
+  });
+
+  it('blocks step 1 continuation if an assignee is not an eligible member of the selected project', async () => {
+    vi.mocked(projectApi.list).mockResolvedValue({
+      success: true,
+      message: 'ok',
+      data: [mockProject],
+      meta: { current_page: 1, last_page: 1, per_page: 50, total: 1 },
+    });
+
+    // Step 0 without project returns outsider
+    vi.mocked(taskApi.getAssignees).mockImplementation(async (params) => {
+      const project = params?.project;
+      if (!project) {
+        return {
+          success: true,
+          message: 'ok',
+          data: [mockMember1, mockMember2],
+          meta: { current_page: 1, last_page: 1, per_page: 100, total: 2 },
+        };
+      }
+      // Project only has mockMember1 (Alice), Bob is not a project member
+      return {
+        success: true,
+        message: 'ok',
+        data: [mockMember1],
+        meta: { current_page: 1, last_page: 1, per_page: 100, total: 1 },
+      };
+    });
+
+    renderDialog({ initialProjectUuid: undefined });
+
+    // Fill task title
+    fireEvent.change(screen.getByRole('textbox', { name: 'Task name' }), {
+      target: { value: 'Project Assignment Test' },
+    });
+
+    // Select Bob (who is not in project)
+    const assigneesTrigger = await screen.findByRole('combobox', { name: 'Assignees' });
+    fireEvent.click(assigneesTrigger);
+    const bobOption = await screen.findByRole('option', { name: /Bob Jones/i });
+    fireEvent.click(bobOption);
+
+    // Proceed to Step 1
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await screen.findByRole('heading', { name: 'Context' });
+
+    // Select mockProject
+    // ChoiceSelect trigger
+    const projectTrigger = screen.getByRole('combobox', { name: 'Project' });
+    fireEvent.click(projectTrigger);
+    const projectOption = await screen.findByRole('option', { name: /Core Platform/i });
+    fireEvent.click(projectOption);
+
+    await waitFor(() => {
+      expect(taskApi.getAssignees).toHaveBeenCalledWith(
+        expect.objectContaining({ project: 'project-uuid-1' }),
+      );
+    });
+
+    await screen.findByRole('combobox', { name: 'Assigned to' });
+
+    // Try to proceed to Step 2
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    // Should stay on step 1 with validation message
+    expect(await screen.findByText(/not members of Core Platform: Bob Jones/i)).toBeInTheDocument();
   });
 });

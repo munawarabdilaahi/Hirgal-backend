@@ -285,4 +285,112 @@ class NotificationEventsTest extends TestCase
         $this->assertDatabaseMissing('notifications', ['notifiable_id' => $inactiveUser->id]);
         $this->assertDatabaseMissing('notifications', ['notifiable_id' => $optedOutUser->id]);
     }
+
+    public function test_task_assignment_payload_includes_all_required_fields(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'creator_id' => $this->user->id,
+            'title' => 'Design System Audit',
+        ]);
+
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/v1/tasks/{$task->uuid}/assign", [
+                'user_ids' => [$this->other->id],
+            ])
+            ->assertOk();
+
+        $response = $this->actingAs($this->other, 'sanctum')
+            ->getJson('/api/v1/notifications')
+            ->assertOk();
+
+        $notification = $response->json('data.0');
+        $this->assertNotNull($notification);
+        $this->assertNotEmpty($notification['id']);
+        $this->assertNotEmpty($notification['created_at']);
+        $this->assertSame('task_assigned', $notification['data']['event']);
+        $this->assertSame('Task assigned to you', $notification['data']['title']);
+        $this->assertSame('Design System Audit', $notification['data']['task_title']);
+        $this->assertSame($task->uuid, $notification['data']['task_uuid']);
+        $this->assertSame($this->user->name, $notification['data']['actor_name']);
+        $this->assertSame($this->user->id, $notification['data']['actor_id']);
+        $this->assertSame("{$this->user->name} assigned you to \"Design System Audit\"", $notification['data']['message']);
+        $this->assertSame('/tasks?task='.$task->uuid, $notification['data']['action_url']);
+    }
+
+    public function test_task_reassignment_notifies_new_assignee_and_unassigns_previous(): void
+    {
+        $thirdUser = User::factory()->create(['name' => 'Third Engineer']);
+        $thirdUser->roles()->attach(Role::where('slug', UserRole::Member->value)->first()->id);
+        ProjectMember::create([
+            'project_id' => $this->project->id,
+            'user_id' => $thirdUser->id,
+            'role' => ProjectMemberRole::Member,
+            'joined_at' => now(),
+        ]);
+
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'creator_id' => $this->user->id,
+            'title' => 'Database Optimization',
+        ]);
+
+        // Initially assigned to $this->other
+        $task->assignments()->create([
+            'user_id' => $this->other->id,
+            'assigned_by' => $this->user->id,
+            'assigned_at' => now(),
+        ]);
+
+        // Reassign to $thirdUser
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/v1/tasks/{$task->uuid}/assign", [
+                'user_ids' => [$thirdUser->id],
+                'reassign' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Task reassigned successfully.');
+
+        // Old assignee was unassigned and notified
+        $this->assertDatabaseMissing('task_assignments', [
+            'task_id' => $task->id,
+            'user_id' => $this->other->id,
+        ]);
+        $unassignedNotification = $this->other->notifications()->where('type', TaskNotification::class)->latest('id')->first();
+        $this->assertNotNull($unassignedNotification);
+        $this->assertSame('task_unassigned', $unassignedNotification->data['event']);
+        $this->assertSame('You were removed from task "Database Optimization"', $unassignedNotification->data['message']);
+
+        // New assignee was assigned and notified of reassignment
+        $this->assertDatabaseHas('task_assignments', [
+            'task_id' => $task->id,
+            'user_id' => $thirdUser->id,
+        ]);
+        $reassignedNotification = $thirdUser->notifications()->where('type', TaskNotification::class)->latest('id')->first();
+        $this->assertNotNull($reassignedNotification);
+        $this->assertSame('task_reassigned', $reassignedNotification->data['event']);
+        $this->assertSame('Task reassigned to you', $reassignedNotification->data['title']);
+        $this->assertSame("{$this->user->name} reassigned \"Database Optimization\" to you", $reassignedNotification->data['message']);
+    }
+
+    public function test_task_creation_with_assignees_notifies_assigned_user(): void
+    {
+        $this->actingAs($this->user, 'sanctum')
+            ->postJson("/api/v1/projects/{$this->project->uuid}/tasks", [
+                'title' => 'Brand New Feature Task',
+                'status' => TaskStatus::Todo->value,
+                'priority' => TaskPriority::High->value,
+                'assignees' => [$this->other->id],
+            ])
+            ->assertCreated();
+
+        $notification = $this->other->notifications()->where('type', TaskNotification::class)->first();
+        $this->assertNotNull($notification);
+        $this->assertSame('task_assigned', $notification->data['event']);
+        $this->assertSame('Brand New Feature Task', $notification->data['task_title']);
+        $this->assertSame("{$this->user->name} assigned you to \"Brand New Feature Task\"", $notification->data['message']);
+
+        // Actor does not receive notification
+        $this->assertNull($this->user->notifications()->where('type', TaskNotification::class)->first());
+    }
 }

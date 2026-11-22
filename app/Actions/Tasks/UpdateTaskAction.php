@@ -81,37 +81,58 @@ class UpdateTaskAction
                 }
             }
 
+            $newStatus = $oldStatus;
+
             if (array_key_exists('status', $updates)) {
                 $status = TaskStatus::tryFrom((string) $updates['status']);
+                $newStatus = $status ?? $oldStatus;
 
-                $updates['completed_at'] = $status === TaskStatus::Done
+                $updates['completed_at'] = $newStatus === TaskStatus::Done
                     ? ($task->completed_at ?? now())
                     : null;
             }
 
             $task->update($updates);
 
-            if (array_key_exists('status', $updates) && $task->status !== $oldStatus) {
-                if ($task->status === TaskStatus::Done) {
-                    $recipients = $task->assignees->merge($task->creator ? [$task->creator] : []);
+            if (array_key_exists('followers', $data)) {
+                $newFollowerIds = collect($data['followers'] ?? [])->map(fn ($id): int => (int) $id)->diff($task->followers->pluck('id'));
+                $task->followers()->sync($data['followers'] ?? []);
+
+                if ($newFollowerIds->isNotEmpty()) {
+                    $newFollowers = User::query()->whereIn('id', $newFollowerIds)->get();
+                    app(NotificationService::class)->notifyTask($task, 'task_followed', $actor, $newFollowers);
+                }
+            }
+
+            $followers = $task->followers;
+
+            if (array_key_exists('status', $updates) && $newStatus !== $oldStatus) {
+                if ($newStatus === TaskStatus::Done) {
+                    $recipients = $task->assignees
+                        ->merge($task->creator ? [$task->creator] : [])
+                        ->merge($followers);
                     app(NotificationService::class)->notifyTask($task, 'task_completed', $actor, $recipients);
-                } elseif ($task->status === TaskStatus::InReview) {
+                } elseif ($newStatus === TaskStatus::InReview) {
                     $leadRecipients = $task->project ? $task->project->members()->whereIn('role', ['owner', 'lead'])->get()->pluck('user')->filter() : collect();
-                    $recipients = $leadRecipients->merge($task->creator ? [$task->creator] : []);
+                    $recipients = $leadRecipients
+                        ->merge($task->creator ? [$task->creator] : [])
+                        ->merge($followers);
                     app(NotificationService::class)->notifyTask($task, 'task_review_requested', $actor, $recipients);
                 } else {
-                    app(NotificationService::class)->notifyTask($task, 'task_status_changed', $actor, $task->assignees);
+                    $recipients = $task->assignees->merge($followers);
+                    app(NotificationService::class)->notifyTask($task, 'task_status_changed', $actor, $recipients);
                 }
             }
 
             if (array_key_exists('due_date', $updates)) {
                 $newDueDate = $task->due_date?->format('Y-m-d H:i:s');
                 if ($newDueDate !== $oldDueDate) {
-                    app(NotificationService::class)->notifyTask($task, 'task_due_date_changed', $actor, $task->assignees);
+                    $recipients = $task->assignees->merge($followers);
+                    app(NotificationService::class)->notifyTask($task, 'task_due_date_changed', $actor, $recipients);
                 }
             }
 
-            return $task->fresh(TaskService::EAGER);
+            return $task->fresh([...TaskService::EAGER, 'followers.profile']);
         });
     }
 }

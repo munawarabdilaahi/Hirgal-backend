@@ -46,6 +46,7 @@ export function TaskAssigneesField({
     return (
       user.name.toLowerCase().includes(query) ||
       user.email.toLowerCase().includes(query) ||
+      (user.role && user.role.toLowerCase().includes(query)) ||
       (user.job_title && user.job_title.toLowerCase().includes(query)) ||
       (user.department && user.department.toLowerCase().includes(query))
     );
@@ -160,7 +161,7 @@ export function TaskAssigneesField({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium leading-tight text-foreground">{user.name}</p>
                       <p className="truncate text-xs text-muted-foreground leading-tight mt-0.5">
-                        {user.job_title ? `${user.job_title} · ${user.email}` : user.email}
+                        {[user.role || user.job_title, user.email].filter(Boolean).join(' · ')}
                       </p>
                     </div>
                     {isSelected && (

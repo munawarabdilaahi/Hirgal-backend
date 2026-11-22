@@ -127,16 +127,23 @@ class AccountSettingsController extends Controller
 
     public function uploadAvatar(Request $request): JsonResponse
     {
-        $request->validate(['avatar' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=64,min_height=64,max_width=2048,max_height=2048']]);
+        $request->validate(['avatar' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=64,min_height=64,max_width=6000,max_height=6000']]);
         abort_unless(function_exists('imagecreatefromstring'), 503, 'Image processing is unavailable.');
+
+        @ini_set('memory_limit', '256M');
+
         $image = @imagecreatefromstring($request->file('avatar')->get());
         if ($image === false) {
             throw ValidationException::withMessages(['avatar' => ['Choose a valid JPEG, PNG, or WebP image.']]);
         }
         $size = min(imagesx($image), imagesy($image));
         $square = imagecrop($image, ['x' => intdiv(imagesx($image) - $size, 2), 'y' => intdiv(imagesy($image) - $size, 2), 'width' => $size, 'height' => $size]);
+        imagedestroy($image);
+
         abort_if($square === false, 422, 'Could not crop this image.');
         $avatar = imagescale($square, min($size, 512));
+        imagedestroy($square);
+
         abort_if($avatar === false, 422, 'Could not resize this image.');
 
         ob_start();
@@ -145,6 +152,7 @@ class AccountSettingsController extends Controller
             $contents = ob_get_contents();
         } finally {
             ob_end_clean();
+            imagedestroy($avatar);
         }
 
         $user = $request->user();

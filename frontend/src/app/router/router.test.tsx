@@ -5,6 +5,7 @@ import { router } from '@/app/router/router';
 import App from '@/App';
 import type { ApiHabit } from '@/services/api/contracts';
 import { setAccessToken } from '@/services/api/tokenStore';
+import { apiClient } from '@/services/api/apiClient';
 
 const { authApi, habitApi } = vi.hoisted(() => ({
   authApi: {
@@ -77,6 +78,12 @@ describe('configured habit form route guards', () => {
     vi.clearAllMocks();
     sessionUser.permissions = ['users.view_directory'];
     authApi.getCurrentUser.mockResolvedValue(sessionUser);
+    vi.spyOn(apiClient, 'get').mockImplementation(async (path) => {
+      if (path === '/notifications/unread-count') {
+        return { data: { data: { unread_count: 0 } } };
+      }
+      return { data: { data: [], meta: { current_page: 1, last_page: 1, total: 0, per_page: 15 } } };
+    });
     setAccessToken('session-token');
     await router.navigate('/habits/new');
   });

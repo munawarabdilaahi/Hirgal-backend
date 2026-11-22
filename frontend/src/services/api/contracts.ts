@@ -81,6 +81,7 @@ export interface ApiDirectoryUser {
   timezone: string;
   job_title: string | null;
   department: string | null;
+  role?: string | null;
 }
 
 export interface ApiPaginatedResponse<TData> extends ApiSuccess<TData[]> {

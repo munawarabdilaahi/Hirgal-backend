@@ -2,6 +2,7 @@ import { SearchInput } from '@/components/ui/search-input';
 import { Check, ChevronLeft, ChevronRight, Minus, Plus, SkipForward, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { LoadingState } from '@/components/feedback/LoadingState';
@@ -182,7 +183,14 @@ export function HabitsRoute() {
             <DialogDescription>{selectedDay && fullDate.format(calendarDate(selectedDay.date))}</DialogDescription>
           </DialogHeader>
           {selectedHabit && selectedDay && (
-            <ul><CheckInRow key={selectedHabit.uuid + selectedDay.date} date={selectedDay.date} item={{ habit: selectedHabit, ...selectedDay }} /></ul>
+            <ul>
+              <CheckInRow
+                date={selectedDay.date}
+                item={{ habit: selectedHabit, ...selectedDay }}
+                key={selectedHabit.uuid + selectedDay.date}
+                onClose={() => setSelected(null)}
+              />
+            </ul>
           )}
         </DialogContent>
       </Dialog>
@@ -214,7 +222,15 @@ function WeekCheckIn({ habit, day, date, onOpen }: {
 }
 
 
-function CheckInRow({ date, item }: { date: string; item: ApiDailyOverviewItem }) {
+function CheckInRow({
+  date,
+  item,
+  onClose,
+}: {
+  date: string;
+  item: ApiDailyOverviewItem;
+  onClose?: () => void;
+}) {
   const { habit, is_scheduled, log } = item;
   const logHabit = useLogHabit(habit.uuid);
   const removeHabitLog = useRemoveHabitLog(habit.uuid);
@@ -222,21 +238,43 @@ function CheckInRow({ date, item }: { date: string; item: ApiDailyOverviewItem }
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function record(status: HabitLogStatus): Promise<void> {
+    if (logHabit.isPending) {
+      return;
+    }
     setActionError(null);
     try {
       await logHabit.mutateAsync({ logged_date: date, status });
+      if (status === 'completed') {
+        onClose?.();
+        toast.success('Habit completed successfully!');
+      } else if (status === 'skipped') {
+        onClose?.();
+        toast.success('Habit marked as skipped.');
+      } else if (status === 'failed') {
+        onClose?.();
+        toast.success('Habit marked as failed.');
+      }
     } catch (error) {
-      setActionError(habitErrorMessage(error));
+      const message = habitErrorMessage(error);
+      setActionError(message);
+      toast.error(message);
     }
   }
 
   async function confirmRemove(): Promise<void> {
+    if (removeHabitLog.isPending) {
+      return;
+    }
     setActionError(null);
     try {
       await removeHabitLog.mutateAsync(date);
       setConfirmRemoval(false);
+      onClose?.();
+      toast.success('Habit check-in removed.');
     } catch (error) {
-      setActionError(habitErrorMessage(error));
+      const message = habitErrorMessage(error);
+      setActionError(message);
+      toast.error(message);
     }
   }
 
@@ -284,6 +322,7 @@ function CheckInRow({ date, item }: { date: string; item: ApiDailyOverviewItem }
           <>
             <Button
               aria-label={`Mark ${habit.title} as completed`}
+              disabled={logHabit.isPending}
               loading={logHabit.isPending}
               onClick={() => void record('completed')}
               size="sm"

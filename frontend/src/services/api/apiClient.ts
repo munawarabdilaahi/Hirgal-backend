@@ -24,6 +24,7 @@ let usesWebSession = false;
 export function enableWebSession(): void {
   usesWebSession = true;
   apiClient.defaults.baseURL = '/api/v1';
+  apiClient.defaults.withCredentials = true;
 }
 
 apiClient.interceptors.request.use((config) => {
@@ -37,6 +38,12 @@ apiClient.interceptors.request.use((config) => {
   }
   if (usesWebSession) {
     config.headers.set('X-Hirgal-Session', '1');
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/);
+      if (match && match[1]) {
+        config.headers.set('X-XSRF-TOKEN', decodeURIComponent(match[1]));
+      }
+    }
   }
 
   if (token && !config.skipAuth && !usesWebSession) {

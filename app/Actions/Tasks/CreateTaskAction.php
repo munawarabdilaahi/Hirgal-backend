@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskAssignment;
 use App\Models\User;
+use App\Services\Notification\NotificationService;
 use App\Services\Task\TaskService;
 use App\Support\TaskDescription;
 use Carbon\CarbonImmutable;
@@ -68,9 +69,10 @@ class CreateTaskAction
             ]);
 
             $assigneeIds = collect($data['assignees'] ?? [])->map(fn ($id): int => (int) $id)->unique();
+            $newlyAssignedIds = [];
 
             foreach ($assigneeIds as $assigneeId) {
-                TaskAssignment::firstOrCreate(
+                $assignment = TaskAssignment::firstOrCreate(
                     [
                         'task_id' => $task->id,
                         'user_id' => $assigneeId,
@@ -80,6 +82,15 @@ class CreateTaskAction
                         'assigned_at' => now(),
                     ]
                 );
+
+                if ($assignment->wasRecentlyCreated && $assigneeId !== $actor->id) {
+                    $newlyAssignedIds[] = $assigneeId;
+                }
+            }
+
+            if (! empty($newlyAssignedIds)) {
+                $recipients = User::query()->whereIn('id', $newlyAssignedIds)->get();
+                app(NotificationService::class)->notifyTask($task, 'task_assigned', $actor, $recipients);
             }
 
             $task->followers()->sync($data['followers'] ?? []);

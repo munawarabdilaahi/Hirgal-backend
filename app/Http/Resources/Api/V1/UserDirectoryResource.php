@@ -27,6 +27,7 @@ class UserDirectoryResource extends JsonResource
             'timezone' => $this->timezone ?? 'UTC',
             'job_title' => $this->profile?->job_title,
             'department' => $this->profile?->department,
+            'role' => $this->roles->first()?->name ?? $this->profile?->job_title,
         ];
     }
 }

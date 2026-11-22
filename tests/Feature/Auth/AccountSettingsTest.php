@@ -176,6 +176,21 @@ class AccountSettingsTest extends TestCase
             ->assertJsonValidationErrors(['avatar']);
     }
 
+    public function test_avatar_upload_accepts_high_resolution_portrait_photos(): void
+    {
+        Storage::fake('local');
+        $user = $this->member();
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/auth/me/avatar', [
+                'avatar' => UploadedFile::fake()->image('profile_portrait_1MB.jpg', 3000, 4000)->size(1024),
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.id', $user->id);
+
+        $this->assertNotNull($user->fresh()->avatar_url);
+    }
+
     public function test_email_change_requires_verification_before_updating_the_address(): void
     {
         Notification::fake();

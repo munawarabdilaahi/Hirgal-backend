@@ -7,6 +7,7 @@ use App\Actions\Tasks\CreateTaskAction;
 use App\Actions\Tasks\DeleteTaskAction;
 use App\Actions\Tasks\UnassignTaskAction;
 use App\Actions\Tasks\UpdateTaskAction;
+use App\Enums\AccountStatus;
 use App\Enums\TaskStatus;
 use App\Models\Project;
 use App\Models\ProjectMember;
@@ -33,6 +34,8 @@ class TaskService
         'creator.profile:id,user_id,job_title,department',
         'assignees',
         'assignees.profile:id,user_id,job_title,department',
+        'followers',
+        'followers.profile:id,user_id,job_title,department',
         'parent:id,uuid,title',
     ];
 
@@ -210,14 +213,64 @@ class TaskService
     /**
      * @param  array<int, int>  $userIds
      */
-    public function assignTask(User $actor, Task $task, array $userIds): Task
+    public function assignTask(User $actor, Task $task, array $userIds, bool $isReassignment = false): Task
     {
-        return $this->assignTaskAction->execute($actor, $task, $userIds);
+        return $this->assignTaskAction->execute($actor, $task, $userIds, $isReassignment);
+    }
+
+    /**
+     * @param  array<int, int>  $userIds
+     */
+    public function reassignTask(User $actor, Task $task, array $userIds): Task
+    {
+        return $this->assignTaskAction->execute($actor, $task, $userIds, true);
     }
 
     public function unassignTask(Task $task, TaskAssignment $assignment, ?User $actor = null): Task
     {
         return $this->unassignTaskAction->execute($task, $assignment, $actor);
+    }
+
+    /**
+     * List active users eligible to be assigned to tasks (workspace-wide or scoped to a project).
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    public function listAssignableUsers(User $actor, array $filters = []): LengthAwarePaginator
+    {
+        $query = User::query()
+            ->with(['profile', 'roles'])
+            ->where('account_status', AccountStatus::Active);
+
+        if (! empty($filters['project'])) {
+            $project = $this->projectService->resolveScopedProject((string) $filters['project'], $actor);
+
+            $query->where(function (Builder $builder) use ($project): void {
+                $builder->where('id', $project->owner_id)
+                    ->orWhereHas('projectMemberships', fn (Builder $q) => $q->where('project_id', $project->id));
+            });
+        }
+
+        if (! empty($filters['search'])) {
+            $search = '%'.$filters['search'].'%';
+            $query->where(function (Builder $q) use ($search): void {
+                $q->where('name', 'like', $search)
+                    ->orWhere('email', 'like', $search)
+                    ->orWhereHas('profile', function (Builder $pq) use ($search): void {
+                        $pq->where('job_title', 'like', $search)
+                            ->orWhere('department', 'like', $search);
+                    });
+            });
+        }
+
+        if (! empty($filters['department'])) {
+            $department = $filters['department'];
+            $query->whereHas('profile', fn (Builder $q) => $q->where('department', $department));
+        }
+
+        $perPage = min((int) ($filters['per_page'] ?? 50), 100);
+
+        return $query->orderBy('name', 'asc')->paginate($perPage);
     }
 
     /**
