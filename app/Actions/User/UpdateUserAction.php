@@ -63,9 +63,11 @@ class UpdateUserAction
                     ->firstOrFail();
 
                 // Re-read and count active administrators inside the locked transaction
-                $activeAdminCount = User::whereHas('roles', function ($q) {
-                    $q->where('slug', UserRole::SystemAdmin->value);
-                })->where('account_status', AccountStatus::Active)->count();
+                $activeAdminCount = User::query()->join('user_roles', 'users.id', '=', 'user_roles.user_id')
+                    ->join('roles', 'roles.id', '=', 'user_roles.role_id')
+                    ->where('roles.slug', UserRole::SystemAdmin->value)
+                    ->where('users.account_status', AccountStatus::Active)
+                    ->lockForUpdate()->get(['users.id'])->count();
 
                 if ($activeAdminCount <= 1) {
                     throw new AuthorizationException('Cannot demote or alter the account status of the only active System Administrator.');
@@ -80,6 +82,10 @@ class UpdateUserAction
 
             if (! empty($userUpdates)) {
                 $targetUser->update($userUpdates);
+            }
+
+            if (isset($data['account_status']) && $data['account_status'] !== AccountStatus::Active->value) {
+                $targetUser->tokens()->delete();
             }
 
             // Handle Role Assignment

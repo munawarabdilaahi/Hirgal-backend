@@ -4,6 +4,7 @@ namespace App\Services\User;
 
 use App\Enums\AccountStatus;
 use App\Enums\UserRole;
+use App\Models\Role;
 use App\Models\User;
 use App\Notifications\EmailChangeVerificationNotification;
 use App\Services\Audit\ActivityLogger;
@@ -120,6 +121,15 @@ class AccountSettingsService
      */
     public function startTwoFactorSetup(User $user): array
     {
+        return DB::transaction(function () use ($user): array {
+            $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+
+            return $this->startTwoFactorSetupLocked($locked);
+        });
+    }
+
+    private function startTwoFactorSetupLocked(User $user): array
+    {
         if ($user->hasTwoFactorAuthentication()) {
             throw ValidationException::withMessages([
                 'two_factor' => ['Two-factor authentication is already enabled.'],
@@ -145,6 +155,15 @@ class AccountSettingsService
      * @return list<string>
      */
     public function confirmTwoFactor(User $user, string $code): array
+    {
+        return DB::transaction(function () use ($user, $code): array {
+            $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+
+            return $this->confirmTwoFactorLocked($locked, $code);
+        });
+    }
+
+    private function confirmTwoFactorLocked(User $user, string $code): array
     {
         $secret = (string) $user->two_factor_secret;
 
@@ -174,6 +193,15 @@ class AccountSettingsService
 
     public function disableTwoFactor(User $user, string $code): void
     {
+        DB::transaction(function () use ($user, $code): void {
+            $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+
+            $this->disableTwoFactorLocked($locked, $code);
+        });
+    }
+
+    private function disableTwoFactorLocked(User $user, string $code): void
+    {
         if (! $user->hasTwoFactorAuthentication()) {
             return;
         }
@@ -198,6 +226,15 @@ class AccountSettingsService
      * @return list<string>
      */
     public function regenerateRecoveryCodes(User $user, string $code): array
+    {
+        return DB::transaction(function () use ($user, $code): array {
+            $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+
+            return $this->regenerateRecoveryCodesLocked($locked, $code);
+        });
+    }
+
+    private function regenerateRecoveryCodesLocked(User $user, string $code): array
     {
         if (! $user->hasTwoFactorAuthentication()) {
             throw ValidationException::withMessages([
@@ -224,9 +261,8 @@ class AccountSettingsService
 
     public function deactivate(User $user): void
     {
-        $this->assertNotLastSystemAdmin($user);
-
         DB::transaction(function () use ($user): void {
+            $this->lockAndAssertNotLastSystemAdmin($user);
             $user->forceFill(['account_status' => AccountStatus::Suspended])->save();
             $this->revokeAuthentication($user);
         });
@@ -236,15 +272,15 @@ class AccountSettingsService
 
     public function delete(User $user): void
     {
-        $this->assertNotLastSystemAdmin($user);
-
-        if ($user->ownedProjects()->exists() || $user->ledTeams()->exists()) {
-            throw ValidationException::withMessages([
-                'account' => ['Transfer ownership of your projects and teams before deleting your account.'],
-            ]);
-        }
-
         DB::transaction(function () use ($user): void {
+            $this->lockAndAssertNotLastSystemAdmin($user);
+
+            if ($user->ownedProjects()->exists() || $user->ledTeams()->exists()) {
+                throw ValidationException::withMessages([
+                    'account' => ['Transfer ownership of your projects and teams before deleting your account.'],
+                ]);
+            }
+
             $this->revokeAuthentication($user);
             $avatar = $user->avatar_url;
             $user->delete();
@@ -323,17 +359,24 @@ class AccountSettingsService
         return hash_hmac('sha256', $userId.'|'.strtolower($email).'|'.trim($code), (string) config('app.key'));
     }
 
-    private function assertNotLastSystemAdmin(User $user): void
+    private function lockAndAssertNotLastSystemAdmin(User $user): void
     {
+        Role::query()->where('slug', UserRole::SystemAdmin->value)->lockForUpdate()->firstOrFail();
+        $user->refresh();
+
         if (! $user->hasRole(UserRole::SystemAdmin->value)) {
             return;
         }
 
         $otherAdmins = User::query()
-            ->whereKeyNot($user->id)
-            ->where('account_status', AccountStatus::Active)
-            ->whereHas('roles', fn ($query) => $query->where('slug', UserRole::SystemAdmin->value))
-            ->exists();
+            ->join('user_roles', 'users.id', '=', 'user_roles.user_id')
+            ->join('roles', 'roles.id', '=', 'user_roles.role_id')
+            ->where('users.id', '!=', $user->id)
+            ->where('users.account_status', AccountStatus::Active)
+            ->where('roles.slug', UserRole::SystemAdmin->value)
+            ->lockForUpdate()
+            ->get(['users.id'])
+            ->isNotEmpty();
 
         if (! $otherAdmins) {
             throw ValidationException::withMessages([

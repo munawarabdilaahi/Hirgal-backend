@@ -267,4 +267,18 @@ class UserManagementTest extends TestCase
 
         $this->assertSame(AccountStatus::Active, $targetUser->fresh()->account_status);
     }
+
+    public function test_admin_status_update_revokes_tokens_that_stay_revoked_after_reactivation(): void
+    {
+        $target = User::factory()->create();
+        $target->roles()->attach($this->memberRole->id);
+        $targetToken = $target->createToken('target')->plainTextToken;
+        $adminToken = $this->admin->createToken('admin')->plainTextToken;
+
+        $this->withToken($adminToken)->putJson('/api/v1/users/'.$target->id, ['account_status' => 'suspended'])->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($adminToken)->postJson('/api/v1/users/'.$target->id.'/activate')->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($targetToken)->getJson('/api/v1/auth/me')->assertUnauthorized();
+    }
 }

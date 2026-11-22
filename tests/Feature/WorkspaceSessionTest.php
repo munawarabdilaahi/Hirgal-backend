@@ -86,6 +86,14 @@ class WorkspaceSessionTest extends TestCase
             ->assertOk()->assertJsonPath('data.uuid', $project->uuid);
     }
 
+    public function test_bearer_token_lifetime_does_not_apply_to_web_session_authentication(): void
+    {
+        $user = User::factory()->create();
+        $this->travel(31)->days();
+
+        $this->actingAs($user, 'web')->getJson('/api/v1/auth/me')->assertOk();
+    }
+
     public function test_task_pages_require_an_active_session_and_task_view_permission(): void
     {
         $this->withoutVite();

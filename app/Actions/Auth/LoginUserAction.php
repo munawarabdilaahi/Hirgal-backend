@@ -6,6 +6,7 @@ use App\Enums\AccountStatus;
 use App\Models\User;
 use App\Services\Security\TwoFactorAuthenticationService;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -24,10 +25,12 @@ class LoginUserAction
      */
     public function execute(string $email, string $password, ?string $deviceName = null, ?string $twoFactorCode = null): array
     {
-        $user = $this->authenticate($email, $password, $twoFactorCode);
-        $token = $user->createToken($deviceName ?: 'auth-token')->plainTextToken;
+        return DB::transaction(function () use ($email, $password, $deviceName, $twoFactorCode): array {
+            $user = $this->authenticate($email, $password, $twoFactorCode);
+            $token = $user->createToken($deviceName ?: 'auth-token')->plainTextToken;
 
-        return ['user' => $user, 'token' => $token];
+            return ['user' => $user, 'token' => $token];
+        });
     }
 
     public function authenticate(string $email, string $password, ?string $twoFactorCode = null): User
@@ -61,9 +64,23 @@ class LoginUserAction
             );
         }
 
-        if ($user->hasTwoFactorAuthentication()) {
-            $this->verifyTwoFactorChallenge($user, $twoFactorCode);
-        }
+        DB::transaction(function () use ($user, $password, $twoFactorCode): void {
+            $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+
+            if (! hash_equals($user->password, $locked->password) && ! Hash::check($password, $locked->password)) {
+                throw ValidationException::withMessages(['email' => ['Invalid credentials.']]);
+            }
+
+            if ($locked->account_status !== AccountStatus::Active) {
+                $status = $locked->account_status?->value ?? 'inactive';
+
+                throw new AuthorizationException("Your account is {$status}. Please contact an administrator.");
+            }
+
+            if ($locked->hasTwoFactorAuthentication()) {
+                $this->verifyTwoFactorChallenge($locked, $twoFactorCode);
+            }
+        });
 
         // Record last login timestamp
         $user->forceFill([

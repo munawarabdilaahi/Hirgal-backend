@@ -95,6 +95,21 @@ class AccountSettingsTest extends TestCase
         $this->assertDatabaseMissing('personal_access_tokens', ['id' => $other->accessToken->id]);
     }
 
+    public function test_sessions_exclude_tokens_at_the_expiration_boundary(): void
+    {
+        $this->travelTo(now()->startOfSecond());
+        $user = $this->member();
+        $expired = $user->createToken('Expired')->accessToken;
+        $expired->forceFill(['created_at' => now()->subDays(30)])->save();
+        $current = $user->createToken('Current')->plainTextToken;
+
+        $response = $this->withToken($current)->getJson('/api/v1/auth/me/sessions')->assertOk();
+
+        $labels = collect($response->json('data.sessions'))->pluck('label')->all();
+        $this->assertContains('Current', $labels);
+        $this->assertNotContains('Expired', $labels);
+    }
+
     public function test_data_export_requires_password_and_never_returns_secrets(): void
     {
         $user = $this->member(['name' => 'Export User']);

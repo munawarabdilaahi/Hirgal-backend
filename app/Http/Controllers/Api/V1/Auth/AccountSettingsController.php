@@ -313,7 +313,7 @@ class AccountSettingsController extends Controller
         $tokens = $user->tokens();
         $tokens->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()));
         if ($expiration = config('sanctum.expiration')) {
-            $tokens->where('created_at', '>=', now()->subMinutes($expiration));
+            $tokens->where('created_at', '>', now()->subMinutes($expiration));
         }
 
         return $tokens;

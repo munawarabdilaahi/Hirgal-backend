@@ -37,4 +37,5 @@ Artisan::command('tasks:send-reminders', function (): void {
     });
 })->purpose('Send due task reminders to their creators');
 
-Schedule::command('tasks:send-reminders')->everyMinute();
+Schedule::command('tasks:send-reminders')->everyMinute()->onOneServer()->withoutOverlapping(10);
+Schedule::command('sanctum:prune-expired', ['--hours' => 24])->dailyAt('02:00')->onOneServer()->withoutOverlapping(60);

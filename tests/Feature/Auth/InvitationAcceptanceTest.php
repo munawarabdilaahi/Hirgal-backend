@@ -102,6 +102,12 @@ class InvitationAcceptanceTest extends TestCase
         // Assert invitation is marked accepted
         $this->assertSame(InvitationStatus::Accepted, $invitation->fresh()->status);
         $this->assertNotNull($invitation->fresh()->accepted_at);
+
+        $token = $response->json('data.access_token');
+        $this->withToken($token)->getJson('/api/v1/auth/me')->assertOk();
+        $this->travel(30)->days();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/v1/auth/me')->assertUnauthorized();
     }
 
     public function test_cannot_reuse_accepted_invitation_token(): void
