@@ -212,6 +212,7 @@ function TasksView({ user, assignedToMe = false, closeCreateDialog }: { user: Ap
 
   const createTaskForm = editor === 'create' && !assignedToMe && user && (
     <NewTaskDialog actorId={user.id} canViewProjects={hasPermission(user, 'projects.view')} canAssign={hasPermission(user, 'tasks.assign')}
+      initialProjectUuid={projectFilter || undefined}
       statuses={statuses} priorities={priorities} onClose={closeEditor} />
   );
   if (closeCreateDialog) return createTaskForm;

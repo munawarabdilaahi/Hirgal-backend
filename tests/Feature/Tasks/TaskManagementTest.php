@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tasks;
 
+use App\Actions\Tasks\CreateTaskAction;
 use App\Enums\ProjectMemberRole;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
@@ -411,6 +412,106 @@ class TaskManagementTest extends TestCase
 
         $assigneeIds = array_column($response->json('data.assignees'), 'id');
         $this->assertContains($this->member->id, $assigneeIds);
+        $this->assertDatabaseHas('task_assignments', [
+            'task_id' => $response->json('data.id'),
+            'user_id' => $this->member->id,
+            'assigned_by' => $this->lead->id,
+        ]);
+    }
+
+    public function test_create_task_without_assignees(): void
+    {
+        $response = $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
+            'title' => 'Unassigned task',
+            'assignees' => [],
+        ], $this->auth($this->lead, 'lead'))
+            ->assertStatus(201);
+
+        $this->assertSame([], $response->json('data.assignees'));
+        $this->assertDatabaseMissing('task_assignments', [
+            'task_id' => $response->json('data.id'),
+        ]);
+    }
+
+    public function test_create_task_with_multiple_assignees(): void
+    {
+        $response = $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
+            'title' => 'Multi-assigned task',
+            'assignees' => [$this->member->id, $this->taskWorker->id],
+        ], $this->auth($this->lead, 'lead'))
+            ->assertStatus(201);
+
+        $assigneeIds = array_column($response->json('data.assignees'), 'id');
+        $this->assertContains($this->member->id, $assigneeIds);
+        $this->assertContains($this->taskWorker->id, $assigneeIds);
+        $this->assertCount(2, $assigneeIds);
+
+        $taskId = $response->json('data.id');
+        $this->assertDatabaseHas('task_assignments', [
+            'task_id' => $taskId,
+            'user_id' => $this->member->id,
+            'assigned_by' => $this->lead->id,
+        ]);
+        $this->assertDatabaseHas('task_assignments', [
+            'task_id' => $taskId,
+            'user_id' => $this->taskWorker->id,
+            'assigned_by' => $this->lead->id,
+        ]);
+    }
+
+    public function test_create_task_rejects_duplicate_assignees(): void
+    {
+        $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
+            'title' => 'Duplicate assignee task',
+            'assignees' => [$this->member->id, $this->member->id],
+        ], $this->auth($this->lead, 'lead'))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('assignees.1');
+    }
+
+    public function test_create_task_returns_assigned_user_directory_fields(): void
+    {
+        $response = $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
+            'title' => 'Detailed assignee task',
+            'assignees' => [$this->member->id],
+        ], $this->auth($this->lead, 'lead'))
+            ->assertStatus(201);
+
+        $assignees = $response->json('data.assignees');
+        $this->assertCount(1, $assignees);
+        $first = $assignees[0];
+
+        $this->assertSame($this->member->id, $first['id']);
+        $this->assertSame($this->member->name, $first['name']);
+        $this->assertSame($this->member->email, $first['email']);
+        $this->assertArrayHasKey('avatar_url', $first);
+        $this->assertArrayHasKey('timezone', $first);
+        $this->assertArrayHasKey('job_title', $first);
+        $this->assertArrayHasKey('department', $first);
+    }
+
+    public function test_create_task_rolls_back_if_assignment_persistence_fails(): void
+    {
+        $initialTaskCount = Task::count();
+        $action = app(CreateTaskAction::class);
+
+        TaskAssignment::creating(function (): never {
+            throw new \RuntimeException('Simulated assignment persistence failure.');
+        });
+
+        try {
+            $action->execute($this->lead, $this->project, [
+                'title' => 'Rollback task',
+                'assignees' => [$this->member->id],
+            ]);
+            $this->fail('Expected exception was not thrown.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('Simulated assignment persistence failure.', $e->getMessage());
+        } finally {
+            TaskAssignment::flushEventListeners();
+        }
+
+        $this->assertSame($initialTaskCount, Task::count());
     }
 
     public function test_project_viewer_can_create_task(): void

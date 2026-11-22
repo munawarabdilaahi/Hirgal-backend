@@ -68,6 +68,7 @@ class StoreTaskRequest extends FormRequest
             'assignees' => ['nullable', 'array', Rule::prohibitedIf(! $project instanceof Project)],
             'assignees.*' => [
                 'integer',
+                'distinct',
                 Rule::exists('project_members', 'user_id')->where('project_id', $projectId),
             ],
             'followers' => ['nullable', 'array', 'list', 'max:100', Rule::prohibitedIf(! $project instanceof Project)],

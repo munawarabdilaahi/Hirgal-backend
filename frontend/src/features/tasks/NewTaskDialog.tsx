@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
-import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { LoadingState } from '@/components/feedback/LoadingState';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
 import { useMarkFormDirty } from '@/components/ui/form-dirty-context';
 import { Input } from '@/components/ui/input';
 import { SearchInput } from '@/components/ui/search-input';
+import { TaskAssigneesField } from './TaskAssigneesField';
 import { FormattedTaskDescription, TaskDescriptionEditor } from './TaskDescriptionEditor';
 import { getApiValidationErrors, getSafeErrorMessage } from '@/features/auth/auth-validation';
 import { isCalendarDate } from '@/lib/calendar-date';
@@ -27,12 +28,13 @@ const initial = {
   assignees: [] as ApiDirectoryUser[], followers: [] as ApiDirectoryUser[],
 };
 
-export function NewTaskDialog({ actorId, canViewProjects, canAssign, statuses, priorities, onClose }: {
+export function NewTaskDialog({ actorId, canViewProjects, canAssign, statuses, priorities, initialProjectUuid, onClose }: {
   actorId: number;
   canViewProjects: boolean;
   canAssign: boolean;
   statuses: Record<string, string>;
   priorities: readonly string[];
+  initialProjectUuid?: string | undefined;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -58,19 +60,20 @@ export function NewTaskDialog({ actorId, canViewProjects, canAssign, statuses, p
   return (
     <FormDialog title="Create task" description="Add details, choose who’s involved, and review your task." wide pending={create.isPending} onClose={onClose}>
       <TaskCreationSteps actorId={actorId} canViewProjects={canViewProjects} canAssign={canAssign}
-        statuses={statuses} priorities={priorities} pending={create.isPending}
+        statuses={statuses} priorities={priorities} initialProjectUuid={initialProjectUuid} pending={create.isPending}
         error={create.isError ? Object.values(getApiValidationErrors(create.error)).join(' ') || getSafeErrorMessage(create.error) : null}
         onSubmit={(project, details) => create.mutate({ project, details })} />
     </FormDialog>
   );
 }
 
-function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, priorities, pending, error, onSubmit }: {
+function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, priorities, initialProjectUuid, pending, error, onSubmit }: {
   actorId: number;
   canViewProjects: boolean;
   canAssign: boolean;
   statuses: Record<string, string>;
   priorities: readonly string[];
+  initialProjectUuid?: string | undefined;
   pending: boolean;
   error: string | null;
   onSubmit: (project: string | null, details: typeof initial) => void;
@@ -87,8 +90,21 @@ function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, prio
   const projects = useQuery({
     queryKey: ['projects', 'new-task', actorId, projectSearch],
     queryFn: () => projectApi.list({ search: projectSearch.trim(), page: 1, per_page: 50 }),
-    enabled: step === 1 && canViewProjects,
+    enabled: canViewProjects,
   });
+  const projectsData = projects.data?.data;
+  const projectOptions = projectsData ?? [];
+
+  useEffect(() => {
+    if (!project && projectsData && projectsData.length > 0 && details.context === 'project') {
+      const match = initialProjectUuid ? projectsData.find((item) => item.uuid === initialProjectUuid) : null;
+      const target = match ?? projectsData[0];
+      if (target) {
+        setProject({ uuid: target.uuid, name: target.name });
+      }
+    }
+  }, [project, projectsData, details.context, initialProjectUuid]);
+
   const roster = useQuery({
     queryKey: ['projects', 'new-task-roster', actorId, project?.uuid],
     queryFn: async () => {
@@ -100,7 +116,7 @@ function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, prio
       }
       return members.map(({ user }) => user).filter(Boolean);
     },
-    enabled: step === 1 && Boolean(project),
+    enabled: Boolean(project),
   });
   const members = roster.data ?? [];
   const departments = [...new Set(members.flatMap(({ department }) => department ? [department] : []))].sort();
@@ -151,7 +167,6 @@ function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, prio
     else onSubmit(project?.uuid ?? null, { ...details, title: details.title.trim() });
   }
 
-  const projectOptions = projects.data?.data ?? [];
   return (
     <form className="grid gap-5" onSubmit={submit}>
       <nav aria-label="Creation steps">
@@ -180,6 +195,23 @@ function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, prio
             <Field label="Priority"><ChoiceSelect aria-label="Priority" value={details.priority} onValueChange={(priority) => patch({ priority })}>
               {priorities.map((priority) => <ChoiceOption className="capitalize" value={priority} key={priority}>{priority}</ChoiceOption>)}
             </ChoiceSelect></Field>
+          </div>
+          <div className="grid gap-1.5">
+            <span className="text-sm font-medium">Assignees</span>
+            <TaskAssigneesField
+              eligibleUsers={eligible}
+              selectedUsers={details.assignees}
+              onChange={(assignees) => patch({ assignees })}
+              isLoading={roster.isPending}
+              disabled={!canAssign || details.context === 'other'}
+              disabledMessage={
+                details.context === 'other'
+                  ? 'Personal tasks cannot have assignees.'
+                  : !canAssign
+                  ? 'You do not have permission to assign tasks.'
+                  : undefined
+              }
+            />
           </div>
           <fieldset className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
             <legend className="px-1 text-sm font-medium">Timeline</legend>
@@ -215,8 +247,11 @@ function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, prio
             <SearchInput aria-label="Search projects" placeholder="Search projects" maxLength={100} value={projectSearch} onChange={(event) => setProjectSearch(event.target.value)} />
             <Field label={details.context === 'other' ? 'Project (optional)' : 'Project'}>
               <ChoiceSelect aria-label="Project" value={project?.uuid ?? ''} onValueChange={(uuid) => {
-                setProject(projectOptions.find((item) => item.uuid === uuid) ?? null);
-                patch({ department: '', assignees: [], followers: [] });
+                const nextProject = projectOptions.find((item) => item.uuid === uuid) ?? null;
+                setProject(nextProject);
+                if (nextProject?.uuid !== project?.uuid) {
+                  patch({ department: '', assignees: [], followers: [] });
+                }
               }}>
                 <ChoiceOption value="">Choose a project</ChoiceOption>
                 {project && !projectOptions.some((item) => item.uuid === project.uuid) && <ChoiceOption value={project.uuid}>{project.name}</ChoiceOption>}
@@ -241,7 +276,19 @@ function TaskCreationSteps({ actorId, canViewProjects, canAssign, statuses, prio
               {roster.isSuccess && departments.length === 0 && <p className="text-xs text-muted-foreground">This project has no department members.</p>}
             </Field>
           )}
-          {project && canAssign && <PeopleField label="Assigned to" options={eligible} selected={details.assignees} onChange={(assignees) => patch({ assignees })} />}
+          {project && canAssign && (
+            <div className="grid gap-1.5">
+              <span className="text-sm font-medium">Assigned to</span>
+              <TaskAssigneesField
+                label="Assigned to"
+                eligibleUsers={eligible}
+                selectedUsers={details.assignees}
+                onChange={(assignees) => patch({ assignees })}
+                isLoading={roster.isPending}
+                disabled={!canAssign}
+              />
+            </div>
+          )}
           {project && <PeopleField label="Followed by" options={members} selected={details.followers} onChange={(followers) => patch({ followers })} />}
         </div>
       )}
