@@ -26,6 +26,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ThemeSwitcher } from '@/components/navigation/theme-switcher';
+import { NotificationBell } from '@/components/navigation/NotificationBell';
 import { UserMenu } from '@/components/navigation/user-menu';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { useAuth } from '@/features/auth/auth-hooks';
@@ -304,6 +305,7 @@ function AppShell({ breadcrumb, children, session, wide = false }: AppShellProps
           </div>
           <div className="flex items-center gap-2">
             <ThemeSwitcher />
+            <NotificationBell session={session} />
             <UserMenu session={session} />
           </div>
         </header>

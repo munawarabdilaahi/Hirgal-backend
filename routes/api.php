@@ -257,6 +257,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/unread-count', [NotificationController::class, 'unreadCount'])->name('api.v1.notifications.unread-count');
             Route::patch('/read-all', [NotificationController::class, 'readAll'])->name('api.v1.notifications.read-all');
             Route::patch('/{id}/read', [NotificationController::class, 'markRead'])->name('api.v1.notifications.read');
+            Route::delete('/{id}', [NotificationController::class, 'destroy'])->name('api.v1.notifications.destroy');
         });
     });
 });

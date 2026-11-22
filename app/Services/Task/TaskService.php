@@ -197,9 +197,9 @@ class TaskService
     /**
      * @param  array<string, mixed>  $data
      */
-    public function updateTask(Task $task, array $data): Task
+    public function updateTask(Task $task, array $data, ?User $actor = null): Task
     {
-        return $this->updateTaskAction->execute($task, $data);
+        return $this->updateTaskAction->execute($task, $data, $actor);
     }
 
     public function deleteTask(Task $task): Task
@@ -215,9 +215,9 @@ class TaskService
         return $this->assignTaskAction->execute($actor, $task, $userIds);
     }
 
-    public function unassignTask(Task $task, TaskAssignment $assignment): Task
+    public function unassignTask(Task $task, TaskAssignment $assignment, ?User $actor = null): Task
     {
-        return $this->unassignTaskAction->execute($task, $assignment);
+        return $this->unassignTaskAction->execute($task, $assignment, $actor);
     }
 
     /**

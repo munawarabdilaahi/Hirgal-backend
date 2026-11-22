@@ -42,6 +42,12 @@ describe('authentication routes', () => {
     await router.navigate('/');
     vi.clearAllMocks();
     authApi.getCurrentUser.mockResolvedValue(activeUser);
+    vi.spyOn(apiClient, 'get').mockImplementation(async (path) => {
+      if (path === '/notifications/unread-count') {
+        return { data: { data: { unread_count: 0 } } };
+      }
+      return { data: { data: [], meta: { current_page: 1, last_page: 1, total: 0, per_page: 15 } } };
+    });
   });
 
   it('redirects protected pages to login and safely returns after successful login', async () => {
@@ -113,7 +119,7 @@ describe('authentication routes', () => {
       expect(requests).toHaveBeenCalledWith('/tasks', {
         params: { page: 1, assignee: activeUser.id, status: undefined, sort_by: 'due_date', sort_direction: 'asc' },
       });
-      expect(requests).toHaveBeenCalledTimes(1);
+      expect(requests.mock.calls.filter(([url]) => url === '/tasks')).toHaveLength(1);
     } finally {
       requests.mockRestore();
     }

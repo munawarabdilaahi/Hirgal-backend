@@ -3,6 +3,9 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Notifications\AppointmentNotification;
+use App\Notifications\ProjectNotification;
+use App\Notifications\TaskCommentNotification;
+use App\Notifications\TaskNotification;
 use App\Notifications\TaskReminder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -31,6 +34,43 @@ class NotificationResource extends JsonResource
             'timezone',
             'organizer_name',
             'context',
+        ],
+        TaskNotification::class => [
+            'event',
+            'title',
+            'message',
+            'task_uuid',
+            'project_uuid',
+            'actor_id',
+            'actor_name',
+            'resource_type',
+            'resource_id',
+            'action_url',
+        ],
+        ProjectNotification::class => [
+            'event',
+            'title',
+            'message',
+            'project_uuid',
+            'project_name',
+            'actor_id',
+            'actor_name',
+            'resource_type',
+            'resource_id',
+            'action_url',
+        ],
+        TaskCommentNotification::class => [
+            'event',
+            'title',
+            'message',
+            'task_uuid',
+            'project_uuid',
+            'comment_id',
+            'actor_id',
+            'actor_name',
+            'resource_type',
+            'resource_id',
+            'action_url',
         ],
     ];
 

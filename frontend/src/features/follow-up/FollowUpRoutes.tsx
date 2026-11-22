@@ -16,13 +16,16 @@ import { useAuth } from '@/features/auth/auth-hooks';
 import { hasPermission } from '@/features/auth/permissions';
 import { apiClient } from '@/services/api/apiClient';
 import type { ApiPaginatedResponse, ApiSuccess } from '@/services/api/contracts';
-
-interface NotificationItem {
-  id: string;
-  data: { title?: string; event?: string; appointment_uuid?: string; task_uuid?: string };
-  read_at: string | null;
-  created_at: string | null;
-}
+import {
+  notificationApi,
+  type NotificationItem,
+} from '@/services/api/notificationApi';
+import {
+  formatRelativeTime,
+  getNotificationIcon,
+} from '@/features/notifications/notification-navigation';
+import { cn } from '@/lib/utils';
+import { Trash2 } from 'lucide-react';
 
 interface ActivityItem {
   id: number;
@@ -46,9 +49,22 @@ export function NotificationsRoute() {
     queryFn: async () => (await apiClient.get<ApiSuccess<{ unread_count: number }>>('/notifications/unread-count')).data.data,
   });
   const markRead = useMutation({
-    mutationFn: (id: string | null) => apiClient.patch(id ? `/notifications/${id}/read` : '/notifications/read-all'),
+    mutationFn: async (id: string | null) => {
+      if (id) {
+        await notificationApi.markRead(id);
+      } else {
+        await notificationApi.markAllRead();
+      }
+    },
     onSuccess: async () => {
       if (status === 'unread') setPage(1);
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+
+  const deleteNotification = useMutation({
+    mutationFn: (id: string) => notificationApi.delete(id),
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
@@ -78,21 +94,94 @@ export function NotificationsRoute() {
         <>
           {notifications.data.data.length === 0 && <EmptyState title="No notifications on this page." />}
           <ul className="divide-y rounded-xl border bg-card empty:hidden">
-            {notifications.data.data.map((item) => (
-              <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div>
-                  <p className="font-medium">{item.data.title ?? 'Notification'}</p>
-                  <p className="text-sm text-muted-foreground">{item.data.event?.replaceAll('_', ' ')} {item.created_at && new Date(item.created_at).toLocaleString()}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                {item.data.appointment_uuid && hasPermission(user, 'appointments.view') && <Button asChild variant="ghost" size="sm"><Link to={`/appointments?appointment=${encodeURIComponent(item.data.appointment_uuid)}#appointment-details`}>View appointment</Link></Button>}
-                {item.data.task_uuid && hasPermission(user, 'tasks.view') && <Button asChild variant="ghost" size="sm"><Link to={`/tasks?task=${encodeURIComponent(item.data.task_uuid)}`}>View task</Link></Button>}
-                {item.read_at ? <Badge variant="secondary">Read</Badge> : (
-                  <Button size="sm" variant="outline" disabled={markRead.isPending} onClick={() => markRead.mutate(item.id)}>Mark as read</Button>
-                )}
-                </div>
-              </li>
-            ))}
+            {notifications.data.data.map((item) => {
+              const Icon = getNotificationIcon(item);
+              const isUnread = !item.read_at;
+
+              return (
+                <li
+                  key={item.id}
+                  className={cn(
+                    'flex flex-wrap items-center justify-between gap-4 p-4 transition-colors',
+                    isUnread && 'bg-primary/[0.03]'
+                  )}
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground mt-0.5">
+                      <Icon className="size-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className={cn("font-medium text-sm", isUnread && "font-semibold text-foreground")}>
+                          {item.data.title ?? 'Notification'}
+                        </p>
+                        {isUnread && (
+                          <Badge variant="default" className="text-[0.625rem] px-1.5 py-0 h-4">
+                            New
+                          </Badge>
+                        )}
+                      </div>
+                      {item.data.message && (
+                        <p className="text-sm text-foreground/85 mt-0.5">
+                          {item.data.message}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {item.data.actor_name ? `From ${item.data.actor_name} • ` : ''}
+                        {formatRelativeTime(item.created_at)}
+                        {item.created_at ? ` (${new Date(item.created_at).toLocaleString()})` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {item.data.appointment_uuid && hasPermission(user, 'appointments.view') && (
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/appointments?appointment=${encodeURIComponent(item.data.appointment_uuid)}#appointment-details`}>
+                          View appointment
+                        </Link>
+                      </Button>
+                    )}
+                    {item.data.task_uuid && hasPermission(user, 'tasks.view') && (
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/tasks?task=${encodeURIComponent(item.data.task_uuid)}`}>
+                          View task
+                        </Link>
+                      </Button>
+                    )}
+                    {item.data.project_uuid && hasPermission(user, 'projects.view') && (
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/projects/${encodeURIComponent(item.data.project_uuid)}`}>
+                          View project
+                        </Link>
+                      </Button>
+                    )}
+                    {item.read_at ? (
+                      <Badge variant="secondary">Read</Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={markRead.isPending}
+                        onClick={() => markRead.mutate(item.id)}
+                      >
+                        Mark as read
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground hover:text-destructive size-8 p-0"
+                      disabled={deleteNotification.isPending}
+                      onClick={() => deleteNotification.mutate(item.id)}
+                      title="Dismiss notification"
+                      aria-label="Dismiss notification"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
           <Pagination currentPage={page} totalPages={notifications.data.meta.last_page} onPageChange={setPage} />
         </>

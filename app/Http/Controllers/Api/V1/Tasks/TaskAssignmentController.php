@@ -58,7 +58,7 @@ class TaskAssignmentController extends Controller
 
         Gate::authorize('delete', $assignment);
 
-        $task = $this->taskService->unassignTask($task, $assignment);
+        $task = $this->taskService->unassignTask($task, $assignment, $request->user());
 
         return ApiResponse::success(
             data: new TaskResource($task),

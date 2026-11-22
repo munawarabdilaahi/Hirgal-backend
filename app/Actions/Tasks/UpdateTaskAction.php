@@ -5,6 +5,8 @@ namespace App\Actions\Tasks;
 use App\Enums\TaskStatus;
 use App\Models\Project;
 use App\Models\Task;
+use App\Models\User;
+use App\Services\Notification\NotificationService;
 use App\Services\Task\TaskService;
 use App\Support\TaskDescription;
 use Illuminate\Support\Arr;
@@ -18,9 +20,12 @@ class UpdateTaskAction
      *
      * @param  array<string, mixed>  $data
      */
-    public function execute(Task $task, array $data): Task
+    public function execute(Task $task, array $data, ?User $actor = null): Task
     {
-        return DB::transaction(function () use ($task, $data): Task {
+        return DB::transaction(function () use ($task, $data, $actor): Task {
+            $oldStatus = $task->status;
+            $oldDueDate = $task->due_date?->format('Y-m-d H:i:s');
+
             $updates = Arr::only($data, [
                 'title',
                 'description',
@@ -85,6 +90,26 @@ class UpdateTaskAction
             }
 
             $task->update($updates);
+
+            if (array_key_exists('status', $updates) && $task->status !== $oldStatus) {
+                if ($task->status === TaskStatus::Done) {
+                    $recipients = $task->assignees->merge($task->creator ? [$task->creator] : []);
+                    app(NotificationService::class)->notifyTask($task, 'task_completed', $actor, $recipients);
+                } elseif ($task->status === TaskStatus::InReview) {
+                    $leadRecipients = $task->project ? $task->project->members()->whereIn('role', ['owner', 'lead'])->get()->pluck('user')->filter() : collect();
+                    $recipients = $leadRecipients->merge($task->creator ? [$task->creator] : []);
+                    app(NotificationService::class)->notifyTask($task, 'task_review_requested', $actor, $recipients);
+                } else {
+                    app(NotificationService::class)->notifyTask($task, 'task_status_changed', $actor, $task->assignees);
+                }
+            }
+
+            if (array_key_exists('due_date', $updates)) {
+                $newDueDate = $task->due_date?->format('Y-m-d H:i:s');
+                if ($newDueDate !== $oldDueDate) {
+                    app(NotificationService::class)->notifyTask($task, 'task_due_date_changed', $actor, $task->assignees);
+                }
+            }
 
             return $task->fresh(TaskService::EAGER);
         });

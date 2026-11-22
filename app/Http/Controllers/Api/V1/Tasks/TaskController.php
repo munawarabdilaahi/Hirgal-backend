@@ -86,7 +86,7 @@ class TaskController extends Controller
     {
         Gate::authorize('update', $task);
 
-        $task = $this->taskService->updateTask($task, $request->validated());
+        $task = $this->taskService->updateTask($task, $request->validated(), $request->user());
 
         return ApiResponse::success(
             data: new TaskResource($task),

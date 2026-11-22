@@ -2,9 +2,17 @@
 
 namespace App\Services\Notification;
 
+use App\Enums\AccountStatus;
+use App\Models\Project;
+use App\Models\Task;
 use App\Models\User;
+use App\Notifications\ProjectNotification;
+use App\Notifications\TaskNotification;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 
 class NotificationService
 {
@@ -68,5 +76,99 @@ class NotificationService
     public function markAllAsReadForUser(User $user): int
     {
         return $user->notifications()->whereNull('read_at')->update(['read_at' => now()]);
+    }
+
+    /**
+     * Delete/dismiss a single notification belonging to the authenticated user.
+     *
+     * The relation scope guarantees 404 for another user's notification.
+     */
+    public function deleteForUser(User $user, string $id): bool
+    {
+        $notification = $user->notifications()->whereKey($id)->firstOrFail();
+
+        return (bool) $notification->delete();
+    }
+
+    /**
+     * Safely dispatch a TaskNotification to eligible recipients after commit.
+     *
+     * @param  iterable<User>  $recipients
+     * @param  array<string, mixed>  $metadata
+     */
+    public function notifyTask(
+        Task $task,
+        string $event,
+        ?User $actor = null,
+        iterable $recipients = [],
+        array $metadata = []
+    ): void {
+        $validRecipients = $this->filterRecipients($recipients, $actor);
+
+        if ($validRecipients->isEmpty()) {
+            return;
+        }
+
+        $notification = new TaskNotification($task, $event, $actor, $metadata);
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit(fn () => Notification::send($validRecipients, $notification));
+        } else {
+            Notification::send($validRecipients, $notification);
+        }
+    }
+
+    /**
+     * Safely dispatch a ProjectNotification to eligible recipients after commit.
+     *
+     * @param  iterable<User>  $recipients
+     * @param  array<string, mixed>  $metadata
+     */
+    public function notifyProject(
+        Project $project,
+        string $event,
+        ?User $actor = null,
+        iterable $recipients = [],
+        array $metadata = []
+    ): void {
+        $validRecipients = $this->filterRecipients($recipients, $actor);
+
+        if ($validRecipients->isEmpty()) {
+            return;
+        }
+
+        $notification = new ProjectNotification($project, $event, $actor, $metadata);
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit(fn () => Notification::send($validRecipients, $notification));
+        } else {
+            Notification::send($validRecipients, $notification);
+        }
+    }
+
+    /**
+     * Filter recipients to active, non-actor, unique users who have not disabled in-app notifications.
+     *
+     * @param  iterable<User>  $recipients
+     * @return Collection<int, User>
+     */
+    private function filterRecipients(iterable $recipients, ?User $actor): Collection
+    {
+        return collect($recipients)
+            ->unique('id')
+            ->filter(function (User $recipient) use ($actor): bool {
+                if ($actor !== null && $recipient->id === $actor->id) {
+                    return false;
+                }
+
+                if ($recipient->account_status !== AccountStatus::Active) {
+                    return false;
+                }
+
+                $preferences = $recipient->profile?->notification_preferences ?? [];
+
+                return (bool) ($preferences['in_app_notifications'] ?? $preferences['in_app'] ?? true);
+            })
+            ->values();
     }
 }

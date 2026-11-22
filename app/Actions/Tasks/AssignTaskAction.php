@@ -6,6 +6,7 @@ use App\Models\ProjectMember;
 use App\Models\Task;
 use App\Models\TaskAssignment;
 use App\Models\User;
+use App\Services\Notification\NotificationService;
 use App\Services\Task\TaskService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -40,8 +41,10 @@ class AssignTaskAction
                 ]);
             }
 
+            $newlyAssignedIds = [];
+
             foreach ($candidateIds as $userId) {
-                TaskAssignment::firstOrCreate(
+                $assignment = TaskAssignment::firstOrCreate(
                     [
                         'task_id' => $task->id,
                         'user_id' => $userId,
@@ -51,6 +54,15 @@ class AssignTaskAction
                         'assigned_at' => now(),
                     ]
                 );
+
+                if ($assignment->wasRecentlyCreated && $userId !== $actor->id) {
+                    $newlyAssignedIds[] = $userId;
+                }
+            }
+
+            if (! empty($newlyAssignedIds)) {
+                $recipients = User::query()->whereIn('id', $newlyAssignedIds)->get();
+                app(NotificationService::class)->notifyTask($task, 'task_assigned', $actor, $recipients);
             }
 
             return $task->fresh(TaskService::EAGER);

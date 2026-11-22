@@ -8,6 +8,7 @@ use App\Models\ProjectTeam;
 use App\Models\Team;
 use App\Models\TeamMember;
 use App\Models\User;
+use App\Services\Notification\NotificationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -73,7 +74,12 @@ class RemoveProjectMemberAction
             }
 
             $snapshot = clone $member;
+            $removedUser = $member->user;
             $member->delete();
+
+            if ($removedUser !== null && $userId !== $actor->id) {
+                app(NotificationService::class)->notifyProject($project, 'project_member_removed', $actor, [$removedUser]);
+            }
 
             return [
                 'member' => $snapshot,

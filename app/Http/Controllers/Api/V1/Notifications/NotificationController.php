@@ -71,4 +71,16 @@ class NotificationController extends Controller
             message: 'All notifications marked as read.'
         );
     }
+
+    /**
+     * Delete or dismiss a single notification belonging to the authenticated user.
+     */
+    public function destroy(Request $request, string $id): JsonResponse
+    {
+        $this->notifications->deleteForUser($request->user(), $id);
+
+        return ApiResponse::success(
+            message: 'Notification deleted successfully.'
+        );
+    }
 }

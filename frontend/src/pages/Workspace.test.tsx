@@ -109,7 +109,7 @@ describe('session workspace task actions', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Private work' }));
     expect(await screen.findByRole('dialog', { name: 'Private work' })).toBeInTheDocument();
     expect(screen.getByText('Owner only')).toBeInTheDocument();
-    expect(get.mock.calls.every(([path]) => path === '/tasks' || path === '/tasks/private-work')).toBe(true);
+    expect(get.mock.calls.every(([path]) => path === '/tasks' || path === '/tasks/private-work' || path === '/notifications/unread-count')).toBe(true);
   });
 
   it('opens task details in a dialog and restores focus when it closes', async () => {
@@ -163,10 +163,12 @@ describe('session workspace notifications and activity', () => {
   it('loads the inbox and marks a notification as read', async () => {
     window.history.replaceState(null, '', '/notifications');
     const list = { data: { data: [{ id: 'notice-1', data: { title: 'Project invitation' }, read_at: null, created_at: null }], meta: { current_page: 1, last_page: 1 } } };
-    const get = vi.spyOn(apiClient, 'get')
-      .mockResolvedValueOnce(list)
-      .mockResolvedValueOnce({ data: { data: { unread_count: 1 } } })
-      .mockResolvedValue(list);
+    const get = vi.spyOn(apiClient, 'get').mockImplementation(async (path) => {
+      if (path === '/notifications/unread-count') {
+        return { data: { data: { unread_count: 1 } } };
+      }
+      return list;
+    });
     const patch = vi.spyOn(apiClient, 'patch').mockResolvedValue({ data: { success: true } });
 
     render(<AppProviders><Workspace user={user} frontendUrl="https://legacy.example" /></AppProviders>);
