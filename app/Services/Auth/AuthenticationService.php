@@ -10,6 +10,7 @@ use App\Actions\Auth\ResetPasswordAction;
 use App\Actions\Auth\SendPasswordResetLinkAction;
 use App\Actions\Auth\UpdateUserProfileAction;
 use App\Models\User;
+use App\Services\Security\TwoFactorChallengeService;
 
 class AuthenticationService
 {
@@ -21,6 +22,7 @@ class AuthenticationService
         protected ResetPasswordAction $resetPasswordAction,
         protected ChangePasswordAction $changePasswordAction,
         protected UpdateUserProfileAction $updateUserProfileAction,
+        protected TwoFactorChallengeService $challengeService,
     ) {}
 
     /**
@@ -33,11 +35,28 @@ class AuthenticationService
     }
 
     /**
-     * @return array{user: User, token: string}
+     * @return array{user: ?User, token: ?string, two_factor_required: bool, challenge_token?: string, expires_at?: string}
      */
     public function login(string $email, string $password, ?string $deviceName = null, ?string $twoFactorCode = null): array
     {
         return $this->loginUserAction->execute($email, $password, $deviceName, $twoFactorCode);
+    }
+
+    /**
+     * @return array{user: User, token: string}
+     */
+    public function verifyTwoFactorChallenge(
+        string $challengeToken,
+        string $code,
+        bool $isRecovery = false,
+        ?string $deviceName = null
+    ): array {
+        return $this->challengeService->verifyChallenge($challengeToken, $code, $isRecovery, $deviceName);
+    }
+
+    public function cancelTwoFactorChallenge(string $challengeToken): void
+    {
+        $this->challengeService->invalidateChallenge($challengeToken);
     }
 
     public function logout(User $user, bool $allDevices = false): void

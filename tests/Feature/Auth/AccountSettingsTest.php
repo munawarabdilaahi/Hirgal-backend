@@ -330,23 +330,24 @@ class AccountSettingsTest extends TestCase
         $this->assertTrue($user->fresh()->hasTwoFactorAuthentication());
 
         $this->app['auth']->forgetGuards();
-        $this->postJson('/api/v1/auth/login', [
+        $loginRes = $this->postJson('/api/v1/auth/login', [
             'email' => 'totp@example.com',
             'password' => 'Password123!',
-        ])->assertStatus(422)->assertJsonValidationErrors(['two_factor_code']);
+        ])->assertOk()->assertJsonPath('data.two_factor_required', true);
 
-        $this->postJson('/api/v1/auth/login', [
-            'email' => 'totp@example.com',
-            'password' => 'Password123!',
-            'two_factor_code' => $recoveryCodes[0],
-        ])->assertOk();
+        $challengeToken = $loginRes->json('data.challenge_token');
+        $this->assertNotEmpty($challengeToken);
+
+        $this->postJson('/api/v1/auth/two-factor/verify', [
+            'challenge_token' => $challengeToken,
+            'recovery_code' => $recoveryCodes[0],
+        ])->assertOk()->assertJsonStructure(['data' => ['access_token', 'user']]);
 
         $this->app['auth']->forgetGuards();
-        $this->postJson('/api/v1/auth/login', [
-            'email' => 'totp@example.com',
-            'password' => 'Password123!',
-            'two_factor_code' => $recoveryCodes[0],
-        ])->assertStatus(422)->assertJsonValidationErrors(['two_factor_code']);
+        $this->postJson('/api/v1/auth/two-factor/verify', [
+            'challenge_token' => $challengeToken,
+            'recovery_code' => $recoveryCodes[0],
+        ])->assertStatus(422)->assertJsonValidationErrors(['challenge']);
 
         $this->assertCount(7, $user->fresh()->two_factor_recovery_codes);
     }

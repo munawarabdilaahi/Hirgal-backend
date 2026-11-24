@@ -29,6 +29,7 @@ class AuthTokenResource extends JsonResource
         return [
             'access_token' => $this->token,
             'token_type' => 'Bearer',
+            'two_factor_required' => false,
             'user' => new UserResource($this->user),
         ];
     }

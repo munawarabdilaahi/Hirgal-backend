@@ -38,7 +38,9 @@ export default function Workspace({ user, frontendUrl }: { user: ApiUser; fronte
     isInitializing: false,
     sessionError: null,
     sessionMessage: null,
-    login: async () => currentUser,
+    login: async () => ({ two_factor_required: false, user: currentUser }),
+    verifyTwoFactor: async () => currentUser,
+    cancelTwoFactor: async () => {},
     logout: async () => { logout(); },
     retrySession: async () => currentUser,
   };

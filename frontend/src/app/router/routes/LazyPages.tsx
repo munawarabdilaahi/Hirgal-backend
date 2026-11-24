@@ -25,6 +25,10 @@ const LoginRoute = lazy(async () => {
   const { LoginRoute: Component } = await import('@/features/auth/pages/LoginRoute');
   return { default: Component };
 });
+const TwoFactorChallengeRoute = lazy(async () => {
+  const { TwoFactorChallengeRoute: Component } = await import('@/features/auth/pages/TwoFactorChallengeRoute');
+  return { default: Component };
+});
 const ResetPasswordRoute = lazy(async () => {
   const { ResetPasswordRoute: Component } = await import('@/features/auth/pages/ResetPasswordRoute');
   return { default: Component };
@@ -116,6 +120,10 @@ export function ForgotPasswordPage() {
 
 export function LoginPage() {
   return renderLazyPage(<LoginRoute />);
+}
+
+export function TwoFactorChallengePage() {
+  return renderLazyPage(<TwoFactorChallengeRoute />);
 }
 
 export function AccountSettingsPage() {

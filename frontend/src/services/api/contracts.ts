@@ -122,7 +122,23 @@ export interface UpdateUserRequest {
 export interface AuthTokenData {
   access_token: string;
   token_type: 'Bearer';
+  two_factor_required?: false;
   user: ApiUser;
+}
+
+export interface TwoFactorChallengeResponse {
+  two_factor_required: true;
+  challenge_token: string;
+  expires_at: string;
+}
+
+export type LoginResponseData = AuthTokenData | TwoFactorChallengeResponse;
+
+export interface VerifyTwoFactorRequest {
+  challenge_token: string;
+  code?: string;
+  recovery_code?: string;
+  device_name?: string;
 }
 
 export interface LoginRequest {

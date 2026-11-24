@@ -6,8 +6,10 @@ import type {
   ChangePasswordRequest,
   ForgotPasswordRequest,
   LoginRequest,
+  LoginResponseData,
   ResetPasswordRequest,
   UpdateProfileRequest,
+  VerifyTwoFactorRequest,
 } from '@/services/api/contracts';
 
 export const authQueryKey = ['auth', 'me'] as const;
@@ -28,14 +30,32 @@ export const authApi = {
     return response.data.data;
   },
 
-  async login(request: LoginRequest): Promise<AuthTokenData> {
-    const response = await apiClient.post<ApiSuccess<AuthTokenData>>(
+  async login(request: LoginRequest): Promise<LoginResponseData> {
+    const response = await apiClient.post<ApiSuccess<LoginResponseData>>(
       '/auth/login',
       request,
       { skipAuth: true },
     );
 
     return response.data.data;
+  },
+
+  async verifyTwoFactor(request: VerifyTwoFactorRequest): Promise<AuthTokenData> {
+    const response = await apiClient.post<ApiSuccess<AuthTokenData>>(
+      '/auth/two-factor/verify',
+      request,
+      { skipAuth: true },
+    );
+
+    return response.data.data;
+  },
+
+  async cancelTwoFactor(challengeToken: string): Promise<void> {
+    await apiClient.post<ApiSuccess<null>>(
+      '/auth/two-factor/cancel',
+      { challenge_token: challengeToken },
+      { skipAuth: true },
+    );
   },
 
   async getCurrentUser(): Promise<ApiUser> {

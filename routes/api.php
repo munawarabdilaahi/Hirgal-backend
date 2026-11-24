@@ -48,6 +48,22 @@ Route::prefix('v1')->group(function (): void {
             ->middleware('throttle:login')
             ->name('api.v1.auth.login');
 
+        Route::post('/two-factor/verify', [AuthController::class, 'verifyTwoFactor'])
+            ->middleware('throttle:10,1')
+            ->name('api.v1.auth.two-factor.verify');
+
+        Route::post('/two-factor/recovery', [AuthController::class, 'verifyRecoveryCode'])
+            ->middleware('throttle:10,1')
+            ->name('api.v1.auth.two-factor.recovery');
+
+        Route::post('/two-factor-challenge', [AuthController::class, 'verifyTwoFactor'])
+            ->middleware('throttle:10,1')
+            ->name('api.v1.auth.two-factor-challenge');
+
+        Route::post('/two-factor/cancel', [AuthController::class, 'cancelTwoFactor'])
+            ->middleware('throttle:10,1')
+            ->name('api.v1.auth.two-factor.cancel');
+
         Route::post('/forgot-password', [PasswordController::class, 'forgotPassword'])
             ->middleware('throttle:password-reset')
             ->name('api.v1.auth.forgot-password');

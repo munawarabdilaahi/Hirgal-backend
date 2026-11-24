@@ -2,10 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Alert } from '@/components/ui/alert';
 import { AuthPageLayout } from '@/features/auth/components/AuthPageLayout';
 import { useAuth } from '@/features/auth/auth-hooks';
@@ -24,14 +22,30 @@ export function LoginRoute() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  return <LoginForm sessionMessage={sessionMessage} authenticate={async (credentials) => {
-    await login(credentials);
-    navigate(getSafeRedirectPath(location.state?.from) ?? '/dashboard', { replace: true });
-    return {};
-  }} />;
+  return (
+    <LoginForm
+      sessionMessage={sessionMessage}
+      authenticate={async (credentials) => {
+        const result = await login(credentials);
+
+        if (result.two_factor_required && result.challenge_token) {
+          navigate('/two-factor-challenge', {
+            state: {
+              challenge_token: result.challenge_token,
+              from: location.state?.from,
+            },
+          });
+          return {};
+        }
+
+        navigate(getSafeRedirectPath(location.state?.from) ?? '/dashboard', { replace: true });
+        return {};
+      }}
+    />
+  );
 }
 
-interface LoginFormProps {
+export interface LoginFormProps {
   authenticate: (credentials: LoginRequest) => Promise<Record<string, string>>;
   sessionMessage: string | null;
   forgotPasswordUrl?: string;
@@ -40,8 +54,6 @@ interface LoginFormProps {
 export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [twoFactorCode, setTwoFactorCode] = useState('');
-  const [requiresCode, setRequiresCode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -62,31 +74,20 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
     setIsSubmitting(true);
 
     try {
-      const errors = await authenticate({
-        ...parsed.data,
-        ...(twoFactorCode.trim() ? { two_factor_code: twoFactorCode.trim() } : {}),
-      });
+      const errors = await authenticate(parsed.data);
+
       if (errors.email === 'Invalid credentials.') {
         setFormError('Email or password is incorrect.');
-      } else {
-        if (errors.two_factor_code) {
-          setRequiresCode(true);
-          setFormError('Enter the code from your authenticator app to continue.');
-        }
+      } else if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
       }
     } catch (error: unknown) {
       const apiErrors = getApiValidationErrors(error);
       setFieldErrors(apiErrors);
-      if (apiErrors.two_factor_code) {
-        setRequiresCode(true);
-      }
       setFormError(
         error instanceof ApiError && error.status === 422 && apiErrors.email === 'Invalid credentials.'
           ? 'Email or password is incorrect.'
-          : apiErrors.two_factor_code
-            ? 'Enter the code from your authenticator app to continue.'
-            : getSafeErrorMessage(error),
+          : getSafeErrorMessage(error),
       );
     } finally {
       setIsSubmitting(false);
@@ -95,15 +96,7 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
 
   return (
     <AuthPageLayout
-      description="Sign in to continue to your team workspace."
-      footer={
-        <span>
-          Need help accessing your account?{' '}
-          <a className="font-medium text-primary underline-offset-4 hover:underline" href="mailto:support@hirgal.com">
-            Contact support
-          </a>
-        </span>
-      }
+      description="Sign in to continue to your workspace."
       layout="split"
       title="Welcome back"
     >
@@ -117,7 +110,7 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
           {formError}
         </Alert>
       ) : null}
-      <form className="grid gap-5" noValidate onSubmit={(event) => void submit(event)}>
+      <form className="grid gap-4" noValidate onSubmit={(event) => void submit(event)}>
         <FormField error={fieldErrors.email} htmlFor="login-email" label="Work email" required>
           {(controlProps) => (
             <Input
@@ -130,12 +123,13 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
             />
           )}
         </FormField>
+
         <FormField error={fieldErrors.password} htmlFor="login-password" label="Password" required>
           {(controlProps) => (
             <div className="relative">
               <Input
                 autoComplete="current-password"
-                className="pr-12"
+                className="pr-10"
                 onChange={(event) => setPassword(event.target.value)}
                 type={showPassword ? 'text' : 'password'}
                 value={password}
@@ -143,7 +137,7 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
               />
               <Button
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-1 top-1 size-8"
+                className="absolute right-1 top-1 size-8 text-muted-foreground hover:text-foreground"
                 onClick={() => setShowPassword((value) => !value)}
                 size="icon"
                 type="button"
@@ -158,33 +152,8 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
             </div>
           )}
         </FormField>
-        {requiresCode ? (
-          <FormField
-            description="Open your authenticator app and enter the current six-digit code, or use a recovery code."
-            error={fieldErrors.two_factor_code}
-            htmlFor="login-two-factor-code"
-            label="Authentication code"
-            required
-          >
-            {(controlProps) => (
-              <Input
-                autoComplete="one-time-code"
-                inputMode="numeric"
-                onChange={(event) => setTwoFactorCode(event.target.value)}
-                type="text"
-                value={twoFactorCode}
-                {...controlProps}
-              />
-            )}
-          </FormField>
-        ) : null}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Checkbox aria-label="Remember me (not available for this session)" id="session-tab" disabled />
-            <Label className="text-sm text-muted-foreground" htmlFor="session-tab">
-              Remember me
-            </Label>
-          </div>
+
+        <div className="flex justify-end">
           {forgotPasswordUrl ? (
             <a className="text-sm font-medium text-primary hover:underline" href={forgotPasswordUrl}>
               Forgot password?
@@ -195,9 +164,7 @@ export function LoginForm({ authenticate, sessionMessage, forgotPasswordUrl }: L
             </Link>
           )}
         </div>
-        <p className="-mt-3 text-xs text-muted-foreground">
-          Refreshing or closing this tab ends your session.
-        </p>
+
         <Button className="w-full" loading={isSubmitting} type="submit">
           Sign in
         </Button>

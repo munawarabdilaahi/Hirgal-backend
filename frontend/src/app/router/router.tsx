@@ -28,6 +28,7 @@ import {
   TeamFormPage,
   TeamsPage,
   TasksPage,
+  TwoFactorChallengePage,
   UserDetailsPage,
   UsersPage,
 } from '@/app/router/routes/LazyPages';
@@ -48,6 +49,14 @@ const routes: RouteObject[] = [
     element: (
       <RedirectAuthenticatedUser>
       <LoginPage />
+      </RedirectAuthenticatedUser>
+    ),
+  },
+  {
+    path: '/two-factor-challenge',
+    element: (
+      <RedirectAuthenticatedUser>
+        <TwoFactorChallengePage />
       </RedirectAuthenticatedUser>
     ),
   },

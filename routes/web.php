@@ -20,6 +20,9 @@ Route::middleware(HandleInertiaRequests::class)->group(function (): void {
     Route::middleware('guest')->group(function (): void {
         Route::get('/login', [SessionController::class, 'create'])->name('login');
         Route::post('/login', [SessionController::class, 'store'])->middleware('throttle:login')->name('login.store');
+        Route::get('/two-factor-challenge', [SessionController::class, 'createTwoFactor'])->name('two-factor.challenge');
+        Route::post('/two-factor-challenge', [SessionController::class, 'storeTwoFactor'])->middleware('throttle:10,1')->name('two-factor.verify');
+        Route::post('/two-factor-challenge/cancel', [SessionController::class, 'cancelTwoFactor'])->name('two-factor.cancel');
         Route::get('/invitations/accept', [InvitationController::class, 'create'])->name('invitations.accept');
         Route::post('/invitations/accept', [InvitationController::class, 'store'])->middleware('throttle:10,1')->name('invitations.store');
     });

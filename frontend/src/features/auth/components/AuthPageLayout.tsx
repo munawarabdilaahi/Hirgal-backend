@@ -23,28 +23,19 @@ export function AuthPageLayout({
   const homeLink = (
     <Link
       aria-label="Hirgal home"
-      className={cn(
-        'flex items-center text-foreground',
-        layout === 'split' ? 'justify-start' : 'mb-8 justify-center gap-3',
-      )}
-      to="/login"
+      className="inline-flex items-center"
       reloadDocument={web}
+      to="/login"
     >
-      <span
-        className={cn(
-          layout === 'split'
-            ? 'max-w-full rounded-lg bg-brand-white px-2 py-1 shadow-sm'
-            : 'rounded-lg bg-brand-navy px-3 py-1.5',
-        )}
-      >
+      <span className="inline-block rounded-2xl bg-brand-white px-5 py-3.5 shadow-md transition-transform hover:scale-[1.02] sm:px-6 sm:py-4">
         <BrandLogo
-          className={cn(
-            layout === 'split' ? 'h-auto w-60 max-w-full object-contain' : 'h-10 w-auto object-contain',
-          )}
+          className="h-14 w-auto max-w-full object-contain sm:h-16 lg:h-18"
+          variant="full"
         />
       </span>
     </Link>
   );
+
   const footerContent = footer ? (
     <div className="mt-6 border-t pt-5 text-center text-sm text-muted-foreground">
       {footer}
@@ -54,76 +45,75 @@ export function AuthPageLayout({
   return (
     <main
       className={cn(
-        'relative flex min-h-svh items-center justify-center bg-muted/40 px-4 py-12',
-        layout === 'split' && 'py-16 sm:px-8 sm:py-14',
+        'relative flex min-h-svh items-center justify-center bg-muted/40 p-4 sm:p-6 lg:p-8',
+        layout === 'split' && 'py-12 sm:py-16',
       )}
     >
-      <div className="absolute right-4 top-4">
+      <div className="absolute right-4 top-4 z-20">
         <ThemeSwitcher />
       </div>
+
       {layout === 'split' ? (
-        <div className="grid w-full max-w-6xl overflow-hidden rounded-xl border border-border bg-card shadow-card lg:min-h-[40rem] lg:grid-cols-2">
+        <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-card shadow-card lg:min-h-[36rem] lg:grid-cols-2">
+          {/* Left Branding Panel: Upper-left logo with vertically centered marketing section */}
           <section
-            aria-labelledby="auth-brand-heading"
-            className="relative isolate flex flex-col gap-10 overflow-hidden bg-brand-navy p-6 text-brand-white sm:p-10 lg:justify-between lg:p-12"
+            aria-label="Hirgal Brand"
+            className="relative isolate flex flex-col justify-between overflow-hidden bg-brand-navy p-8 text-brand-white sm:p-10 lg:p-12"
           >
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-              <span className="absolute -right-24 top-20 size-64 rounded-full border border-brand-white/10" />
-              <span className="absolute -right-12 top-32 size-40 rounded-full border border-brand-white/10" />
-              <span className="absolute bottom-20 right-20 size-28 rounded-full bg-brand-cyan/10 blur-2xl" />
-              <span className="absolute bottom-32 right-36 size-16 rounded-full bg-brand-green/10 blur-xl" />
+              <span className="absolute -right-20 top-16 size-72 rounded-full border border-brand-white/10" />
+              <span className="absolute -left-16 bottom-12 size-56 rounded-full border border-brand-white/10" />
+              <span className="absolute bottom-16 right-16 size-32 rounded-full bg-brand-cyan/15 blur-2xl" />
+              <span className="absolute top-20 left-20 size-24 rounded-full bg-brand-green/15 blur-xl" />
             </div>
-            <div className="relative z-10">{homeLink}</div>
-            <div className="relative z-10 max-w-xl">
-              <p className="mb-3 text-sm font-medium tracking-wide text-brand-white/75">
-                Work &amp; Project Management
-              </p>
-              <h2
-                className="text-3xl font-semibold tracking-tight sm:text-4xl"
-                id="auth-brand-heading"
-              >
-                Bring your team’s work into focus.
-              </h2>
-              <p className="mt-4 max-w-lg text-sm leading-6 text-brand-white/80 sm:text-base sm:leading-7">
-                Plan projects, coordinate tasks, and move forward together in one shared workspace.
-              </p>
+
+            <div className="relative z-10 flex flex-col items-start justify-start">
+              {homeLink}
             </div>
-            <div className="relative z-10 flex items-center gap-3 border-t border-brand-white/15 pt-5 text-sm text-brand-white/75">
-              <span aria-hidden="true" className="size-2 rounded-full bg-brand-cyan" />
-              <p>Clear priorities. Connected teams. Measurable progress.</p>
+
+            <div className="relative z-10 flex flex-1 flex-col justify-center pt-8 sm:pt-10">
+              <div className="max-w-md space-y-3 sm:space-y-4">
+                <h2 className="text-2xl font-semibold tracking-tight text-brand-white sm:text-3xl lg:text-[2rem] lg:leading-snug">
+                  Bring your team&apos;s work into focus.
+                </h2>
+                <p className="text-sm leading-relaxed text-brand-white/80 sm:text-base sm:leading-relaxed">
+                  Plan projects, manage tasks, collaborate with your team, and achieve more &mdash; all in one workspace.
+                </p>
+                <div className="pt-1.5 sm:pt-2">
+                  <p className="text-xs font-medium tracking-wide text-brand-white/60 sm:text-sm">
+                    Plan smarter. Work better. Grow together.
+                  </p>
+                </div>
+              </div>
             </div>
           </section>
-          <section className="flex items-center justify-center bg-card p-6 text-card-foreground sm:p-10 lg:p-14">
-            <div className="w-full max-w-md">
-              <div className="mb-8 space-y-3">
-                <p className="text-sm font-medium tracking-wide text-primary">Sign in</p>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+
+          {/* Right Authentication Panel */}
+          <section className="flex items-center justify-center bg-card p-6 text-card-foreground sm:p-10 lg:p-12">
+            <div className="w-full max-w-sm">
+              <div className="mb-6 space-y-1.5 text-center sm:text-left">
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                   {title}
                 </h1>
-                <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+                <p className="text-sm text-muted-foreground">{description}</p>
               </div>
+
               {children}
               {footerContent}
-              <p className="mt-6 text-center text-xs text-muted-foreground">
-                Secure access to your Hirgal workspace
-              </p>
             </div>
           </section>
         </div>
       ) : (
         <div className="w-full max-w-md">
-          {homeLink}
-          <section className="rounded-xl border bg-card p-6 text-card-foreground shadow-card sm:p-8">
-            <div className="mb-6 space-y-2 text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-              <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+          <div className="mb-6 flex justify-center">{homeLink}</div>
+          <section className="rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-card sm:p-8">
+            <div className="mb-6 space-y-1.5 text-center">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+              <p className="text-sm text-muted-foreground">{description}</p>
             </div>
             {children}
             {footerContent}
           </section>
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            Secure access to your Hirgal workspace
-          </p>
         </div>
       )}
     </main>

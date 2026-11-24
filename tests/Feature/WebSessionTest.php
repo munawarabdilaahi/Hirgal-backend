@@ -61,40 +61,72 @@ class WebSessionTest extends TestCase
         $this->assertGuest('web');
     }
 
-    public function test_two_factor_challenge_returns_to_the_login_page(): void
+    public function test_two_factor_challenge_redirects_to_dedicated_challenge_page(): void
     {
+        $this->withoutVite();
         $user = User::factory()->create([
             'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
             'two_factor_confirmed_at' => now(),
         ]);
 
-        $this->from('/')->post(route('login.store'), [
+        $this->from(route('login'))->post(route('login.store'), [
             'email' => $user->email,
             'password' => 'password',
-        ])->assertRedirectToRoute('login')->assertSessionHasErrors([
-            'two_factor_code' => 'Enter the six-digit code from your authenticator app.',
-        ])->assertSessionHasInput('email', $user->email);
+        ])->assertRedirectToRoute('two-factor.challenge');
 
         $this->assertGuest('web');
+        $this->assertNotNull(session('login.2fa'));
+
+        $this->get(route('two-factor.challenge'))->assertInertia(fn (Assert $page) => $page->component('TwoFactorChallenge', false));
     }
 
     public function test_two_factor_code_completes_a_browser_session_login(): void
     {
+        $this->withoutVite();
         $secret = 'JBSWY3DPEHPK3PXP';
         $user = User::factory()->create([
             'two_factor_secret' => $secret,
             'two_factor_confirmed_at' => now(),
         ]);
 
-        $code = app(TwoFactorAuthenticationService::class)->currentCode($secret);
-
         $this->from(route('login'))->post(route('login.store'), [
             'email' => $user->email,
             'password' => 'password',
-            'two_factor_code' => $code,
+        ])->assertRedirectToRoute('two-factor.challenge');
+
+        $this->assertGuest('web');
+
+        $code = app(TwoFactorAuthenticationService::class)->currentCode($secret);
+
+        $this->from(route('two-factor.challenge'))->post(route('two-factor.verify'), [
+            'code' => $code,
         ])->assertRedirectToRoute('dashboard');
 
         $this->assertAuthenticatedAs($user, 'web');
+        $this->assertNull(session('login.2fa'));
+    }
+
+    public function test_two_factor_challenge_without_pending_session_redirects_to_login(): void
+    {
+        $this->get(route('two-factor.challenge'))->assertRedirectToRoute('login');
+    }
+
+    public function test_two_factor_challenge_cancel_clears_session_and_redirects_to_login(): void
+    {
+        $user = User::factory()->create([
+            'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
+        ]);
+
+        $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertRedirectToRoute('two-factor.challenge');
+
+        $this->assertNotNull(session('login.2fa'));
+
+        $this->post(route('two-factor.cancel'))->assertRedirectToRoute('login');
+        $this->assertNull(session('login.2fa'));
     }
 
     public function test_a_disabled_account_cannot_start_a_session(): void

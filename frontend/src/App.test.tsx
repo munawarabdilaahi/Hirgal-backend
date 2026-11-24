@@ -10,6 +10,8 @@ import { apiClient } from '@/services/api/apiClient';
 const { authApi } = vi.hoisted(() => ({
   authApi: {
     login: vi.fn(),
+    verifyTwoFactor: vi.fn(),
+    cancelTwoFactor: vi.fn(),
     acceptInvitation: vi.fn(),
     getCurrentUser: vi.fn(),
     logout: vi.fn(),
@@ -74,6 +76,51 @@ describe('authentication routes', () => {
     expect(authApi.login).toHaveBeenCalledWith({
       email: 'amina@example.com',
       password: 'secret123',
+    });
+  });
+
+  it('redirects 2FA-enabled user to dedicated 2FA page and completes authentication upon valid code verification', async () => {
+    authApi.login.mockResolvedValue({
+      two_factor_required: true,
+      challenge_token: 'challenge-xyz',
+      expires_at: '2026-11-22T20:00:00Z',
+    });
+    authApi.verifyTwoFactor.mockResolvedValue({
+      access_token: 'valid-2fa-token',
+      token_type: 'Bearer',
+      user: activeUser,
+    });
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back' }, { timeout: 5000 })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Work email/), {
+      target: { value: 'amina@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'secret123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    // Must navigate to the dedicated 2FA verification page
+    expect(await screen.findByRole('heading', { name: 'Verify your identity' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText('Enter the verification code to continue.')).toBeInTheDocument();
+
+    const codeInput = screen.getByLabelText(/Verification code/);
+    fireEvent.paste(codeInput, {
+      clipboardData: {
+        getData: () => '654321',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+    // After successful 2FA code verification, navigates to Dashboard
+    expect(await screen.findByRole('heading', { name: "Today’s Workspace Agenda" }, { timeout: 5000 })).toBeInTheDocument();
+    expect(authApi.verifyTwoFactor).toHaveBeenCalledWith({
+      challenge_token: 'challenge-xyz',
+      code: '654321',
     });
   });
 
