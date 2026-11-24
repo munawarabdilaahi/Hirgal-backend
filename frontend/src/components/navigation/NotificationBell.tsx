@@ -18,6 +18,7 @@ import {
   getNotificationIcon,
   resolveNotificationTarget,
 } from '@/features/notifications/notification-navigation';
+import { useRealtimeNotifications } from '@/features/notifications/useRealtimeNotifications';
 
 interface NotificationBellProps {
   session?: { user: ApiUser; frontendUrl: string; logout: () => void } | undefined;
@@ -30,6 +31,8 @@ export function NotificationBell({ session }: NotificationBellProps = {}) {
   const queryClient = useQueryClient();
   const authContext = useContext(AuthContext);
   const user = session?.user ?? authContext?.user;
+
+  useRealtimeNotifications({ user });
 
   const unreadQuery = useQuery({
     queryKey: ['notifications', user?.id, 'unread-count'],

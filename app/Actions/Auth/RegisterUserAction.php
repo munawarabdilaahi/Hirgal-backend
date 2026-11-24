@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Services\Notification\NotificationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -49,6 +50,8 @@ class RegisterUserAction
 
             $deviceName = $data['device_name'] ?? 'auth-token';
             $token = $user->createToken($deviceName)->plainTextToken;
+
+            app(NotificationService::class)->notifyWelcome($user);
 
             return [
                 'user' => $user->load(['roles.permissions', 'profile']),

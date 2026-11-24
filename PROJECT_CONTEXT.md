@@ -427,6 +427,23 @@ To maintain strict truth in documentation, modules are classified into three dis
 - **Tests:** `tests/Feature/Notifications/NotificationInboxTest.php` (22 tests, 125 assertions) — list/ordering/pagination/filters/422, 401 + suspended matrices across all four endpoints, cross-user 404 + unchanged victim rows, admin mark-one/mark-all/unread-count isolation, client-supplied recipient immunity, idempotence, payload redaction + unknown-type fail-closed, zero-unread mark-all, and a real `AppointmentNotification` write-path compatibility regression.
 - **Docs:** [`docs/api/NOTIFICATIONS.md`](docs/api/NOTIFICATIONS.md); this file.
 
+#### Module 11: Email Delivery & Real-Time Notification System (Resend & Laravel Reverb)
+- **Status:** `IMPLEMENTED — TESTED & VERIFIED (2026-11-24)` — production-ready multi-channel delivery architecture combining Resend SDK for transactional emails and Laravel Reverb / Pusher for WebSockets real-time browser notifications.
+- **Main Responsibilities:**
+  - Queued transactional email delivery via Resend transport (`resend/resend-laravel` SDK, `MAIL_MAILER=resend`).
+  - Welcome notification on registration / invitation acceptance (`WelcomeNotification`).
+  - Task assignment emails honoring user profile preferences (`TaskNotification`).
+  - Real-time WebSocket broadcasting over private channels (`routes/channels.php` authorizing `private-users.{id}` and `private-App.Models.User.{id}`).
+  - Sanctum-secured broadcasting authentication endpoint at `/api/broadcasting/auth`.
+  - Transaction-safe delayed dispatching with `afterCommit()` and queue retry resilience.
+- **Components Added/Updated:**
+  - `config/broadcasting.php`, `config/reverb.php`, `routes/channels.php`
+  - `app/Events/RealtimeNotificationBroadcast.php`
+  - `app/Notifications/WelcomeNotification.php`
+  - `app/Notifications/TaskNotification.php` (queued mail + broadcast integration)
+  - `app/Services/Notification/NotificationService.php` (`notifyWelcome`, `notifyAppointment`, real-time event broadcasting)
+- **Tests:** `tests/Feature/Notifications/EmailDeliveryTest.php` (8 tests), `tests/Feature/Notifications/RealtimeBroadcastingTest.php` (8 tests). Total notifications test suite: 49 passing tests, 226 assertions.
+
 ---
 
 ### 8.2 Database Foundations Only (APIs NOT Implemented)

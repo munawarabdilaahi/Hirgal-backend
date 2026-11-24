@@ -7,6 +7,7 @@ use App\Notifications\ProjectNotification;
 use App\Notifications\TaskCommentNotification;
 use App\Notifications\TaskNotification;
 use App\Notifications\TaskReminder;
+use App\Notifications\WelcomeNotification;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Notifications\DatabaseNotification;
@@ -24,6 +25,7 @@ class NotificationResource extends JsonResource
      * @var array<string, array<int, string>>
      */
     private const TYPE_DATA_ALLOWLIST = [
+        WelcomeNotification::class => ['event', 'title', 'message'],
         TaskReminder::class => ['event', 'title', 'task_uuid'],
         AppointmentNotification::class => [
             'event',

@@ -486,10 +486,53 @@ npm run build
 
 ---
 
-## 8. Save the Checkpoint
+## 9. Checkpoint: Email Delivery & Real-Time Notification System (2026-11-24)
+
+### Completed Work
+- **Resend Integration**: Installed `resend/resend-laravel` (v1.7.0) compatible with Laravel 13 and PHP 8.4; verified Resend transport driver. Added `.env.example` placeholders without exposing secrets.
+- **Transactional & Welcome Emails**: Implemented `WelcomeNotification` (queued with `afterCommit`), integrated into `RegisterUserAction` and `AcceptInvitationAction`. Enhanced `TaskNotification` with multi-channel support (database + real-time broadcast + queued email for assign/reassign when user preference allows).
+- **Broadcasting & Reverb Infrastructure**: Installed `laravel/reverb` (v1.14.0) and published `config/reverb.php`, added `config/broadcasting.php`.
+- **Channel Authorization**: Created `routes/channels.php` authorizing private channels `App.Models.User.{id}` and `users.{id}` via Sanctum guard. Configured broadcasting routes in `bootstrap/app.php` under `/api/broadcasting/auth`.
+- **Domain Event**: Created `app/Events/RealtimeNotificationBroadcast.php` broadcasting on private user channels with `.notification.created`.
+- **Test Coverage**: Created `tests/Feature/Notifications/EmailDeliveryTest.php` (8 tests) and `tests/Feature/Notifications/RealtimeBroadcastingTest.php` (8 tests). Full notification suite passing: 49 tests, 226 assertions. Full suite regression check: 538 tests passing. Code formatted via `vendor/bin/pint`.
+
+---
+
+## 10. Checkpoint: Frontend Real-Time Notification Integration (2026-11-24)
+
+### Completed Work
+- **Dependencies**: Installed `laravel-echo` (v2.6.3) and `pusher-js` (v8.6.0) in `frontend/`.
+- **Environment Configuration**:
+  - Updated `frontend/.env.example` with `VITE_REVERB_APP_KEY`, `VITE_REVERB_HOST`, `VITE_REVERB_PORT`, `VITE_REVERB_SCHEME`.
+  - Updated `frontend/src/app/config/env.ts` with Zod schema for Reverb settings and exported on `appConfig.reverb`.
+- **Echo Client Service (`frontend/src/services/realtime/echo.ts`)**:
+  - Implemented singleton Echo client with Pusher engine configured for Reverb.
+  - Implemented custom authorizer dispatching to `${backendRoot}/api/broadcasting/auth` with Sanctum bearer token and credentials support via `apiClient`.
+  - Graceful fallback when Reverb app key is missing or blank.
+- **Real-Time Notification Hook (`frontend/src/features/notifications/useRealtimeNotifications.ts`)**:
+  - Subscribes to private channel `users.{userId}`.
+  - Listens for `.notification.created` broadcast events and native notifications.
+  - Automatically invalidates TanStack Query cache `['notifications']`, triggering instant unread count badge update and dropdown/inbox refresh without waiting for 30s polling.
+  - Normalizes notification payload and triggers Sonner `toast()` with title, message, and clickable action navigating via `resolveNotificationTarget()`.
+  - Implements clean lifecycle unsubscribing and leaving channels on unmount / user change.
+- **UI Integration**:
+  - Mounted `useRealtimeNotifications({ user })` inside `frontend/src/components/navigation/NotificationBell.tsx`, universally active across all workspace views via `AppShell`.
+- **Test Coverage**:
+  - `frontend/src/services/realtime/echo.test.ts`: 6 tests covering client creation, authorizer requests, error callbacks, and singleton reset.
+  - `frontend/src/features/notifications/useRealtimeNotifications.test.tsx`: 7 tests covering payload normalization, subscription lifecycle, event invalidation, toast triggering, and cleanup.
+- **Verification & Quality Gates**:
+  - Vitest: 33 test files, 222 tests passing (100%).
+  - Typecheck: `tsc -b` passed with 0 errors.
+  - Oxlint: 0 errors on 189 files.
+  - Production Build: `vite build` completed successfully (dist generated).
+  - Backend PHPUnit: 62 notification tests (271 assertions) passing; 538 total backend tests passing.
+
+---
+
+## 11. Save the Checkpoint
 
 Checkpoint saved at:
 
 `C:\Users\Muniir\Herd\Hirgal\docs\WORK_CHECKPOINT.md`
 
-This checkpoint was updated after final headless-browser QA. All prior work is preserved. No commit or push was performed.
+All prior work is preserved. No commit or push was performed.

@@ -7,6 +7,7 @@ use App\Enums\InvitationStatus;
 use App\Models\User;
 use App\Models\UserInvitation;
 use App\Models\UserProfile;
+use App\Services\Notification\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -96,6 +97,8 @@ class AcceptInvitationAction
                 'status' => InvitationStatus::Accepted,
                 'accepted_at' => now(),
             ]);
+
+            app(NotificationService::class)->notifyWelcome($user);
 
             return [
                 'user' => $user->load(['roles.permissions', 'profile']),

@@ -3,11 +3,15 @@
 namespace App\Services\Notification;
 
 use App\Enums\AccountStatus;
+use App\Events\RealtimeNotificationBroadcast;
+use App\Models\Appointment;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Notifications\AppointmentNotification;
 use App\Notifications\ProjectNotification;
 use App\Notifications\TaskNotification;
+use App\Notifications\WelcomeNotification;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Collection;
@@ -111,10 +115,17 @@ class NotificationService
 
         $notification = new TaskNotification($task, $event, $actor, $metadata);
 
-        if (DB::transactionLevel() > 0) {
-            DB::afterCommit(fn () => Notification::send($validRecipients, $notification));
-        } else {
+        $dispatch = function () use ($validRecipients, $notification): void {
             Notification::send($validRecipients, $notification);
+            foreach ($validRecipients as $recipient) {
+                event(new RealtimeNotificationBroadcast($recipient, $notification->toArray($recipient)));
+            }
+        };
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($dispatch);
+        } else {
+            $dispatch();
         }
     }
 
@@ -139,10 +150,72 @@ class NotificationService
 
         $notification = new ProjectNotification($project, $event, $actor, $metadata);
 
-        if (DB::transactionLevel() > 0) {
-            DB::afterCommit(fn () => Notification::send($validRecipients, $notification));
-        } else {
+        $dispatch = function () use ($validRecipients, $notification): void {
             Notification::send($validRecipients, $notification);
+            foreach ($validRecipients as $recipient) {
+                event(new RealtimeNotificationBroadcast($recipient, $notification->toArray($recipient)));
+            }
+        };
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($dispatch);
+        } else {
+            $dispatch();
+        }
+    }
+
+    /**
+     * Safely dispatch an AppointmentNotification to eligible recipients after commit.
+     *
+     * @param  iterable<User>  $recipients
+     */
+    public function notifyAppointment(
+        Appointment $appointment,
+        string $event,
+        iterable $recipients = []
+    ): void {
+        $validRecipients = $this->filterRecipients($recipients, null);
+
+        if ($validRecipients->isEmpty()) {
+            return;
+        }
+
+        $notification = new AppointmentNotification($appointment, $event);
+
+        $dispatch = function () use ($validRecipients, $notification): void {
+            Notification::send($validRecipients, $notification);
+            foreach ($validRecipients as $recipient) {
+                event(new RealtimeNotificationBroadcast($recipient, $notification->toArray($recipient)));
+            }
+        };
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($dispatch);
+        } else {
+            $dispatch();
+        }
+    }
+
+    /**
+     * Safely dispatch a WelcomeNotification to a newly onboarded user after commit.
+     */
+    public function notifyWelcome(User $user): void
+    {
+        if ($user->account_status !== AccountStatus::Active) {
+            return;
+        }
+
+        $notification = new WelcomeNotification;
+
+        $dispatch = function () use ($user, $notification): void {
+            $user->notify($notification);
+            event(new RealtimeNotificationBroadcast($user, $notification->toArray($user)));
+        };
+
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($dispatch);
+        } else {
+            $dispatch();
         }
     }
 

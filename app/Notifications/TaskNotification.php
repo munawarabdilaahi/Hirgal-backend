@@ -4,10 +4,16 @@ namespace App\Notifications;
 
 use App\Models\Task;
 use App\Models\User;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class TaskNotification extends Notification
+class TaskNotification extends Notification implements ShouldQueue
 {
+    use Queueable;
+
     /**
      * @param  array<string, mixed>  $metadata
      */
@@ -16,7 +22,9 @@ class TaskNotification extends Notification
         private readonly string $event,
         private readonly ?User $actor = null,
         private readonly array $metadata = []
-    ) {}
+    ) {
+        $this->afterCommit();
+    }
 
     /**
      * @return list<string>
@@ -24,8 +32,50 @@ class TaskNotification extends Notification
     public function via(object $notifiable): array
     {
         $preferences = $notifiable instanceof User ? ($notifiable->profile?->notification_preferences ?? []) : [];
+        $channels = [];
 
-        return ($preferences['in_app_notifications'] ?? $preferences['in_app'] ?? true) ? ['database'] : [];
+        if ($preferences['in_app_notifications'] ?? $preferences['in_app'] ?? true) {
+            $channels[] = 'database';
+            $channels[] = 'broadcast';
+        }
+
+        $wantsEmail = $preferences['email_notifications'] ?? false;
+        if ($wantsEmail && in_array($this->event, ['task_assigned', 'task_reassigned'], true)) {
+            $channels[] = 'mail';
+        }
+
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $actionUrl = (string) (config('app.frontend_url', config('app.url'))."/tasks?task={$this->task->uuid}");
+        $actorName = $this->actor?->name ?? 'A team member';
+
+        $subject = match ($this->event) {
+            'task_assigned' => "Task Assigned: {$this->task->title}",
+            'task_reassigned' => "Task Reassigned: {$this->task->title}",
+            default => "Task Updated: {$this->task->title}",
+        };
+
+        return (new MailMessage)
+            ->subject($subject)
+            ->line("{$actorName} assigned you to \"{$this->task->title}\".")
+            ->line('Project: '.($this->task->project?->name ?? 'Direct Task'))
+            ->line("Priority: {$this->task->priority->value}")
+            ->action('View Task', $actionUrl)
+            ->line('Thank you for using Hirgal.');
+    }
+
+    public function toBroadcast(object $notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'id' => $this->id,
+            'type' => static::class,
+            'data' => $this->toArray($notifiable),
+            'read_at' => null,
+            'created_at' => now()->toIso8601String(),
+        ]);
     }
 
     /**

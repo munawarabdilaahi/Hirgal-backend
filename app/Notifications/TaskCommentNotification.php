@@ -4,10 +4,15 @@ namespace App\Notifications;
 
 use App\Models\Task;
 use App\Models\User;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class TaskCommentNotification extends Notification
+class TaskCommentNotification extends Notification implements ShouldQueue
 {
+    use Queueable;
+
     /**
      * @param  array<string, mixed>  $metadata
      */
@@ -16,7 +21,9 @@ class TaskCommentNotification extends Notification
         private readonly string $event,
         private readonly ?User $actor = null,
         private readonly array $metadata = []
-    ) {}
+    ) {
+        $this->afterCommit();
+    }
 
     /**
      * @return list<string>
@@ -25,7 +32,18 @@ class TaskCommentNotification extends Notification
     {
         $preferences = $notifiable instanceof User ? ($notifiable->profile?->notification_preferences ?? []) : [];
 
-        return ($preferences['in_app_notifications'] ?? $preferences['in_app'] ?? true) ? ['database'] : [];
+        return ($preferences['in_app_notifications'] ?? $preferences['in_app'] ?? true) ? ['database', 'broadcast'] : [];
+    }
+
+    public function toBroadcast(object $notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'id' => $this->id,
+            'type' => static::class,
+            'data' => $this->toArray($notifiable),
+            'read_at' => null,
+            'created_at' => now()->toIso8601String(),
+        ]);
     }
 
     /**
