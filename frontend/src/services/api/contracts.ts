@@ -39,6 +39,9 @@ export interface ApiUserProfile {
   bio: string | null;
   notification_preferences: Record<string, unknown>;
   theme_preference: string;
+  locale: string;
+  date_format: string;
+  time_format: string;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -59,6 +62,9 @@ export interface ApiUser {
   avatar_url: string | null;
   timezone: string;
   email_verified_at?: string | null;
+  pending_email?: string | null;
+  two_factor_enabled?: boolean;
+  recovery_codes_remaining?: number;
   last_login_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -75,6 +81,7 @@ export interface ApiDirectoryUser {
   timezone: string;
   job_title: string | null;
   department: string | null;
+  role?: string | null;
 }
 
 export interface ApiPaginatedResponse<TData> extends ApiSuccess<TData[]> {
@@ -98,22 +105,47 @@ export interface UserDirectoryFilters {
   department?: string;
 }
 
+export interface CreateUserRequest {
+  name: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
+}
+
 export interface UpdateUserRequest {
   name?: string;
   email?: string;
   timezone?: string | null;
+  role_id?: number;
 }
 
 export interface AuthTokenData {
   access_token: string;
   token_type: 'Bearer';
+  two_factor_required?: false;
   user: ApiUser;
+}
+
+export interface TwoFactorChallengeResponse {
+  two_factor_required: true;
+  challenge_token: string;
+  expires_at: string;
+}
+
+export type LoginResponseData = AuthTokenData | TwoFactorChallengeResponse;
+
+export interface VerifyTwoFactorRequest {
+  challenge_token: string;
+  code?: string;
+  recovery_code?: string;
+  device_name?: string;
 }
 
 export interface LoginRequest {
   email: string;
   password: string;
   device_name?: string;
+  two_factor_code?: string;
 }
 
 export interface ForgotPasswordRequest {
@@ -143,7 +175,63 @@ export interface UpdateProfileRequest {
   department?: string | null;
   bio?: string | null;
   theme_preference?: 'light' | 'dark' | 'system';
+  locale?: 'en';
+  date_format?: 'Y-m-d' | 'd/m/Y' | 'm/d/Y';
+  time_format?: '12h' | '24h';
   notification_preferences?: Record<string, unknown>;
+}
+
+export interface AccountSession {
+  id: string;
+  kind: 'browser' | 'token';
+  label: string;
+  ip_address: string | null;
+  last_active_at: string | null;
+  created_at: string | null;
+  current: boolean;
+}
+
+export interface AccountSessionList {
+  sessions: AccountSession[];
+  tracks_browser_sessions: boolean;
+}
+
+export interface AccountSecurityEvent {
+  id: number;
+  action: string;
+  description: string;
+  created_at: string;
+}
+
+export interface TwoFactorSetup {
+  secret: string;
+  provisioning_uri: string;
+  issuer: string;
+}
+
+export interface TwoFactorConfirmation {
+  recovery_codes: string[];
+}
+
+export interface AccountExport {
+  exported_at?: string;
+  identity?: Record<string, unknown>;
+  profile?: Record<string, unknown> | null;
+  roles?: string[];
+  security?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface AccountNotificationPreferences {
+  email_notifications?: boolean;
+  in_app_notifications?: boolean;
+  security_alerts?: boolean;
+  login_alerts?: boolean;
+  workspace_invitations?: boolean;
+  system_announcements?: boolean;
+  activity_notifications?: boolean;
+  email?: boolean;
+  in_app?: boolean;
 }
 
 export type ProjectStatus = 'planning' | 'active' | 'paused' | 'completed' | 'archived';
@@ -261,6 +349,12 @@ export interface HabitStats {
   completion_rate: number;
 }
 
+export interface ApiHabitActivity {
+  from: string;
+  through: string;
+  days: { date: string; completed: number }[];
+}
+
 export interface ApiHabitLog {
   id: number;
   logged_date: string;
@@ -268,6 +362,13 @@ export interface ApiHabitLog {
   notes: string | null;
   created_at: string | null;
   updated_at: string | null;
+}
+
+export interface ApiHabitWeekDay {
+  date: string;
+  is_scheduled: boolean;
+  can_check_in: boolean;
+  log: ApiHabitLog | null;
 }
 
 export interface ApiHabit {
@@ -282,6 +383,7 @@ export interface ApiHabit {
   longest_streak: number | null;
   stats: HabitStats | null;
   latest_logs?: ApiHabitLog[];
+  week?: ApiHabitWeekDay[];
   created_at: string | null;
   updated_at: string | null;
 }
@@ -306,6 +408,8 @@ export interface HabitFilters {
   per_page?: number;
   is_archived?: boolean;
   frequency?: HabitFrequency;
+  search?: string;
+  week_start?: string;
 }
 
 export interface HabitLogFilters {

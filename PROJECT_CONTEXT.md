@@ -2,9 +2,9 @@
 
 > **Central Project Knowledge, Architectural Blueprint & Living Operational Guide**  
 > **Repository Location:** `C:\Hirgal`  
-> **Current Version:** Backend Phase 9 D6 (Global API Rate Limiting, 60 req/min) **ACCEPTED — PASS** and Module B (Notifications Inbox) **ACCEPTED — PRODUCT OWNER APPROVED** (both 2026-11-10, uncommitted); Module A (Security Audit Read API) accepted after independent review; Backend Phase 8 Habit Tracker API formally accepted (independently verified, Product Owner approved 2026-11-10; Phase 7 deployment migration still pending); Frontend Phase 5 Projects & Teams Management and Frontend Phase 6A Habits (both implemented; Phase 6A uncommitted, no acceptance recorded)
-> **Last Audited & Updated:** 2026-11-10
-> **Implementation Baseline:** Phase 8 implementation committed (`a857dfc`…`29a078c`, pushed); appointment-test conflict repair `4d38c66` and Phase 8 acceptance documentation committed 2026-11-10 (pushed; HEAD `73a035a` matches `origin/main`); Phase 9 Modules A, B and task D6 implemented and accepted 2026-11-10 (local; uncommitted; commits require separate explicit authorization)
+> **Current Version:** Profile & Account Settings (Inertia v3 + React 19 SPA, 2026-11-18); Security Concurrency & Token Remediation (2026-11-21); Production Scheduler & Shared Cache Hardening (2026-11-22)
+> **Last Audited & Updated:** 2026-11-22 (Production Readiness & Infrastructure Audit)
+> **Implementation Baseline:** Profile & Account Settings committed (`fd335fe`...`7692da8`); Security remediation and distributed scheduler/cache locks implemented and verified in working tree on `dev`; 0 Composer advisories; 473 backend tests passing; 176 frontend tests passing.
 
 ---
 
@@ -426,6 +426,23 @@ To maintain strict truth in documentation, modules are classified into three dis
 - **Security guarantees:** every endpoint returns only `notifiable = authenticated user` rows even for System Admins (tested); 401 `UNAUTHENTICATED` / 403 `ACCOUNT_NOT_ACTIVE` at the middleware boundary; payload `data` filtered per known type (AppointmentNotification's 8 keys) and fail-closed for unknown types (tested with an embedded secret key); recipient ownership never accepted from input.
 - **Tests:** `tests/Feature/Notifications/NotificationInboxTest.php` (22 tests, 125 assertions) — list/ordering/pagination/filters/422, 401 + suspended matrices across all four endpoints, cross-user 404 + unchanged victim rows, admin mark-one/mark-all/unread-count isolation, client-supplied recipient immunity, idempotence, payload redaction + unknown-type fail-closed, zero-unread mark-all, and a real `AppointmentNotification` write-path compatibility regression.
 - **Docs:** [`docs/api/NOTIFICATIONS.md`](docs/api/NOTIFICATIONS.md); this file.
+
+#### Module 11: Email Delivery & Real-Time Notification System (Resend & Laravel Reverb)
+- **Status:** `IMPLEMENTED — TESTED & VERIFIED (2026-11-24)` — production-ready multi-channel delivery architecture combining Resend SDK for transactional emails and Laravel Reverb / Pusher for WebSockets real-time browser notifications.
+- **Main Responsibilities:**
+  - Queued transactional email delivery via Resend transport (`resend/resend-laravel` SDK, `MAIL_MAILER=resend`).
+  - Welcome notification on registration / invitation acceptance (`WelcomeNotification`).
+  - Task assignment emails honoring user profile preferences (`TaskNotification`).
+  - Real-time WebSocket broadcasting over private channels (`routes/channels.php` authorizing `private-users.{id}` and `private-App.Models.User.{id}`).
+  - Sanctum-secured broadcasting authentication endpoint at `/api/broadcasting/auth`.
+  - Transaction-safe delayed dispatching with `afterCommit()` and queue retry resilience.
+- **Components Added/Updated:**
+  - `config/broadcasting.php`, `config/reverb.php`, `routes/channels.php`
+  - `app/Events/RealtimeNotificationBroadcast.php`
+  - `app/Notifications/WelcomeNotification.php`
+  - `app/Notifications/TaskNotification.php` (queued mail + broadcast integration)
+  - `app/Services/Notification/NotificationService.php` (`notifyWelcome`, `notifyAppointment`, real-time event broadcasting)
+- **Tests:** `tests/Feature/Notifications/EmailDeliveryTest.php` (8 tests), `tests/Feature/Notifications/RealtimeBroadcastingTest.php` (8 tests). Total notifications test suite: 49 passing tests, 226 assertions.
 
 ---
 

@@ -12,6 +12,7 @@ use App\Services\Auth\AuthenticationService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthController extends Controller
@@ -35,19 +36,103 @@ class AuthController extends Controller
     }
 
     /**
-     * Authenticate user credentials and return an access token.
+     * Authenticate user credentials and return an access token or 2FA challenge.
      */
     public function login(LoginRequest $request): JsonResponse
     {
         $result = $this->authService->login(
             email: $request->validated('email'),
             password: $request->validated('password'),
-            deviceName: $request->validated('device_name')
+            deviceName: $request->validated('device_name'),
+            twoFactorCode: $request->validated('two_factor_code')
+        );
+
+        if (! empty($result['two_factor_required'])) {
+            return ApiResponse::success(
+                data: [
+                    'two_factor_required' => true,
+                    'challenge_token' => $result['challenge_token'],
+                    'expires_at' => $result['expires_at'],
+                ],
+                message: 'Two-factor authentication challenge required.'
+            );
+        }
+
+        return ApiResponse::success(
+            data: new AuthTokenResource($result['token'], $result['user']),
+            message: 'Authenticated successfully.'
+        );
+    }
+
+    /**
+     * Verify a two-factor authentication challenge code.
+     */
+    public function verifyTwoFactor(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'challenge_token' => ['required', 'string'],
+            'code' => ['nullable', 'string', 'max:32'],
+            'recovery_code' => ['nullable', 'string', 'max:32'],
+            'device_name' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $code = $input['code'] ?? $input['recovery_code'] ?? null;
+        if ($code === null || trim($code) === '') {
+            throw ValidationException::withMessages([
+                'code' => ['The authentication code is required.'],
+            ]);
+        }
+
+        $result = $this->authService->verifyTwoFactorChallenge(
+            challengeToken: $input['challenge_token'],
+            code: trim($code),
+            isRecovery: ! empty($input['recovery_code']),
+            deviceName: $input['device_name'] ?? null
         );
 
         return ApiResponse::success(
             data: new AuthTokenResource($result['token'], $result['user']),
             message: 'Authenticated successfully.'
+        );
+    }
+
+    /**
+     * Verify a two-factor recovery code directly.
+     */
+    public function verifyRecoveryCode(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'challenge_token' => ['required', 'string'],
+            'recovery_code' => ['required', 'string', 'max:32'],
+            'device_name' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $result = $this->authService->verifyTwoFactorChallenge(
+            challengeToken: $input['challenge_token'],
+            code: trim($input['recovery_code']),
+            isRecovery: true,
+            deviceName: $input['device_name'] ?? null
+        );
+
+        return ApiResponse::success(
+            data: new AuthTokenResource($result['token'], $result['user']),
+            message: 'Authenticated successfully.'
+        );
+    }
+
+    /**
+     * Cancel an active two-factor challenge.
+     */
+    public function cancelTwoFactor(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'challenge_token' => ['required', 'string'],
+        ]);
+
+        $this->authService->cancelTwoFactorChallenge($input['challenge_token']);
+
+        return ApiResponse::success(
+            message: 'Two-factor challenge cancelled.'
         );
     }
 

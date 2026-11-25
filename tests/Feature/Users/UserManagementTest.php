@@ -10,6 +10,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class UserManagementTest extends TestCase
@@ -58,6 +59,46 @@ class UserManagementTest extends TestCase
         $this->assertGreaterThanOrEqual(7, $response->json('meta.total'));
     }
 
+    public function test_admin_can_manually_create_an_active_member(): void
+    {
+        $this->actingAs($this->admin, 'sanctum');
+        $payload = [
+            'name' => 'Manual Member',
+            'email' => 'Manual.Member@example.test',
+            'password' => 'initial-password',
+            'password_confirmation' => 'initial-password',
+            'role_id' => $this->adminRole->id,
+        ];
+
+        $this->postJson('/api/v1/users', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.email', 'manual.member@example.test')
+            ->assertJsonPath('data.account_status', 'active')
+            ->assertJsonMissingPath('data.password');
+
+        $created = User::where('email', 'manual.member@example.test')->sole();
+        $this->assertTrue(Hash::check($payload['password'], $created->password));
+        $this->assertSame([$this->memberRole->id], $created->roles()->pluck('roles.id')->all());
+        $this->assertNotNull($created->profile);
+        $this->assertDatabaseMissing('user_invitations', ['email' => $created->email]);
+        $this->postJson('/api/v1/users', $payload)->assertUnprocessable()->assertJsonValidationErrors('email');
+    }
+
+    public function test_manual_creation_checks_permission_and_password_confirmation(): void
+    {
+        $payload = [
+            'name' => 'Manual Member',
+            'email' => 'manual.member@example.test',
+            'password' => 'initial-password',
+            'password_confirmation' => 'wrong-password',
+        ];
+        $this->actingAs($this->member, 'sanctum')->postJson('/api/v1/users', $payload)->assertForbidden();
+        $this->actingAs($this->admin, 'sanctum')->postJson('/api/v1/users', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('password');
+        $this->assertDatabaseMissing('users', ['email' => $payload['email']]);
+    }
+
     public function test_admin_can_filter_users_by_search_status_and_role(): void
     {
         $target = User::factory()->create(['name' => 'Specific Unique Person', 'account_status' => AccountStatus::Active]);
@@ -97,6 +138,35 @@ class UserManagementTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.id', $this->member->id)
             ->assertJsonPath('data.name', 'Standard Member');
+    }
+
+    public function test_account_owner_only_fields_are_not_exposed_to_other_users(): void
+    {
+        $this->member->forceFill([
+            'pending_email' => 'replacement@example.test',
+            'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
+            'two_factor_recovery_codes' => ['code-one', 'code-two'],
+        ])->save();
+
+        $ownerToken = $this->member->createToken('member-session')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$ownerToken)
+            ->getJson('/api/v1/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.pending_email', 'replacement@example.test')
+            ->assertJsonPath('data.two_factor_enabled', true)
+            ->assertJsonPath('data.recovery_codes_remaining', 2);
+
+        $adminToken = $this->admin->createToken('admin-session')->plainTextToken;
+        $this->app['auth']->forgetGuards();
+
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->getJson('/api/v1/users/'.$this->member->id)
+            ->assertOk()
+            ->assertJsonPath('data.two_factor_enabled', true)
+            ->assertJsonMissingPath('data.pending_email')
+            ->assertJsonMissingPath('data.recovery_codes_remaining');
     }
 
     public function test_member_cannot_update_other_users(): void
@@ -196,5 +266,19 @@ class UserManagementTest extends TestCase
             ->assertJsonPath('data.account_status', AccountStatus::Active->value);
 
         $this->assertSame(AccountStatus::Active, $targetUser->fresh()->account_status);
+    }
+
+    public function test_admin_status_update_revokes_tokens_that_stay_revoked_after_reactivation(): void
+    {
+        $target = User::factory()->create();
+        $target->roles()->attach($this->memberRole->id);
+        $targetToken = $target->createToken('target')->plainTextToken;
+        $adminToken = $this->admin->createToken('admin')->plainTextToken;
+
+        $this->withToken($adminToken)->putJson('/api/v1/users/'.$target->id, ['account_status' => 'suspended'])->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($adminToken)->postJson('/api/v1/users/'.$target->id.'/activate')->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($targetToken)->getJson('/api/v1/auth/me')->assertUnauthorized();
     }
 }

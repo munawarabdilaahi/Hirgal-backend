@@ -1,6 +1,8 @@
+import { SearchInput } from '@/components/ui/search-input';
+import { PageHeader } from '@/components/layout/primitives';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, UserRound } from 'lucide-react';
+import { UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/feedback/EmptyState';
@@ -30,6 +32,7 @@ import { AccountStatusBadge } from '@/features/auth/components/AccountStatusBadg
 import { useAdministrativeUsers, useUserDirectory } from '@/features/users/user-queries';
 import { useDebouncedValue } from '@/features/users/use-debounced-value';
 import { InviteUserDialog } from '@/features/users/InviteUserDialog';
+import { AddUserDialog } from '@/features/users/AddUserDialog';
 import { hasPermission } from '@/features/auth/permissions';
 import type { AccountStatus, ApiDirectoryUser, ApiUser } from '@/services/api/contracts';
 
@@ -82,6 +85,17 @@ function usePageSize(defaultValue: number) {
   return { changePageSize, page, perPage, setPage };
 }
 
+function UserCreationActions({ canCreate, canInvite }: { canCreate: boolean; canInvite: boolean }) {
+  if (!canCreate && !canInvite) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {canCreate && <AddUserDialog />}
+      {canInvite && <InviteUserDialog />}
+    </div>
+  );
+}
+
 export function UsersRoute() {
   const { user } = useAuth();
 
@@ -115,8 +129,8 @@ function CollaborativeDirectory() {
   const meta = directoryQuery.data?.meta;
 
   return (
-    <section aria-labelledby="people-directory-title" className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <section aria-labelledby="people-directory-title" className="space-y-6">
+      <PageHeader className="items-start">
         <div className="space-y-2">
         <p className="text-sm font-medium text-primary">People</p>
         <h1 className="text-2xl font-semibold tracking-tight" id="people-directory-title">
@@ -126,16 +140,14 @@ function CollaborativeDirectory() {
           Find active teammates by name, email, job title, or department.
         </p>
         </div>
-        {hasPermission(user, 'users.invite') && <InviteUserDialog />}
-      </header>
+        <UserCreationActions canCreate={hasPermission(user, 'users.create')} canInvite={hasPermission(user, 'users.invite')} />
+      </PageHeader>
 
       <Card>
         <CardContent className="grid gap-3 pt-6 md:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.55fr)_auto]">
           <label className="relative block">
             <span className="sr-only">Search people</span>
-            <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
+            <SearchInput
               onChange={(event) => {
                 setSearch(event.target.value);
                 setPage(1);
@@ -161,9 +173,7 @@ function CollaborativeDirectory() {
       </Card>
 
       {directoryQuery.isPending ? (
-        <div className="flex min-h-48 items-center justify-center">
-          <LoadingState label="Loading team directory" />
-        </div>
+        <LoadingState label="Loading team directory" layout="table" />
       ) : directoryQuery.isError ? (
         <ErrorState
           action={
@@ -190,7 +200,7 @@ function CollaborativeDirectory() {
               <div className="hidden md:block">
                 <DirectoryTable users={users} />
               </div>
-              <div className="grid gap-3 p-4 md:hidden">
+              <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
                 {users.map((person) => <DirectoryCard key={person.id} user={person} />)}
               </div>
             </CardContent>
@@ -287,8 +297,8 @@ function AdministrativeUserList() {
   const meta = usersQuery.data?.meta;
 
   return (
-    <section aria-labelledby="user-administration-title" className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <section aria-labelledby="user-administration-title" className="space-y-6">
+      <PageHeader className="items-start">
         <div className="space-y-2">
         <p className="text-sm font-medium text-primary">Administration</p>
         <h1 className="text-2xl font-semibold tracking-tight" id="user-administration-title">
@@ -299,16 +309,14 @@ function AdministrativeUserList() {
           with the backend-provided <code>users.view</code> permission.
         </p>
         </div>
-        {hasPermission(user, 'users.invite') && <InviteUserDialog />}
-      </header>
+        <UserCreationActions canCreate={hasPermission(user, 'users.create')} canInvite={hasPermission(user, 'users.invite')} />
+      </PageHeader>
 
       <Card>
         <CardContent className="grid gap-3 pt-6 sm:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_minmax(9rem,0.45fr)_minmax(9rem,0.5fr)_minmax(11rem,0.55fr)_auto]">
           <label className="relative block">
             <span className="sr-only">Search users</span>
-            <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
+            <SearchInput
               onChange={(event) => {
                 setSearch(event.target.value);
                 setPage(1);
@@ -361,9 +369,7 @@ function AdministrativeUserList() {
       </Card>
 
       {usersQuery.isPending ? (
-        <div className="flex min-h-48 items-center justify-center">
-          <LoadingState label="Loading administrative users" />
-        </div>
+        <LoadingState label="Loading administrative users" layout="table" columns={5} />
       ) : usersQuery.isError ? (
         <ErrorState
           action={
@@ -388,7 +394,7 @@ function AdministrativeUserList() {
               <div className="hidden md:block">
                 <AdministrativeTable users={users} />
               </div>
-              <div className="grid gap-3 p-4 md:hidden">
+              <div className="grid grid-cols-1 gap-3 p-4 md:hidden">
                 {users.map((person) => <AdministrativeCard key={person.id} user={person} />)}
               </div>
             </CardContent>

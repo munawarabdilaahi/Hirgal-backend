@@ -10,6 +10,8 @@ import { apiClient } from '@/services/api/apiClient';
 const { authApi } = vi.hoisted(() => ({
   authApi: {
     login: vi.fn(),
+    verifyTwoFactor: vi.fn(),
+    cancelTwoFactor: vi.fn(),
     acceptInvitation: vi.fn(),
     getCurrentUser: vi.fn(),
     logout: vi.fn(),
@@ -42,6 +44,12 @@ describe('authentication routes', () => {
     await router.navigate('/');
     vi.clearAllMocks();
     authApi.getCurrentUser.mockResolvedValue(activeUser);
+    vi.spyOn(apiClient, 'get').mockImplementation(async (path) => {
+      if (path === '/notifications/unread-count') {
+        return { data: { data: { unread_count: 0 } } };
+      }
+      return { data: { data: [], meta: { current_page: 1, last_page: 1, total: 0, per_page: 15 } } };
+    });
   });
 
   it('redirects protected pages to login and safely returns after successful login', async () => {
@@ -64,10 +72,55 @@ describe('authentication routes', () => {
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, Amina Hassan' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: "Today’s Workspace Agenda" }, { timeout: 5000 })).toBeInTheDocument();
     expect(authApi.login).toHaveBeenCalledWith({
       email: 'amina@example.com',
       password: 'secret123',
+    });
+  });
+
+  it('redirects 2FA-enabled user to dedicated 2FA page and completes authentication upon valid code verification', async () => {
+    authApi.login.mockResolvedValue({
+      two_factor_required: true,
+      challenge_token: 'challenge-xyz',
+      expires_at: '2026-11-22T20:00:00Z',
+    });
+    authApi.verifyTwoFactor.mockResolvedValue({
+      access_token: 'valid-2fa-token',
+      token_type: 'Bearer',
+      user: activeUser,
+    });
+
+    render(
+      <AppProviders>
+        <App />
+      </AppProviders>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back' }, { timeout: 5000 })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Work email/), {
+      target: { value: 'amina@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'secret123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    // Must navigate to the dedicated 2FA verification page
+    expect(await screen.findByRole('heading', { name: 'Verify your identity' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText('Enter the verification code to continue.')).toBeInTheDocument();
+
+    const codeInput = screen.getByLabelText(/Verification code/);
+    fireEvent.paste(codeInput, {
+      clipboardData: {
+        getData: () => '654321',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+    // After successful 2FA code verification, navigates to Dashboard
+    expect(await screen.findByRole('heading', { name: "Today’s Workspace Agenda" }, { timeout: 5000 })).toBeInTheDocument();
+    expect(authApi.verifyTwoFactor).toHaveBeenCalledWith({
+      challenge_token: 'challenge-xyz',
+      code: '654321',
     });
   });
 
@@ -86,7 +139,7 @@ describe('authentication routes', () => {
     fireEvent.change(screen.getByLabelText(/Confirm password/), { target: { value: 'securepass123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Accept invitation' }));
 
-    expect(await screen.findByRole('heading', { name: 'Welcome, Amina Hassan' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: "Today’s Workspace Agenda" })).toBeInTheDocument();
     expect(authApi.acceptInvitation).toHaveBeenCalledWith({
       token: 'invitation-token',
       name: 'Amina Hassan',
@@ -113,7 +166,7 @@ describe('authentication routes', () => {
       expect(requests).toHaveBeenCalledWith('/tasks', {
         params: { page: 1, assignee: activeUser.id, status: undefined, sort_by: 'due_date', sort_direction: 'asc' },
       });
-      expect(requests).toHaveBeenCalledTimes(1);
+      expect(requests.mock.calls.filter(([url]) => url === '/tasks')).toHaveLength(1);
     } finally {
       requests.mockRestore();
     }
@@ -295,7 +348,7 @@ describe('authentication routes', () => {
     });
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-    await screen.findByRole('heading', { name: 'Welcome, Amina Hassan' });
+    await screen.findByRole('heading', { name: "Today’s Workspace Agenda" });
     await user.click(screen.getByRole('button', { name: 'Open account menu for Amina Hassan' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
 
@@ -322,7 +375,7 @@ describe('authentication routes', () => {
     });
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-    await screen.findByRole('heading', { name: 'Welcome, Amina Hassan' });
+    await screen.findByRole('heading', { name: "Today’s Workspace Agenda" });
     await user.click(screen.getByRole('button', { name: 'Open account menu for Amina Hassan' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
 
@@ -346,18 +399,18 @@ describe('authentication routes', () => {
         <App />
       </AppProviders>,
     );
-    fireEvent.change(await screen.findByLabelText(/^Name/), { target: { value: 'Amina Ali' } });
+    fireEvent.change(await screen.findByLabelText(/^Full name/, {}, { timeout: 5000 }), { target: { value: 'Amina Ali' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
-    await waitFor(() =>
-      expect(authApi.updateProfile).toHaveBeenCalledWith({
+    await waitFor(
+      () => expect(authApi.updateProfile).toHaveBeenCalledWith({
         name: 'Amina Ali',
-        timezone: 'Africa/Nairobi',
         phone: null,
         job_title: null,
         department: null,
         bio: null,
       }),
+      { timeout: 5000 },
     );
   });
 

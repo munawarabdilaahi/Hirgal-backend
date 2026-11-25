@@ -9,7 +9,7 @@ use App\Http\Requests\Api\V1\Tasks\UpdateTaskRequest;
 use App\Http\Resources\Api\V1\TaskResource;
 use App\Models\Project;
 use App\Models\Task;
-use App\Policies\ProjectPolicy;
+use App\Policies\TaskPolicy;
 use App\Services\Task\TaskService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +28,8 @@ class TaskController extends Controller
      */
     public function index(ListTasksRequest $request): JsonResponse
     {
-        $paginator = $this->taskService->listTasks($request->user(), $request->validated());
+        $filters = $request->validated();
+        $paginator = $this->taskService->listTasks($request->user(), $filters);
 
         return ApiResponse::success(
             data: TaskResource::collection($paginator->items()),
@@ -38,6 +39,9 @@ class TaskController extends Controller
                 'last_page' => $paginator->lastPage(),
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
+                ...($request->boolean('with_schedule')
+                    ? ['schedule' => $this->taskService->scheduleSummary($request->user(), $filters)]
+                    : []),
             ]
         );
     }
@@ -45,7 +49,7 @@ class TaskController extends Controller
     /**
      * Create a task inside the project.
      */
-    public function store(StoreTaskRequest $request, Project $project): JsonResponse
+    public function store(StoreTaskRequest $request, ?Project $project = null): JsonResponse
     {
         Gate::authorize('create', [Task::class, $project]);
 
@@ -63,11 +67,11 @@ class TaskController extends Controller
      */
     public function show(Request $request, Task $task): JsonResponse
     {
-        abort_unless(ProjectPolicy::isWithinScope($request->user(), $task->project), 404);
+        abort_unless(TaskPolicy::isWithinScope($request->user(), $task), 404);
 
         Gate::authorize('view', $task);
 
-        $task->load(TaskService::EAGER);
+        $task->load([...TaskService::EAGER, 'followers.profile']);
 
         return ApiResponse::success(
             data: new TaskResource($task),
@@ -82,7 +86,7 @@ class TaskController extends Controller
     {
         Gate::authorize('update', $task);
 
-        $task = $this->taskService->updateTask($task, $request->validated());
+        $task = $this->taskService->updateTask($task, $request->validated(), $request->user());
 
         return ApiResponse::success(
             data: new TaskResource($task),
@@ -95,7 +99,7 @@ class TaskController extends Controller
      */
     public function destroy(Request $request, Task $task): JsonResponse
     {
-        abort_unless(ProjectPolicy::isWithinScope($request->user(), $task->project), 404);
+        abort_unless(TaskPolicy::isWithinScope($request->user(), $task), 404);
 
         Gate::authorize('delete', $task);
 

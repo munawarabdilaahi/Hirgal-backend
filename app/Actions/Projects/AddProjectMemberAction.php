@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\ProjectMember;
 use App\Models\User;
 use App\Policies\ProjectPolicy;
+use App\Services\Notification\NotificationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -50,7 +51,7 @@ class AddProjectMemberAction
                 throw new AuthorizationException('You are not authorized to grant this project role.');
             }
 
-            return ProjectMember::firstOrCreate(
+            $member = ProjectMember::firstOrCreate(
                 [
                     'project_id' => $project->id,
                     'user_id' => (int) $data['user_id'],
@@ -60,6 +61,15 @@ class AddProjectMemberAction
                     'joined_at' => now(),
                 ]
             );
+
+            if ($member->wasRecentlyCreated && $member->user_id !== $actor->id) {
+                $user = User::find($member->user_id);
+                if ($user !== null) {
+                    app(NotificationService::class)->notifyProject($project, 'project_member_added', $actor, [$user]);
+                }
+            }
+
+            return $member;
         });
     }
 }

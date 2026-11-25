@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\ForceJsonResponse;
+use App\Http\Middleware\StatefulWorkspaceRequests;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -13,6 +14,7 @@ use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -23,8 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withBroadcasting(__DIR__.'/../routes/channels.php', ['prefix' => 'api', 'middleware' => ['api', 'auth:sanctum']])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prependToGroup('api', [
+            StatefulWorkspaceRequests::class,
             ForceJsonResponse::class,
         ]);
 
@@ -37,11 +41,25 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontFlash(['token']);
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
 
         $exceptions->render(function (ValidationException $e, Request $request) {
+            $formRoute = match ($request->route()?->getName()) {
+                'password.update' => 'password.reset',
+                'password.email' => 'password.request',
+                'invitations.store' => 'invitations.accept',
+                'profile.update' => 'profile.edit',
+                default => null,
+            };
+
+            if ($formRoute !== null && ! $request->expectsJson()) {
+                return to_route($formRoute, status: 303)->withErrors($e->errors());
+            }
+
             if ($request->is('api/*') || $request->expectsJson()) {
                 return ApiResponse::error(
                     message: 'Validation failed',
@@ -99,6 +117,22 @@ return Application::configure(basePath: dirname(__DIR__))
                     status: 429,
                     errorCode: 'RATE_LIMIT_EXCEEDED'
                 )->withHeaders($e->getHeaders());
+            }
+        });
+
+        $exceptions->render(function (HttpExceptionInterface $e, Request $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return ApiResponse::error(
+                    message: $e->getMessage() ?: 'An HTTP error occurred.',
+                    status: $e->getStatusCode(),
+                    errorCode: match ($e->getStatusCode()) {
+                        413 => 'PAYLOAD_TOO_LARGE',
+                        419 => 'CSRF_TOKEN_MISMATCH',
+                        422 => 'UNPROCESSABLE_ENTITY',
+                        503 => 'SERVICE_UNAVAILABLE',
+                        default => 'HTTP_ERROR',
+                    }
+                );
             }
         });
 

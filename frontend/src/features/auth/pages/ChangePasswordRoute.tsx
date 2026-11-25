@@ -1,5 +1,6 @@
+import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
+import { PageHeader } from '@/components/layout/primitives';
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   changePasswordSchema,
   getApiValidationErrors,
@@ -15,8 +15,19 @@ import {
   getValidationErrors,
 } from '@/features/auth/auth-validation';
 import { authApi } from '@/services/api/authApi';
+import { passwordStrength, strengthColors } from '@/features/auth/password-strength';
 
 export function ChangePasswordRoute() {
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <PageHeader title="Change password" eyebrow="Account security" description="Update your password using your current credentials." />
+      <ChangePasswordDialog initialOpen />
+    </div>
+  );
+}
+
+export function ChangePasswordDialog({ initialOpen = false }: { initialOpen?: boolean }) {
+  const [editorOpen, setEditorOpen] = useState(initialOpen);
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
@@ -48,6 +59,8 @@ export function ChangePasswordRoute() {
       setCurrentPassword('');
       setPassword('');
       setPasswordConfirmation('');
+      setLogoutOtherDevices(false);
+      setEditorOpen(false);
       toast.success('Your password has been updated.');
     } catch (error: unknown) {
       setFieldErrors(getApiValidationErrors(error));
@@ -58,22 +71,9 @@ export function ChangePasswordRoute() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header className="space-y-2">
-        <p className="text-sm font-medium text-muted-foreground">Account security</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Change password</h1>
-        <p className="text-sm leading-6 text-muted-foreground">
-          Update your password using your current credentials.
-        </p>
-      </header>
-      <Card>
-        <CardHeader>
-          <CardTitle>Password</CardTitle>
-          <CardDescription>
-            Passwords must be at least 8 characters and differ from your current password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <>
+      <Button onClick={() => setEditorOpen(true)}>Change password</Button>
+      {editorOpen && <FormDialog title="Change password" description="Use at least 8 characters and choose a different password from your current one." pending={isSubmitting} onClose={() => { setCurrentPassword(''); setPassword(''); setPasswordConfirmation(''); setLogoutOtherDevices(false); setFormError(null); setFieldErrors({}); setEditorOpen(false); }}>
           {formError ? (
             <Alert className="mb-5" role="alert" variant="destructive">{formError}</Alert>
           ) : null}
@@ -105,6 +105,29 @@ export function ChangePasswordRoute() {
                 />
               )}
             </FormField>
+            {password ? (
+              <div aria-live="polite" className="-mt-2 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium">Password strength</span>
+                  <span className="text-muted-foreground">{passwordStrength(password).label}</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {[1, 2, 3, 4].map((level) => (
+                    <span
+                      className={`h-1.5 rounded-full ${level <= passwordStrength(password).score ? strengthColors[passwordStrength(password).score] : 'bg-muted'}`}
+                      key={level}
+                    />
+                  ))}
+                </div>
+                <ul className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                  {passwordStrength(password).checks.map((check) => (
+                    <li className={check.met ? 'text-success' : undefined} key={check.id}>
+                      {check.met ? '✓' : '•'} {check.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <FormField
               error={fieldErrors.password_confirmation}
               htmlFor="confirm-new-password"
@@ -134,15 +157,9 @@ export function ChangePasswordRoute() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Button asChild variant="outline">
-                <Link to="/profile">Cancel</Link>
-              </Button>
-              <Button loading={isSubmitting} type="submit">Update password</Button>
-            </div>
+            <FormDialogActions pending={isSubmitting} submitLabel="Update password" />
           </form>
-        </CardContent>
-      </Card>
-    </div>
+      </FormDialog>}
+    </>
   );
 }

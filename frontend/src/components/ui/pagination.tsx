@@ -37,7 +37,7 @@ function Pagination({
   const lastVisiblePage = visiblePages.at(-1) ?? 1;
 
   return (
-    <nav aria-label="Pagination" className={cn('flex items-center justify-center gap-1', className)}>
+    <nav aria-label="Pagination" className={cn('flex flex-wrap items-center justify-center gap-1', className)}>
       <Button
         aria-label="Go to previous page"
         disabled={currentPage <= 1}

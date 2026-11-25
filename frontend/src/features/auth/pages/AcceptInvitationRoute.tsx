@@ -14,15 +14,31 @@ export function AcceptInvitationRoute() {
   const navigate = useNavigate();
   const [token] = useState(() => new URLSearchParams(location.hash.slice(1)).get('token')
     ?? new URLSearchParams(location.search).get('token'));
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (token && (location.hash || location.search)) {
       void navigate(location.pathname, { replace: true });
     }
   }, [location.hash, location.pathname, location.search, navigate, token]);
+
+  return <AcceptInvitationForm token={token} accept={async (request) => {
+    const session = await authApi.acceptInvitation(request);
+    if (session.token_type !== 'Bearer' || !session.access_token) {
+      throw new Error('The API returned an invalid authentication response.');
+    }
+    setAccessToken(session.access_token);
+    void navigate('/dashboard', { replace: true });
+  }} />;
+}
+
+export function AcceptInvitationForm({ token, accept, web = false }: {
+  token: string | null;
+  accept: (request: Parameters<typeof authApi.acceptInvitation>[0]) => Promise<unknown>;
+  web?: boolean;
+}) {
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -34,17 +50,12 @@ export function AcceptInvitationRoute() {
     setIsSubmitting(true);
 
     try {
-      const session = await authApi.acceptInvitation({
+      await accept({
         token,
         name: String(fields.get('name')),
         password: String(fields.get('password')),
         password_confirmation: String(fields.get('password_confirmation')),
       });
-      if (session.token_type !== 'Bearer' || !session.access_token) {
-        throw new Error('The API returned an invalid authentication response.');
-      }
-      setAccessToken(session.access_token);
-      void navigate('/dashboard', { replace: true });
     } catch (error: unknown) {
       const validationErrors = getApiValidationErrors(error);
       setFieldErrors(validationErrors);
@@ -56,9 +67,10 @@ export function AcceptInvitationRoute() {
 
   return (
     <AuthPageLayout
+      web={web}
       title="Accept your invitation"
       description="Set up your Hirgal account."
-      footer={<Link className="font-medium text-primary hover:underline" to="/login">Return to sign in</Link>}
+      footer={<Link className="font-medium text-primary hover:underline" reloadDocument={web} to="/login">Return to sign in</Link>}
     >
       <form className="grid gap-5" onSubmit={(event) => void submit(event)}>
         {!token && <Alert variant="warning">Open the link in your invitation email to continue.</Alert>}

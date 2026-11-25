@@ -4,12 +4,18 @@ import type {
   ApiPaginatedResponse,
   ApiSuccess,
   ApiUser,
+  CreateUserRequest,
   UpdateUserRequest,
   UserDirectoryFilters,
   UserListFilters,
 } from '@/services/api/contracts';
 
 export const userApi = {
+  async createUser(request: CreateUserRequest): Promise<ApiUser> {
+    const response = await apiClient.post<ApiSuccess<ApiUser>>('/users', request);
+    return response.data.data;
+  },
+
   async listUsers(filters: UserListFilters): Promise<ApiPaginatedResponse<ApiUser>> {
     const response = await apiClient.get<ApiPaginatedResponse<ApiUser>>('/users', {
       params: filters,

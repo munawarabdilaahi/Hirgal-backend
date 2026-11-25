@@ -12,17 +12,26 @@ import {
   resetPasswordSchema,
 } from '@/features/auth/auth-validation';
 import { authApi } from '@/services/api/authApi';
+import type { ResetPasswordRequest } from '@/services/api/contracts';
 
 export function ResetPasswordRoute() {
   const [searchParams] = useSearchParams();
-  const [email, setEmail] = useState('');
+  return <ResetPasswordForm resetToken={searchParams.get('token') ?? ''} reset={authApi.resetPassword} />;
+}
+
+export function ResetPasswordForm({ resetToken, initialEmail = '', reset, web = false }: {
+  resetToken: string;
+  initialEmail?: string;
+  reset: (request: ResetPasswordRequest) => Promise<unknown>;
+  web?: boolean;
+}) {
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const resetToken = searchParams.get('token') ?? '';
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -44,11 +53,12 @@ export function ResetPasswordRoute() {
     setIsSubmitting(true);
 
     try {
-      await authApi.resetPassword(parsed.data);
+      await reset(parsed.data);
       setSubmitted(true);
     } catch (error: unknown) {
-      setFieldErrors(getApiValidationErrors(error));
-      setFormError(getSafeErrorMessage(error));
+      const errors = getApiValidationErrors(error);
+      setFieldErrors(errors);
+      setFormError(errors.token ?? getSafeErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -56,9 +66,10 @@ export function ResetPasswordRoute() {
 
   return (
     <AuthPageLayout
+      web={web}
       description="Choose a new password for your Hirgal account."
       footer={
-        <Link className="font-medium text-primary hover:underline" to="/login">
+        <Link className="font-medium text-primary hover:underline" reloadDocument={web} to="/login">
           Return to sign in
         </Link>
       }

@@ -10,6 +10,20 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Enter your password.'),
 });
 
+export const twoFactorCodeSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Enter the six-digit code from your authenticator app.'),
+});
+
+export const recoveryCodeSchema = z.object({
+  recovery_code: z
+    .string()
+    .trim()
+    .min(1, 'Enter your recovery code.'),
+});
+
 export const forgotPasswordSchema = z.object({ email });
 
 export const resetPasswordSchema = z

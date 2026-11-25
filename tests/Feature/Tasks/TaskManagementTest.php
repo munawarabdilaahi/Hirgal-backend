@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tasks;
 
+use App\Actions\Tasks\CreateTaskAction;
 use App\Enums\ProjectMemberRole;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
@@ -116,6 +117,93 @@ class TaskManagementTest extends TestCase
         $this->assertSame(1, $response->json('meta.total'));
     }
 
+    public function test_board_move_permission_matches_the_task_update_policy(): void
+    {
+        $task = Task::factory()->for($this->project)->create(['status' => TaskStatus::Todo]);
+        $headers = $this->auth($this->taskWorker);
+
+        $this->getJson('/api/v1/tasks?with_move_permissions=1', $headers)
+            ->assertOk()
+            ->assertJsonPath('data.0.can_update', true);
+
+        $this->putJson('/api/v1/tasks/'.$task->uuid, ['status' => TaskStatus::Done->value], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.status', TaskStatus::Done->value);
+        $this->assertNotNull($task->fresh()->completed_at);
+
+        ProjectMember::where('project_id', $this->project->id)->where('user_id', $this->taskWorker->id)
+            ->update(['role' => ProjectMemberRole::Viewer]);
+
+        $headers = $this->auth($this->taskWorker);
+        $this->getJson('/api/v1/tasks?with_move_permissions=1', $headers)
+            ->assertOk()
+            ->assertJsonPath('data.0.can_update', false);
+        $this->putJson('/api/v1/tasks/'.$task->uuid, ['status' => TaskStatus::Todo->value], $headers)->assertForbidden();
+    }
+
+    public function test_task_search_matches_title_and_description_without_widening_project_scope(): void
+    {
+        $titleMatch = Task::factory()->create(['project_id' => $this->project->id, 'title' => 'Release checklist']);
+        $descriptionMatch = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'title' => 'Deployment plan',
+            'description' => 'Prepare the release',
+        ]);
+        Task::factory()->create(['project_id' => $this->project->id, 'title' => 'Unrelated task', 'description' => null]);
+        Task::factory()->for(Project::factory(), 'project')->create(['title' => 'Release in another project']);
+
+        $this->getJson('/api/v1/tasks?search=release&sort_by=title&sort_direction=asc', $this->auth($this->member, 'member'))
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.uuid', $descriptionMatch->uuid)
+            ->assertJsonPath('data.1.uuid', $titleMatch->uuid);
+    }
+
+    public function test_task_schedule_groups_and_counts_respect_project_scope_and_filters(): void
+    {
+        $this->travelTo(now()->startOfDay()->addHours(12));
+
+        $tasks = Task::factory()->for($this->project, 'project')->inProgress();
+        $overdue = $tasks->create(['due_date' => today()->subDay()]);
+        $tasks->create(['due_date' => today()]);
+        $tasks->done()->create(['due_date' => today()]);
+        $tasks->create(['due_date' => today()->addDay()]);
+        $tasks->create(['due_date' => today()->addDays(2)]);
+        $unscheduled = $tasks->create(['due_date' => null]);
+        $closed = $tasks->done()->create(['due_date' => today()->subDay()]);
+        Task::factory()->inProgress()->create(['due_date' => today()->subDay()]);
+
+        $this->getJson('/api/v1/tasks?with_schedule=1', $this->auth($this->member))
+            ->assertOk()
+            ->assertJsonPath('meta.schedule', [
+                'overdue' => 1,
+                'today' => 2,
+                'tomorrow' => 1,
+                'upcoming' => 1,
+                'other' => 2,
+                'due_today' => 1,
+                'due_tomorrow' => 1,
+                'done_today' => 1,
+            ]);
+
+        $this->getJson('/api/v1/tasks?schedule=overdue', $this->auth($this->member))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.uuid', $overdue->uuid);
+
+        $this->getJson('/api/v1/tasks?schedule=other', $this->auth($this->member))
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['uuid' => $unscheduled->uuid])
+            ->assertJsonFragment(['uuid' => $closed->uuid]);
+
+        $this->getJson('/api/v1/tasks?with_schedule=1&status=done', $this->auth($this->member))
+            ->assertOk()
+            ->assertJsonPath('meta.schedule.due_today', 0)
+            ->assertJsonPath('meta.schedule.done_today', 1)
+            ->assertJsonPath('meta.schedule.overdue', 0);
+    }
+
     public function test_system_admin_can_list_all_tasks(): void
     {
         Task::factory()->create(['project_id' => $this->project->id, 'creator_id' => $this->owner->id]);
@@ -128,13 +216,45 @@ class TaskManagementTest extends TestCase
         $this->assertSame(2, $response->json('meta.total'));
     }
 
-    public function test_member_without_tasks_create_cannot_create_task(): void
+    public function test_member_without_tasks_create_can_create_but_cannot_update_delete_or_assign(): void
     {
-        $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
-            'title' => 'Sneaky task',
-        ], $this->auth($this->member, 'member'))
-            ->assertStatus(403)
-            ->assertJsonPath('error_code', 'FORBIDDEN');
+        $headers = $this->auth($this->member);
+        $path = '/api/v1/projects/'.$this->project->uuid.'/tasks';
+        $task = $this->postJson($path, ['title' => 'Member task', 'assignees' => []], $headers)->assertCreated();
+        $taskPath = '/api/v1/tasks/'.$task->json('data.uuid');
+
+        $this->putJson($taskPath, ['status' => 'done'], $headers)->assertForbidden();
+        $this->deleteJson($taskPath, [], $headers)->assertForbidden();
+        $this->postJson($path, ['title' => 'Assigned task', 'assignees' => [$this->member->id]], $headers)->assertForbidden();
+    }
+
+    public function test_user_without_a_role_can_create_and_read_only_their_own_private_tasks(): void
+    {
+        $actor = User::factory()->create();
+        $path = '/api/v1/tasks';
+        $payload = ['title' => 'Private task', 'context' => 'other', 'assignees' => [], 'followers' => []];
+        $this->postJson($path, $payload)->assertUnauthorized();
+        $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', $payload, $this->auth($actor))->assertNotFound();
+        $task = $this->postJson($path, $payload, $this->auth($actor))
+            ->assertCreated()
+            ->assertJsonPath('data.project', null);
+
+        $taskPath = $path.'/'.$task->json('data.uuid');
+        $foreignPrivateTask = Task::factory()->create(['project_id' => null, 'creator_id' => $this->member->id]);
+        ProjectMember::factory()->create(['project_id' => $this->project->id, 'user_id' => $actor->id]);
+        $projectTask = Task::factory()->create(['project_id' => $this->project->id, 'creator_id' => $actor->id]);
+
+        $this->getJson($path, $this->auth($actor))->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.uuid', $task->json('data.uuid'));
+        $this->getJson($taskPath, $this->auth($actor))->assertOk()->assertJsonPath('data.title', 'Private task');
+        $this->getJson($path.'/'.$projectTask->uuid, $this->auth($actor))->assertForbidden();
+        $this->getJson($path.'/'.$foreignPrivateTask->uuid, $this->auth($actor))->assertNotFound();
+        $this->putJson($taskPath, ['status' => 'done'], $this->auth($actor))->assertForbidden();
+
+        foreach ([$this->member, $this->admin] as $otherUser) {
+            $this->getJson($path.'?search=Private%20task', $this->auth($otherUser))->assertOk()->assertJsonCount(0, 'data');
+            $this->getJson($taskPath, $this->auth($otherUser))->assertNotFound();
+        }
     }
 
     public function test_task_worker_with_global_permission_can_create_task(): void
@@ -162,6 +282,80 @@ class TaskManagementTest extends TestCase
         $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [], $this->auth($this->lead, 'lead'))
             ->assertStatus(422)
             ->assertJsonPath('error_code', 'VALIDATION_ERROR');
+    }
+
+    public function test_creation_details_are_saved_and_only_one_reminder_is_delivered(): void
+    {
+        $this->travelTo(now()->startOfDay()->addHours(12));
+        $this->member->profile()->create(['department' => 'Engineering']);
+        $tomorrow = today()->addDay()->toDateString();
+        $response = $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
+            'title' => 'Release checklist',
+            'context' => 'department',
+            'department' => 'Engineering',
+            'description' => '<p onclick="alert(1)"><strong>Check</strong><img src=x onerror=alert(1)><script>alert(1)</script></p>',
+            'description_is_rich_text' => true,
+            'priority' => 'high',
+            'status' => 'in_progress',
+            'start_date' => today()->toDateString(),
+            'due_date' => $tomorrow,
+            'remind_on' => $tomorrow,
+            'tags' => ['Release', 'QA'],
+            'assignees' => [$this->member->id],
+            'followers' => [$this->owner->id],
+        ], $this->auth($this->taskWorker))
+            ->assertCreated()
+            ->assertJsonPath('data.context', 'department')
+            ->assertJsonPath('data.department', 'Engineering')
+            ->assertJsonPath('data.start_date', today()->toDateString())
+            ->assertJsonPath('data.remind_on', $tomorrow)
+            ->assertJsonPath('data.tags', ['Release', 'QA'])
+            ->assertJsonPath('data.assignees.0.id', $this->member->id)
+            ->assertJsonPath('data.followers.0.id', $this->owner->id);
+
+        $uuid = $response->json('data.uuid');
+        $this->getJson('/api/v1/tasks/'.$uuid, $this->auth($this->taskWorker))
+            ->assertOk()
+            ->assertJsonPath('data.description_html', '<p><strong>Check</strong></p>');
+
+        $this->artisan('tasks:send-reminders')->assertSuccessful();
+        $this->assertSame(0, $this->taskWorker->notifications()->count());
+        $this->assertSame(1, $this->member->notifications()->count());
+
+        $this->travel(1)->day();
+        $this->artisan('tasks:send-reminders')->assertSuccessful();
+        $this->artisan('tasks:send-reminders')->assertSuccessful();
+        $this->assertSame(1, $this->taskWorker->notifications()->count());
+        $this->getJson('/api/v1/notifications', $this->auth($this->taskWorker))
+            ->assertOk()
+            ->assertJsonPath('data.0.data.task_uuid', $uuid);
+    }
+
+    public function test_creation_rejects_invalid_timeline_and_out_of_context_people(): void
+    {
+        $this->member->profile()->create(['department' => 'Engineering']);
+        $externalUser = User::factory()->create();
+        $url = '/api/v1/projects/'.$this->project->uuid.'/tasks';
+
+        $this->postJson($url, [
+            'title' => 'Invalid dates',
+            'start_date' => today()->toDateString(),
+            'due_date' => today()->subDay()->toDateString(),
+            'followers' => [$externalUser->id],
+        ], $this->auth($this->taskWorker))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['due_date', 'followers.0']);
+
+        $this->postJson($url, [
+            'title' => 'Invalid roster',
+            'context' => 'department',
+            'department' => 'Engineering',
+            'assignees' => [$this->owner->id],
+        ], $this->auth($this->taskWorker))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('assignees');
+
+        $this->assertDatabaseCount('tasks', 0);
     }
 
     public function test_create_task_with_parent_from_same_project(): void
@@ -219,9 +413,109 @@ class TaskManagementTest extends TestCase
 
         $assigneeIds = array_column($response->json('data.assignees'), 'id');
         $this->assertContains($this->member->id, $assigneeIds);
+        $this->assertDatabaseHas('task_assignments', [
+            'task_id' => $response->json('data.id'),
+            'user_id' => $this->member->id,
+            'assigned_by' => $this->lead->id,
+        ]);
     }
 
-    public function test_viewer_contextual_role_cannot_create_task(): void
+    public function test_create_task_without_assignees(): void
+    {
+        $response = $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
+            'title' => 'Unassigned task',
+            'assignees' => [],
+        ], $this->auth($this->lead, 'lead'))
+            ->assertStatus(201);
+
+        $this->assertSame([], $response->json('data.assignees'));
+        $this->assertDatabaseMissing('task_assignments', [
+            'task_id' => $response->json('data.id'),
+        ]);
+    }
+
+    public function test_create_task_with_multiple_assignees(): void
+    {
+        $response = $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
+            'title' => 'Multi-assigned task',
+            'assignees' => [$this->member->id, $this->taskWorker->id],
+        ], $this->auth($this->lead, 'lead'))
+            ->assertStatus(201);
+
+        $assigneeIds = array_column($response->json('data.assignees'), 'id');
+        $this->assertContains($this->member->id, $assigneeIds);
+        $this->assertContains($this->taskWorker->id, $assigneeIds);
+        $this->assertCount(2, $assigneeIds);
+
+        $taskId = $response->json('data.id');
+        $this->assertDatabaseHas('task_assignments', [
+            'task_id' => $taskId,
+            'user_id' => $this->member->id,
+            'assigned_by' => $this->lead->id,
+        ]);
+        $this->assertDatabaseHas('task_assignments', [
+            'task_id' => $taskId,
+            'user_id' => $this->taskWorker->id,
+            'assigned_by' => $this->lead->id,
+        ]);
+    }
+
+    public function test_create_task_rejects_duplicate_assignees(): void
+    {
+        $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
+            'title' => 'Duplicate assignee task',
+            'assignees' => [$this->member->id, $this->member->id],
+        ], $this->auth($this->lead, 'lead'))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('assignees.1');
+    }
+
+    public function test_create_task_returns_assigned_user_directory_fields(): void
+    {
+        $response = $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
+            'title' => 'Detailed assignee task',
+            'assignees' => [$this->member->id],
+        ], $this->auth($this->lead, 'lead'))
+            ->assertStatus(201);
+
+        $assignees = $response->json('data.assignees');
+        $this->assertCount(1, $assignees);
+        $first = $assignees[0];
+
+        $this->assertSame($this->member->id, $first['id']);
+        $this->assertSame($this->member->name, $first['name']);
+        $this->assertSame($this->member->email, $first['email']);
+        $this->assertArrayHasKey('avatar_url', $first);
+        $this->assertArrayHasKey('timezone', $first);
+        $this->assertArrayHasKey('job_title', $first);
+        $this->assertArrayHasKey('department', $first);
+    }
+
+    public function test_create_task_rolls_back_if_assignment_persistence_fails(): void
+    {
+        $initialTaskCount = Task::count();
+        $action = app(CreateTaskAction::class);
+
+        TaskAssignment::creating(function (): never {
+            throw new \RuntimeException('Simulated assignment persistence failure.');
+        });
+
+        try {
+            $action->execute($this->lead, $this->project, [
+                'title' => 'Rollback task',
+                'assignees' => [$this->member->id],
+            ]);
+            $this->fail('Expected exception was not thrown.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('Simulated assignment persistence failure.', $e->getMessage());
+        } finally {
+            TaskAssignment::flushEventListeners();
+        }
+
+        $this->assertSame($initialTaskCount, Task::count());
+    }
+
+    public function test_project_viewer_can_create_task(): void
     {
         ProjectMember::where('project_id', $this->project->id)
             ->where('user_id', $this->lead->id)
@@ -230,7 +524,7 @@ class TaskManagementTest extends TestCase
         $this->postJson('/api/v1/projects/'.$this->project->uuid.'/tasks', [
             'title' => 'Viewer task',
         ], $this->auth($this->lead, 'lead'))
-            ->assertStatus(403);
+            ->assertCreated();
     }
 
     public function test_foreign_project_filter_returns_404(): void
@@ -392,5 +686,127 @@ class TaskManagementTest extends TestCase
     {
         $this->getJson('/api/v1/tasks/'.Str::uuid(), $this->auth($this->member, 'member'))
             ->assertStatus(404);
+    }
+
+    public function test_assigned_member_can_update_status_and_complete_task(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'creator_id' => $this->owner->id,
+            'status' => TaskStatus::Todo,
+            'priority' => TaskPriority::Medium,
+        ]);
+
+        TaskAssignment::create([
+            'task_id' => $task->id,
+            'user_id' => $this->member->id,
+            'assigned_by' => $this->owner->id,
+            'assigned_at' => now(),
+        ]);
+
+        // Member without global tasks.update can update their assigned task status
+        $this->putJson('/api/v1/tasks/'.$task->uuid, [
+            'status' => TaskStatus::InProgress->value,
+        ], $this->auth($this->member, 'member'))
+            ->assertOk()
+            ->assertJsonPath('data.status', TaskStatus::InProgress->value);
+
+        $this->assertNull($task->fresh()->completed_at);
+
+        // Member can mark assigned task as done
+        $this->putJson('/api/v1/tasks/'.$task->uuid, [
+            'status' => TaskStatus::Done->value,
+        ], $this->auth($this->member, 'member'))
+            ->assertOk()
+            ->assertJsonPath('data.status', TaskStatus::Done->value);
+
+        $this->assertNotNull($task->fresh()->completed_at);
+    }
+
+    public function test_followers_receive_notifications_on_status_change_and_completion(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'creator_id' => $this->owner->id,
+            'status' => TaskStatus::Todo,
+            'priority' => TaskPriority::High,
+        ]);
+
+        TaskAssignment::create([
+            'task_id' => $task->id,
+            'user_id' => $this->taskWorker->id,
+            'assigned_by' => $this->owner->id,
+            'assigned_at' => now(),
+        ]);
+
+        // Add member as follower
+        $task->followers()->attach($this->member->id);
+
+        // Worker updates status to in_progress
+        $this->putJson('/api/v1/tasks/'.$task->uuid, [
+            'status' => TaskStatus::InProgress->value,
+        ], $this->auth($this->taskWorker, 'worker'))->assertOk();
+
+        $statusNotification = $this->member->notifications()->latest('id')->first();
+        $this->assertNotNull($statusNotification);
+        $this->assertSame('task_status_changed', $statusNotification->data['event']);
+
+        // Worker marks task as done
+        $this->putJson('/api/v1/tasks/'.$task->uuid, [
+            'status' => TaskStatus::Done->value,
+        ], $this->auth($this->taskWorker, 'worker'))->assertOk();
+
+        $notifications = $this->member->notifications()->get();
+        $this->assertCount(2, $notifications);
+        $doneNotification = $notifications->firstWhere('data.event', 'task_completed');
+        $this->assertNotNull($doneNotification);
+        $this->assertNotNull($doneNotification);
+        $this->assertSame('task_completed', $doneNotification->data['event']);
+    }
+
+    public function test_update_task_syncs_followers_and_notifies_new_followers(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'creator_id' => $this->owner->id,
+            'status' => TaskStatus::Todo,
+        ]);
+
+        $this->putJson('/api/v1/tasks/'.$task->uuid, [
+            'followers' => [$this->member->id],
+        ], $this->auth($this->lead, 'lead'))->assertOk();
+
+        $this->assertDatabaseHas('task_followers', [
+            'task_id' => $task->id,
+            'user_id' => $this->member->id,
+        ]);
+
+        $followedNotification = $this->member->notifications()->latest('id')->first();
+        $this->assertNotNull($followedNotification);
+        $this->assertSame('task_followed', $followedNotification->data['event']);
+    }
+
+    public function test_task_assignment_supports_updating_followers(): void
+    {
+        $task = Task::factory()->create([
+            'project_id' => $this->project->id,
+            'creator_id' => $this->owner->id,
+            'status' => TaskStatus::Todo,
+        ]);
+
+        $this->postJson('/api/v1/tasks/'.$task->uuid.'/assign', [
+            'user_ids' => [$this->taskWorker->id],
+            'followers' => [$this->member->id],
+        ], $this->auth($this->owner, 'owner'))->assertOk();
+
+        $this->assertDatabaseHas('task_assignments', [
+            'task_id' => $task->id,
+            'user_id' => $this->taskWorker->id,
+        ]);
+
+        $this->assertDatabaseHas('task_followers', [
+            'task_id' => $task->id,
+            'user_id' => $this->member->id,
+        ]);
     }
 }

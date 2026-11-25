@@ -2,6 +2,7 @@ import { apiClient } from '@/services/api/apiClient';
 import type {
   ApiDailyOverview,
   ApiHabit,
+  ApiHabitActivity,
   ApiHabitLog,
   ApiHabitWithoutStats,
   ApiPaginatedResponse,
@@ -23,6 +24,10 @@ export const habitApi = {
   },
   async dailyOverview(date: string): Promise<ApiDailyOverview> {
     const response = await apiClient.get<ApiSuccess<ApiDailyOverview>>('/habits/daily-overview', { params: { date } });
+    return response.data.data;
+  },
+  async activity(): Promise<ApiHabitActivity> {
+    const response = await apiClient.get<ApiSuccess<ApiHabitActivity>>('/habits/activity');
     return response.data.data;
   },
   async get(uuid: string): Promise<ApiHabit> {

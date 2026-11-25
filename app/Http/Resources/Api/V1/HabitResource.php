@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\Habit;
+use App\Models\HabitLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,6 +18,17 @@ class HabitResource extends JsonResource
      * @var array<string, mixed>
      */
     protected array $stats = [];
+
+    /** @var list<array{date: string, is_scheduled: bool, can_check_in: bool, log: HabitLog|null}>|null */
+    protected ?array $week = null;
+
+    /** @param list<array{date: string, is_scheduled: bool, can_check_in: bool, log: HabitLog|null}>|null $week */
+    public function withWeek(?array $week): self
+    {
+        $this->week = $week;
+
+        return $this;
+    }
 
     public function withStats(array $stats): self
     {
@@ -44,6 +56,10 @@ class HabitResource extends JsonResource
             'longest_streak' => $this->stats['longest_streak'] ?? null,
             'stats' => ! empty($this->stats) ? $this->stats : null,
             'latest_logs' => HabitLogResource::collection($this->whenLoaded('logs')),
+            'week' => $this->when($this->week !== null, fn () => array_map(fn (array $day): array => [
+                ...$day,
+                'log' => $day['log'] ? new HabitLogResource($day['log']) : null,
+            ], $this->week ?? [])),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

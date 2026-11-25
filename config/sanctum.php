@@ -23,7 +23,7 @@ return [
         'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
         Sanctum::currentApplicationUrlWithPort(),
         // Sanctum::currentRequestHost(),
-    ))),
+    )).Sanctum::currentRequestHost()),
 
     /*
     |--------------------------------------------------------------------------
@@ -45,12 +45,12 @@ return [
     |--------------------------------------------------------------------------
     |
     | This value controls the number of minutes until an issued token will be
-    | considered expired. This will override any values set in the token's
-    | "expires_at" attribute, but first-party sessions are not affected.
+    | considered expired. An earlier per-token "expires_at" also applies.
+    | First-party sessions are not affected.
     |
     */
 
-    'expiration' => null,
+    'expiration' => 60 * 24 * 30,
 
     /*
     |--------------------------------------------------------------------------

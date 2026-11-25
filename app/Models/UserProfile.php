@@ -18,6 +18,9 @@ class UserProfile extends Model
         'bio',
         'notification_preferences',
         'theme_preference',
+        'locale',
+        'date_format',
+        'time_format',
     ];
 
     protected function casts(): array

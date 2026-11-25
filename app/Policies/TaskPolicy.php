@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Enums\ProjectMemberRole;
 use App\Models\Project;
 use App\Models\Task;
+use App\Models\TaskAssignment;
 use App\Models\User;
 
 class TaskPolicy
@@ -22,27 +23,31 @@ class TaskPolicy
      */
     public function view(User $actor, Task $task): bool
     {
-        if (! $actor->hasPermission('tasks.view')) {
-            return false;
-        }
+        return ($task->project_id === null || $this->viewAny($actor))
+            && static::isWithinScope($actor, $task);
+    }
 
-        return ProjectPolicy::isWithinScope($actor, $task->project);
+    public static function isWithinScope(User $actor, Task $task): bool
+    {
+        return $task->project_id === null
+            ? $task->creator_id === $actor->id
+            : ProjectPolicy::isWithinScope($actor, $task->project);
     }
 
     /**
      * Determine whether the user can create tasks inside the project.
      */
-    public function create(User $actor, Project $project): bool
+    public function create(User $actor, ?Project $project = null): bool
     {
-        if (! $actor->hasPermission('tasks.create')) {
-            return false;
-        }
+        return $project === null || ProjectPolicy::isWithinScope($actor, $project);
+    }
 
-        return in_array(ProjectPolicy::contextualRole($actor, $project), [
-            ProjectMemberRole::Owner,
-            ProjectMemberRole::Lead,
-            ProjectMemberRole::Member,
-        ], true);
+    public function assignOnCreation(User $actor, Project $project): bool
+    {
+        return $actor->can('create', [TaskAssignment::class, new Task([
+            'project_id' => $project->id,
+            'creator_id' => $actor->id,
+        ])->setRelation('project', $project)]);
     }
 
     /**
@@ -50,11 +55,24 @@ class TaskPolicy
      */
     public function update(User $actor, Task $task): bool
     {
+        if ($task->project_id === null) {
+            return $task->creator_id === $actor->id && $actor->hasPermission('tasks.update');
+        }
+
+        $contextualRole = ProjectPolicy::contextualRole($actor, $task->project);
+        if ($contextualRole === null || $contextualRole === ProjectMemberRole::Viewer) {
+            return false;
+        }
+
+        if ($task->assignments()->where('user_id', $actor->id)->exists()) {
+            return true;
+        }
+
         if (! $actor->hasPermission('tasks.update')) {
             return false;
         }
 
-        return in_array(ProjectPolicy::contextualRole($actor, $task->project), [
+        return in_array($contextualRole, [
             ProjectMemberRole::Owner,
             ProjectMemberRole::Lead,
             ProjectMemberRole::Member,

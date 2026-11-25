@@ -5,6 +5,10 @@ const AcceptInvitationRoute = lazy(async () => {
   const { AcceptInvitationRoute: Component } = await import('@/features/auth/pages/AcceptInvitationRoute');
   return { default: Component };
 });
+const AccountSettingsRoute = lazy(async () => {
+  const { AccountSettingsRoute: Component } = await import('@/features/account/AccountSettingsRoute');
+  return { default: Component };
+});
 const ChangePasswordRoute = lazy(async () => {
   const { ChangePasswordRoute: Component } = await import('@/features/auth/pages/ChangePasswordRoute');
   return { default: Component };
@@ -21,8 +25,8 @@ const LoginRoute = lazy(async () => {
   const { LoginRoute: Component } = await import('@/features/auth/pages/LoginRoute');
   return { default: Component };
 });
-const ProfileRoute = lazy(async () => {
-  const { ProfileRoute: Component } = await import('@/features/auth/pages/ProfileRoute');
+const TwoFactorChallengeRoute = lazy(async () => {
+  const { TwoFactorChallengeRoute: Component } = await import('@/features/auth/pages/TwoFactorChallengeRoute');
   return { default: Component };
 });
 const ResetPasswordRoute = lazy(async () => {
@@ -92,7 +96,7 @@ const AppointmentsRoute = lazy(async () => {
 
 function renderLazyPage(page: ReactNode) {
   return (
-    <Suspense fallback={<div className="flex min-h-48 items-center justify-center"><LoadingState label="Loading page" /></div>}>
+    <Suspense fallback={<LoadingState label="Loading page" layout="page" />}>
       {page}
     </Suspense>
   );
@@ -118,8 +122,12 @@ export function LoginPage() {
   return renderLazyPage(<LoginRoute />);
 }
 
-export function ProfilePage() {
-  return renderLazyPage(<ProfileRoute />);
+export function TwoFactorChallengePage() {
+  return renderLazyPage(<TwoFactorChallengeRoute />);
+}
+
+export function AccountSettingsPage() {
+  return renderLazyPage(<AccountSettingsRoute />);
 }
 
 export function ResetPasswordPage() {

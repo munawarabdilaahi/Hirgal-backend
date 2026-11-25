@@ -76,6 +76,43 @@ class LoginTest extends TestCase
             ->assertJsonValidationErrors(['email']);
     }
 
+    public function test_login_token_expires_after_thirty_days_even_if_used(): void
+    {
+        $this->travelTo(now()->startOfSecond());
+        $user = User::factory()->create(['password' => Hash::make('Secret123!')]);
+        $response = $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => 'Secret123!']);
+        $response->assertOk();
+        $token = $response->json('data.access_token');
+
+        $this->travel(29)->days();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/v1/auth/me')->assertOk();
+
+        $this->travel(1)->days();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/v1/auth/me')->assertUnauthorized();
+    }
+
+    public function test_existing_tokens_and_individual_expiration_obey_the_global_limit(): void
+    {
+        $this->travelTo(now()->startOfSecond());
+        $user = User::factory()->create();
+        $old = $user->createToken('legacy')->plainTextToken;
+        $user->tokens()->where('name', 'legacy')->update(['created_at' => now()->subDays(30)]);
+        $shortLived = $user->createToken('short-lived', ['*'], now()->addHour())->plainTextToken;
+        $longLived = $user->createToken('long-lived', ['*'], now()->addDays(60))->plainTextToken;
+
+        $this->withToken($old)->getJson('/api/v1/auth/me')->assertUnauthorized();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($shortLived)->getJson('/api/v1/auth/me')->assertOk();
+        $this->travel(61)->minutes();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($shortLived)->getJson('/api/v1/auth/me')->assertUnauthorized();
+        $this->travel(30)->days();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($longLived)->getJson('/api/v1/auth/me')->assertUnauthorized();
+    }
+
     public function test_login_fails_with_non_existent_email(): void
     {
         $response = $this->postJson('/api/v1/auth/login', [

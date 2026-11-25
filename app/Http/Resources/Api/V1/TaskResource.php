@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\Task;
+use App\Models\TaskAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,7 +33,24 @@ class TaskResource extends JsonResource
                 'title' => $this->parent?->title,
             ]),
             'title' => $this->title,
+            'can_update' => $this->when(
+                $request->routeIs('api.v1.tasks.index') && $request->boolean('with_move_permissions'),
+                fn () => $request->user()->can('update', $this->resource),
+            ),
+            'capabilities' => $this->when($request->routeIs('api.v1.tasks.show'), fn () => [
+                'update' => $request->user()->can('update', $this->resource),
+                'delete' => $request->user()->can('delete', $this->resource),
+                'assign' => $this->project !== null && $request->user()->can('create', [TaskAssignment::class, $this->resource]),
+                'create_subtask' => $this->project !== null && $request->user()->can('create', [Task::class, $this->project]),
+            ]),
             'description' => $this->description,
+            'description_html' => $this->when($request->routeIs('api.v1.tasks.show') && $this->description_is_rich_text, $this->description),
+            'context' => $this->context ?? 'project',
+            'department' => $this->department,
+            'start_date' => $this->start_date?->toDateString(),
+            'remind_on' => $this->remind_on?->toDateString(),
+            'tags' => $this->tags ?? [],
+            'followers' => UserDirectoryResource::collection($this->whenLoaded('followers')),
             'status' => $this->status?->value ?? $this->status,
             'priority' => $this->priority?->value ?? $this->priority,
             'creator' => new UserDirectoryResource($this->whenLoaded('creator')),

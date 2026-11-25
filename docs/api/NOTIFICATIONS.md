@@ -77,6 +77,35 @@ Read/unread semantics: `read_at IS NULL` = unread; `read_at` set = read. Mark-on
 
 The only production writer into this table remains `AppointmentNotification` (database channel, gated by the recipient's `in_app` profile preference, default true; queued with `afterCommit`). Password-reset and invitation notifications are mail-only and create no database rows. This module changed no write path, schema, or payload; compatibility is covered by a regression test that sends a real `AppointmentNotification` and reads it back through the API.
 
-## Polling usage
+## Polling & Real-Time WebSockets
 
-Clients poll `GET /notifications/unread-count` for badge counts, `GET /notifications` (optionally `status=unread`) for new items, and rely on `read_at` in both list entries and mark responses for read-state sync. `PATCH .../read-all` supports "mark all read" UIs via its `updated` count.
+Clients have two mechanisms for receiving notifications:
+1. **HTTP Polling**: Poll `GET /api/v1/notifications/unread-count` for badge updates, and `GET /api/v1/notifications` for recent items.
+2. **Real-Time WebSockets (Laravel Reverb / Pusher)**: Subscribe to private channel `users.{userId}` or `App.Models.User.{userId}`.
+
+### WebSocket Connection & Channel Authorization
+
+- **Auth Endpoint**: `POST /api/broadcasting/auth` (requires Sanctum Bearer token).
+- **Private Channel**: `private-users.{userId}` or `private-App.Models.User.{userId}`.
+- **Event**: `.notification.created` (`App\Events\RealtimeNotificationBroadcast`).
+- **Channel Security**: Enforced in `routes/channels.php`; users can only authorize subscriptions to their own private user ID. Unauthorized requests return 403 Forbidden.
+
+### Frontend Real-Time Integration (Laravel Echo + Pusher JS)
+
+- **Libraries**: `laravel-echo` (v2.6.3), `pusher-js` (v8.6.0).
+- **Client Factory**: `frontend/src/services/realtime/echo.ts` providing `getEcho()`, `disconnectEcho()`, and custom authorizer connecting to `/api/broadcasting/auth`.
+- **Custom Hook**: `frontend/src/features/notifications/useRealtimeNotifications.ts`
+  - Subscribes to `users.{userId}` on mount.
+  - Automatically invalidates TanStack Query `['notifications']` cache on `.notification.created`.
+  - Dispatches interactive toast via `sonner` with title, message, and clickable deep-link action button using `resolveNotificationTarget()`.
+- **Mount Point**: `NotificationBell` in `AppShell` header (active across the entire application).
+
+
+- **Mailer Transport**: `resend` (backed by `resend/resend-laravel` SDK).
+- **Driver Config**: `MAIL_MAILER=resend`, `RESEND_API_KEY=re_...`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`.
+- **Queued Delivery**: All notification mailables implement `ShouldQueue` with `afterCommit()` guarantees.
+- **Queue Worker**: Execute background queue processor using:
+  ```bash
+  php artisan queue:work --tries=3 --timeout=90
+  ```
+- **Preference Enforcement**: Outbound email respects user profile settings (`email_notifications` / `workspace_invitations`). Security-critical notifications (password reset, email change verification, password changed) always deliver regardless of preference toggles.

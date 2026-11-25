@@ -30,8 +30,17 @@ class UpdateUserProfileAction
                 'department',
                 'bio',
                 'theme_preference',
-                'notification_preferences',
+                'locale',
+                'date_format',
+                'time_format',
             ]);
+
+            if (array_key_exists('notification_preferences', $data) && is_array($data['notification_preferences'])) {
+                $profileUpdates['notification_preferences'] = $this->normalizeNotificationPreferences(
+                    $user->profile?->notification_preferences ?? [],
+                    $data['notification_preferences']
+                );
+            }
 
             if (! empty($profileUpdates)) {
                 $profile = $user->profile ?: new UserProfile(['user_id' => $user->id]);
@@ -41,5 +50,45 @@ class UpdateUserProfileAction
 
             return $user->fresh(['profile', 'roles.permissions']);
         });
+    }
+
+    /**
+     * Keep only supported channel keys and enforce non-optional security alerts.
+     *
+     * @param  array<string, mixed>  $existing
+     * @param  array<string, mixed>  $incoming
+     * @return array<string, mixed>
+     */
+    private function normalizeNotificationPreferences(array $existing, array $incoming): array
+    {
+        $allowed = [
+            'email_notifications',
+            'in_app_notifications',
+            'workspace_invitations',
+            'system_announcements',
+            'activity_notifications',
+        ];
+
+        $preferences = $existing;
+
+        foreach ($allowed as $key) {
+            if (array_key_exists($key, $incoming)) {
+                $preferences[$key] = (bool) $incoming[$key];
+            }
+        }
+
+        // Legacy appointment channel keys remain supported by existing clients.
+        if (array_key_exists('email', $incoming)) {
+            $preferences['email'] = (bool) $incoming['email'];
+        }
+
+        if (array_key_exists('in_app', $incoming)) {
+            $preferences['in_app'] = (bool) $incoming['in_app'];
+        }
+
+        $preferences['security_alerts'] = true;
+        $preferences['login_alerts'] = true;
+
+        return $preferences;
     }
 }

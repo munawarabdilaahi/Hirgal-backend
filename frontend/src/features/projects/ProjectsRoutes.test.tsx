@@ -1,3 +1,4 @@
+import { chooseOption } from '@/test/choose-option';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -68,7 +69,7 @@ describe('ProjectsRoute', () => {
     renderWithProviders(<ProjectsRoute />);
     await screen.findByRole('link', { name: 'Atlas rollout' });
     fireEvent.change(screen.getByPlaceholderText('Search projects'), { target: { value: 'Atlas' } });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by status' }), { target: { value: 'active' } });
+    await chooseOption(screen.getByRole('combobox', { name: 'Filter by status' }), 'Active');
     await waitFor(() => expect(projectApi.list).toHaveBeenLastCalledWith({ page: 1, per_page: 12, search: 'Atlas', status: 'active' }));
   });
 
@@ -109,9 +110,9 @@ describe('Project details and form', () => {
     teamApi.list.mockResolvedValue({ success: true, message: 'ok', data: [availableTeam], meta: { current_page: 1, last_page: 1, per_page: 12, total: 1 } });
     projectApi.allocateTeam.mockResolvedValue(availableTeam);
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+    fireEvent.click(await screen.findByRole('button', { name: 'Add team' }));
     await screen.findByText('No teams are allocated to this project.');
-    await screen.findByRole('option', { name: 'Platform team' });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Select a team to allocate' }), { target: { value: 'team-uuid' } });
+    await chooseOption(await screen.findByRole('combobox', { name: 'Select a team to allocate' }), 'Platform team');
     fireEvent.click(screen.getByRole('button', { name: 'Allocate team' }));
     await waitFor(() => expect(projectApi.allocateTeam).toHaveBeenCalledWith('project-uuid', 'team-uuid'));
   });
@@ -120,6 +121,7 @@ describe('Project details and form', () => {
     let resolveTeams: ((value: unknown) => void) | undefined;
     teamApi.list.mockImplementationOnce(() => new Promise((resolve) => { resolveTeams = resolve; }));
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+    fireEvent.click(await screen.findByRole('button', { name: 'Add team' }));
     expect(await screen.findByRole('status', { name: 'Loading available teams' })).toBeInTheDocument();
     resolveTeams?.({ success: true, message: 'ok', data: [], meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 } });
     expect(await screen.findByText('No available teams')).toBeInTheDocument();
@@ -128,6 +130,7 @@ describe('Project details and form', () => {
   it('shows a retryable error when accessible teams cannot be loaded', async () => {
     teamApi.list.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ success: true, message: 'ok', data: [], meta: { current_page: 1, last_page: 1, per_page: 12, total: 0 } });
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+    fireEvent.click(await screen.findByRole('button', { name: 'Add team' }));
     expect(await screen.findByText('Available teams could not be loaded')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('No available teams')).toBeInTheDocument();
@@ -144,19 +147,19 @@ describe('Project details and form', () => {
     }));
     projectApi.allocateTeam.mockResolvedValue(firstTeam);
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
+    fireEvent.click(await screen.findByRole('button', { name: 'Add team' }));
 
     const select = await screen.findByRole('combobox', { name: 'Select a team to allocate' });
-    await screen.findByRole('option', { name: 'Platform team' });
-    fireEvent.change(select, { target: { value: firstTeam.uuid } });
+    await chooseOption(select, 'Platform team');
     const nextPageButton = screen.getAllByRole('button', { name: 'Go to next page' }).find((button) => !button.hasAttribute('disabled'));
     fireEvent.click(nextPageButton!);
-    await screen.findByRole('option', { name: 'Core team' });
-    expect(select).toHaveValue(firstTeam.uuid);
+    await waitFor(() => expect(teamApi.list).toHaveBeenLastCalledWith({ page: 2, per_page: 12 }));
+    expect(select).toHaveTextContent('Platform team');
     expect(teamApi.list).toHaveBeenLastCalledWith({ page: 2, per_page: 12 });
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Search available teams' }), { target: { value: 'Core' } });
     await waitFor(() => expect(teamApi.list).toHaveBeenLastCalledWith({ page: 1, per_page: 12, search: 'Core' }));
-    expect(select).toHaveValue(firstTeam.uuid);
+    expect(select).toHaveTextContent('Platform team');
     fireEvent.click(screen.getByRole('button', { name: 'Allocate team' }));
     await waitFor(() => expect(projectApi.allocateTeam).toHaveBeenCalledWith('project-uuid', firstTeam.uuid));
   });
@@ -171,6 +174,23 @@ describe('Project details and form', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
     await waitFor(() => expect(projectApi.create).toHaveBeenCalledWith(expect.objectContaining({ name: 'Atlas rollout', status: 'planning', priority: 'medium' })));
     expect(await screen.findByRole('heading', { name: 'Created project destination' })).toBeInTheDocument();
+  });
+
+  it('keeps an edited draft when discarding is declined, then saves from the project list', async () => {
+    projectApi.create.mockResolvedValue(project);
+    renderWithProviders(<Routes><Route path="/projects" element={<ProjectsRoute />} /></Routes>, '/projects');
+      fireEvent.click(await screen.findByRole('link', { name: 'New project' }));
+      expect(await screen.findByRole('dialog', { name: 'Create project' })).toBeInTheDocument();
+      fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), { target: { value: 'Atlas rollout' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(screen.getByRole('alertdialog', { name: 'Discard unsaved changes?' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+      expect(screen.getByRole('textbox', { name: 'Project name' })).toHaveValue('Atlas rollout');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+      expect(projectApi.create).toHaveBeenCalledWith(expect.objectContaining({ name: 'Atlas rollout' }));
   });
 
   it('preserves an archived project status when editing its metadata', async () => {
@@ -190,9 +210,8 @@ describe('Project details and form', () => {
   it('renders role management only for authorized project leads and invalidates after adding a member', async () => {
     projectApi.addMember.mockResolvedValue({ ...projectMember, id: 19, user: { ...project.owner, id: 8, name: 'Omar Ali' }, role: 'member' });
     renderWithProviders(<Routes><Route path="/projects/:projectUuid" element={<ProjectDetailsRoute />} /></Routes>, '/projects/project-uuid');
-    expect(await screen.findByRole('button', { name: 'Add member' })).toBeInTheDocument();
-    await screen.findByRole('option', { name: /Omar Ali/ });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Select a person to add' }), { target: { value: '8' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
+    await chooseOption(screen.getByRole('combobox', { name: 'Select a person to add' }), /Omar Ali/);
     fireEvent.click(screen.getByRole('button', { name: 'Add member' }));
     await waitFor(() => expect(projectApi.addMember).toHaveBeenCalledWith('project-uuid', { user_id: 8, role: 'member' }));
   });

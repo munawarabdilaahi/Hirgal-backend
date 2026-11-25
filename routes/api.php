@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Activity\ActivityLogController;
 use App\Http\Controllers\Api\V1\Appointments\AppointmentController;
+use App\Http\Controllers\Api\V1\Auth\AccountSettingsController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\InvitationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
@@ -47,6 +48,22 @@ Route::prefix('v1')->group(function (): void {
             ->middleware('throttle:login')
             ->name('api.v1.auth.login');
 
+        Route::post('/two-factor/verify', [AuthController::class, 'verifyTwoFactor'])
+            ->middleware('throttle:10,1')
+            ->name('api.v1.auth.two-factor.verify');
+
+        Route::post('/two-factor/recovery', [AuthController::class, 'verifyRecoveryCode'])
+            ->middleware('throttle:10,1')
+            ->name('api.v1.auth.two-factor.recovery');
+
+        Route::post('/two-factor-challenge', [AuthController::class, 'verifyTwoFactor'])
+            ->middleware('throttle:10,1')
+            ->name('api.v1.auth.two-factor-challenge');
+
+        Route::post('/two-factor/cancel', [AuthController::class, 'cancelTwoFactor'])
+            ->middleware('throttle:10,1')
+            ->name('api.v1.auth.two-factor.cancel');
+
         Route::post('/forgot-password', [PasswordController::class, 'forgotPassword'])
             ->middleware('throttle:password-reset')
             ->name('api.v1.auth.forgot-password');
@@ -67,6 +84,15 @@ Route::prefix('v1')->group(function (): void {
             ->name('api.v1.invitations.accept');
     });
 
+    // Short-lived signed avatar links. Signatures are validated by the
+    // framework; the route is intentionally outside the auth group so that
+    // <img> requests work in both cookie and bearer-token sessions.
+    Route::get('/account/avatars/{user}/{version}', [AccountSettingsController::class, 'avatar'])
+        ->middleware('signed')
+        ->whereNumber('user')
+        ->where('version', '[A-Za-z0-9-]+')
+        ->name('api.v1.account.avatar');
+
     /*
     |----------------------------------------------------------------------
     | Protected Routes (Authenticated & Active Account)
@@ -80,11 +106,41 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/me', [AuthController::class, 'me'])->name('api.v1.auth.me');
             Route::put('/me/profile', [AuthController::class, 'updateProfile'])->name('api.v1.auth.update-profile');
             Route::post('/change-password', [PasswordController::class, 'changePassword'])->name('api.v1.auth.change-password');
+
+            // Personal account settings. Every endpoint is scoped to the
+            // authenticated user; no user identifier is accepted from the client.
+            Route::get('/me/sessions', [AccountSettingsController::class, 'sessions'])->name('api.v1.account.sessions');
+            Route::post('/me/sessions/revoke', [AccountSettingsController::class, 'revoke'])
+                ->middleware('throttle:10,1')->name('api.v1.account.sessions.revoke');
+            Route::get('/me/security-activity', [AccountSettingsController::class, 'securityActivity'])->name('api.v1.account.security-activity');
+            Route::post('/me/export', [AccountSettingsController::class, 'export'])
+                ->middleware('throttle:5,1')->name('api.v1.account.export');
+            Route::post('/me/avatar', [AccountSettingsController::class, 'uploadAvatar'])
+                ->middleware('throttle:10,1')->name('api.v1.account.avatar.upload');
+            Route::delete('/me/avatar', [AccountSettingsController::class, 'removeAvatar'])
+                ->middleware('throttle:10,1')->name('api.v1.account.avatar.remove');
+            Route::post('/me/email-change', [AccountSettingsController::class, 'requestEmailChange'])
+                ->middleware('throttle:3,1')->name('api.v1.account.email-change');
+            Route::post('/me/email-change/confirm', [AccountSettingsController::class, 'confirmEmailChange'])
+                ->middleware('throttle:5,1')->name('api.v1.account.email-change.confirm');
+            Route::post('/me/two-factor/setup', [AccountSettingsController::class, 'setupTwoFactor'])
+                ->middleware('throttle:5,1')->name('api.v1.account.two-factor.setup');
+            Route::post('/me/two-factor/confirm', [AccountSettingsController::class, 'confirmTwoFactor'])
+                ->middleware('throttle:5,1')->name('api.v1.account.two-factor.confirm');
+            Route::delete('/me/two-factor', [AccountSettingsController::class, 'disableTwoFactor'])
+                ->middleware('throttle:5,1')->name('api.v1.account.two-factor.disable');
+            Route::post('/me/two-factor/recovery-codes', [AccountSettingsController::class, 'regenerateRecoveryCodes'])
+                ->middleware('throttle:5,1')->name('api.v1.account.two-factor.recovery-codes');
+            Route::post('/me/deactivate', [AccountSettingsController::class, 'deactivate'])
+                ->middleware('throttle:3,1')->name('api.v1.account.deactivate');
+            Route::delete('/me', [AccountSettingsController::class, 'destroy'])
+                ->middleware('throttle:3,1')->name('api.v1.account.destroy');
         });
 
         // User Management
         Route::prefix('users')->group(function (): void {
             Route::get('/', [UserController::class, 'index'])->name('api.v1.users.index');
+            Route::post('/', [UserController::class, 'store'])->name('api.v1.users.store');
             Route::get('/directory', [UserController::class, 'directory'])->name('api.v1.users.directory');
             Route::get('/{id}', [UserController::class, 'show'])->name('api.v1.users.show');
             Route::put('/{id}', [UserController::class, 'update'])->name('api.v1.users.update');
@@ -113,6 +169,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/', [HabitController::class, 'index'])->name('api.v1.habits.index');
             Route::post('/', [HabitController::class, 'store'])->name('api.v1.habits.store');
             Route::get('/daily-overview', [HabitController::class, 'dailyOverview'])->name('api.v1.habits.daily-overview');
+            Route::get('/activity', [HabitController::class, 'activity'])->name('api.v1.habits.activity');
             Route::get('/{uuid}', [HabitController::class, 'show'])->name('api.v1.habits.show');
             Route::put('/{uuid}', [HabitController::class, 'update'])->name('api.v1.habits.update');
             Route::delete('/{uuid}', [HabitController::class, 'destroy'])->name('api.v1.habits.destroy');
@@ -194,6 +251,8 @@ Route::prefix('v1')->group(function (): void {
         */
         Route::prefix('tasks')->group(function (): void {
             Route::get('/', [TaskController::class, 'index'])->name('api.v1.tasks.index');
+            Route::post('/', [TaskController::class, 'store'])->name('api.v1.tasks.store');
+            Route::get('/assignees', [TaskAssignmentController::class, 'index'])->name('api.v1.tasks.assignees');
             Route::get('/{task}', [TaskController::class, 'show'])->name('api.v1.tasks.show');
             Route::put('/{task}', [TaskController::class, 'update'])->name('api.v1.tasks.update');
             Route::delete('/{task}', [TaskController::class, 'destroy'])->name('api.v1.tasks.destroy');
@@ -215,6 +274,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/unread-count', [NotificationController::class, 'unreadCount'])->name('api.v1.notifications.unread-count');
             Route::patch('/read-all', [NotificationController::class, 'readAll'])->name('api.v1.notifications.read-all');
             Route::patch('/{id}/read', [NotificationController::class, 'markRead'])->name('api.v1.notifications.read');
+            Route::delete('/{id}', [NotificationController::class, 'destroy'])->name('api.v1.notifications.destroy');
         });
     });
 });

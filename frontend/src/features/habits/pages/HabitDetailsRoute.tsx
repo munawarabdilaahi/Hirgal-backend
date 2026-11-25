@@ -1,5 +1,8 @@
+import { HabitFormDialog } from './HabitFormDialog';
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
+import { PageHeader } from '@/components/layout/primitives';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Archive, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,6 +32,14 @@ const logStatusBadges = {
 } as const;
 
 export function HabitDetailsRoute() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  function closeEditor(): void {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('editor');
+      return next;
+    }, { replace: true });
+  }
   const { habitUuid = '' } = useParams();
   const navigate = useNavigate();
   const habitQuery = useHabit(habitUuid);
@@ -68,9 +79,7 @@ export function HabitDetailsRoute() {
 
   if (habitQuery.isPending) {
     return (
-      <div className="flex min-h-48 items-center justify-center">
-        <LoadingState label="Loading habit" />
-      </div>
+      <LoadingState label="Loading habit" layout="detail" />
     );
   }
   if (habitQuery.isError || !habit) {
@@ -86,8 +95,8 @@ export function HabitDetailsRoute() {
   const stats = habit.stats;
 
   return (
-    <section aria-labelledby="habit-detail-title" className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <section aria-labelledby="habit-detail-title" className="space-y-6">
+      <PageHeader className="items-start">
         <div className="space-y-2">
           <Link className="text-sm text-primary hover:underline" to="/habits">
             Habits
@@ -121,7 +130,7 @@ export function HabitDetailsRoute() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
-            <Link to={`/habits/${habitUuid}/edit`}>Edit habit</Link>
+            <Link to="?editor=edit">Edit habit</Link>
           </Button>
           {habit.is_archived ? (
             <Button onClick={() => setConfirmAction('restore')} variant="outline">
@@ -138,7 +147,7 @@ export function HabitDetailsRoute() {
             Delete
           </Button>
         </div>
-      </header>
+      </PageHeader>
 
       {archive.isError || restore.isError || remove.isError ? (
         <p
@@ -157,7 +166,7 @@ export function HabitDetailsRoute() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">
+            <p className="text-2xl font-semibold tracking-tight">
               {stats ? `${stats.current_streak} days` : 'Not available'}
             </p>
           </CardContent>
@@ -169,7 +178,7 @@ export function HabitDetailsRoute() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">
+            <p className="text-2xl font-semibold tracking-tight">
               {stats ? `${stats.longest_streak} days` : 'Not available'}
             </p>
           </CardContent>
@@ -181,7 +190,7 @@ export function HabitDetailsRoute() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-2xl font-semibold">
+            <p className="text-2xl font-semibold tracking-tight">
               {stats ? `${stats.completion_rate}%` : 'Not available'}
             </p>
             {stats ? (
@@ -219,20 +228,20 @@ export function HabitDetailsRoute() {
             </div>
             <label className="space-y-1 text-sm">
               <span className="sr-only">Filter history by status</span>
-              <select
+              <ChoiceSelect
                 aria-label="Filter history by status"
-                className="h-10 rounded-md border bg-background px-3 text-sm"
-                onChange={(event) => {
-                  setHistoryStatus(event.target.value);
+
+                onValueChange={(nextValue) => {
+                  setHistoryStatus(nextValue);
                   setHistoryPage(1);
                 }}
                 value={historyStatus}
               >
-                <option value="">All statuses</option>
-                <option value="completed">Completed</option>
-                <option value="skipped">Skipped</option>
-                <option value="failed">Failed</option>
-              </select>
+                <ChoiceOption value="">All statuses</ChoiceOption>
+                <ChoiceOption value="completed">Completed</ChoiceOption>
+                <ChoiceOption value="skipped">Skipped</ChoiceOption>
+                <ChoiceOption value="failed">Failed</ChoiceOption>
+              </ChoiceSelect>
             </label>
           </div>
         </CardHeader>
@@ -337,6 +346,7 @@ export function HabitDetailsRoute() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {searchParams.get('editor') === 'edit' && <HabitFormDialog habitUuid={habitUuid} onClose={closeEditor} />}
     </section>
   );
 }

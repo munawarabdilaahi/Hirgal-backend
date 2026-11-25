@@ -8,6 +8,7 @@ import { DesignSystemLoadingFallback } from '@/app/router/routes/DesignSystemLoa
 import { NotFoundRoute } from '@/app/router/routes/NotFoundRoute';
 import {
   AcceptInvitationPage,
+  AccountSettingsPage,
   ActivityPage,
   AppointmentsPage,
   ChangePasswordPage,
@@ -19,7 +20,6 @@ import {
   LoginPage,
   MyWorkPage,
   NotificationsPage,
-  ProfilePage,
   ProjectDetailsPage,
   ProjectFormPage,
   ProjectsPage,
@@ -28,6 +28,7 @@ import {
   TeamFormPage,
   TeamsPage,
   TasksPage,
+  TwoFactorChallengePage,
   UserDetailsPage,
   UsersPage,
 } from '@/app/router/routes/LazyPages';
@@ -51,6 +52,14 @@ const routes: RouteObject[] = [
       </RedirectAuthenticatedUser>
     ),
   },
+  {
+    path: '/two-factor-challenge',
+    element: (
+      <RedirectAuthenticatedUser>
+        <TwoFactorChallengePage />
+      </RedirectAuthenticatedUser>
+    ),
+  },
   { path: '/forgot-password', element: <ForgotPasswordPage /> },
   { path: '/reset-password', element: <ResetPasswordPage /> },
   { path: '/invitations/accept', element: <RedirectAuthenticatedUser><AcceptInvitationPage /></RedirectAuthenticatedUser> },
@@ -62,7 +71,8 @@ const routes: RouteObject[] = [
     ),
     children: [
       { path: '/dashboard', element: <DashboardPage /> },
-      { path: '/profile', element: <ProfilePage /> },
+      { path: '/profile', element: <AccountSettingsPage /> },
+      { path: '/settings/account', element: <AccountSettingsPage /> },
       { path: '/change-password', element: <ChangePasswordPage /> },
       { path: '/notifications', element: <NotificationsPage /> },
       { path: '/activity', element: <ActivityPage /> },
@@ -116,7 +126,7 @@ const routes: RouteObject[] = [
       },
       {
         path: '/tasks',
-        element: <RequirePermission permission="tasks.view"><TasksPage /></RequirePermission>,
+        element: <TasksPage />,
       },
     ],
   },

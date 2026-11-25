@@ -1,8 +1,9 @@
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
 import { useState } from 'react';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { LoadingState } from '@/components/feedback/LoadingState';
-import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Pagination } from '@/components/ui/pagination';
 import { useDebouncedValue } from '@/features/users/use-debounced-value';
 import { useTeams } from '@/features/teams/team-queries';
@@ -47,7 +48,7 @@ export function ProjectTeamAllocationPicker({
     <div className="space-y-3 border-t pt-3">
       <label className="block space-y-1.5 text-sm font-medium">
         <span>Search available teams</span>
-        <Input
+        <SearchInput
           maxLength={100}
           onChange={(event) => {
             setSearch(event.target.value);
@@ -57,7 +58,7 @@ export function ProjectTeamAllocationPicker({
           value={search}
         />
       </label>
-      {teamsQuery.isPending ? <LoadingState label="Loading available teams" /> : null}
+      {teamsQuery.isPending ? <LoadingState label="Loading available teams" layout="inline" /> : null}
       {teamsQuery.isError ? (
         <ErrorState
           description={errorMessage(teamsQuery.error)}
@@ -73,23 +74,23 @@ export function ProjectTeamAllocationPicker({
       ) : null}
       <div className="flex flex-wrap gap-2">
         <label className="sr-only" htmlFor="project-team-allocation-select">Select a team to allocate</label>
-        <select
+        <ChoiceSelect
           aria-label="Select a team to allocate"
-          className="h-10 min-w-0 flex-1 rounded-md border bg-background px-2"
+          className="flex-1"
           disabled={!enabled || teamsQuery.isPending || teamsQuery.isError || availableTeams.length === 0}
           id="project-team-allocation-select"
-          onChange={(event) => {
-            const team = availableTeams.find((candidate) => candidate.uuid === event.target.value);
+          onValueChange={(nextValue) => {
+            const team = availableTeams.find((candidate) => candidate.uuid === nextValue);
             onSelect(team ?? null);
           }}
           value={selectedTeam?.uuid ?? ''}
         >
-          <option value="">Choose a team</option>
+          <ChoiceOption value="">Choose a team</ChoiceOption>
           {selectedTeam && !selectedTeamIsOnPage && !allocatedTeamUuids.includes(selectedTeam.uuid) ? (
-            <option value={selectedTeam.uuid}>{selectedTeam.name}</option>
+            <ChoiceOption value={selectedTeam.uuid}>{selectedTeam.name}</ChoiceOption>
           ) : null}
-          {availableTeams.map((team) => <option key={team.uuid} value={team.uuid}>{team.name}</option>)}
-        </select>
+          {availableTeams.map((team) => <ChoiceOption key={team.uuid} value={team.uuid}>{team.name}</ChoiceOption>)}
+        </ChoiceSelect>
       </div>
       {teamsQuery.data?.meta ? (
         <Pagination

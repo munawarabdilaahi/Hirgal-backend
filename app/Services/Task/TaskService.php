@@ -7,15 +7,19 @@ use App\Actions\Tasks\CreateTaskAction;
 use App\Actions\Tasks\DeleteTaskAction;
 use App\Actions\Tasks\UnassignTaskAction;
 use App\Actions\Tasks\UpdateTaskAction;
+use App\Enums\AccountStatus;
+use App\Enums\TaskStatus;
 use App\Models\Project;
 use App\Models\ProjectMember;
 use App\Models\Task;
 use App\Models\TaskAssignment;
 use App\Models\User;
-use App\Policies\ProjectPolicy;
+use App\Policies\TaskPolicy;
 use App\Services\Project\ProjectService;
 use App\Services\Team\TeamService;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 
 class TaskService
 {
@@ -30,6 +34,8 @@ class TaskService
         'creator.profile:id,user_id,job_title,department',
         'assignees',
         'assignees.profile:id,user_id,job_title,department',
+        'followers',
+        'followers.profile:id,user_id,job_title,department',
         'parent:id,uuid,title',
     ];
 
@@ -50,13 +56,91 @@ class TaskService
      */
     public function listTasks(User $actor, array $filters): LengthAwarePaginator
     {
-        $query = Task::query()
-            ->with(self::EAGER)
-            ->whereHas('project');
+        $query = $this->taskQuery($actor, $filters);
 
-        if (! $actor->isSystemAdmin()) {
-            $query->whereIn('project_id', $this->accessibleProjectIds($actor));
+        if (isset($filters['schedule'])) {
+            $query = $this->scheduledTasks($query, $filters['schedule'], CarbonImmutable::today($actor->timezone));
         }
+
+        $sortBy = $filters['sort_by'] ?? 'created_at';
+        $sortDirection = $filters['sort_direction'] ?? 'desc';
+        $perPage = (int) ($filters['per_page'] ?? 15);
+
+        return $query->orderBy($sortBy, $sortDirection)->orderBy('id')->paginate($perPage);
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return array{overdue: int, today: int, tomorrow: int, upcoming: int, other: int, due_today: int, due_tomorrow: int, done_today: int}
+     */
+    public function scheduleSummary(User $actor, array $filters): array
+    {
+        $query = $this->taskQuery($actor, $filters);
+        $today = CarbonImmutable::today($actor->timezone);
+        $groups = [];
+        foreach (['overdue', 'today', 'tomorrow', 'upcoming', 'other'] as $group) {
+            $groups[$group] = $this->scheduledTasks(clone $query, $group, $today);
+        }
+
+        return [
+            'overdue' => $groups['overdue']->count(),
+            'today' => (clone $groups['today'])->count(),
+            'tomorrow' => (clone $groups['tomorrow'])->count(),
+            'upcoming' => $groups['upcoming']->count(),
+            'other' => $groups['other']->count(),
+            'due_today' => $this->openTasks(clone $groups['today'])->count(),
+            'due_tomorrow' => $this->openTasks($groups['tomorrow'])->count(),
+            'done_today' => $groups['today']->where('status', TaskStatus::Done)->count(),
+        ];
+    }
+
+    /** @param Builder<Task> $query
+     * @return Builder<Task>
+     */
+    private function scheduledTasks(Builder $query, string $group, CarbonImmutable $today): Builder
+    {
+        return match ($group) {
+            'overdue' => $this->openTasks($query)->where('due_date', '<', $today->toDateString()),
+            'today' => $query->whereDate('due_date', $today->toDateString()),
+            'tomorrow' => $query->whereDate('due_date', $today->addDay()->toDateString()),
+            'upcoming' => $query->whereDate('due_date', $today->addDays(2)->toDateString()),
+            'other' => $query->where(fn ($other) => $other->whereNull('due_date')
+                ->orWhere('due_date', '>=', $today->addDays(3)->toDateString())
+                ->orWhere(fn ($closed) => $closed->where('due_date', '<', $today->toDateString())
+                    ->whereIn('status', [TaskStatus::Done, TaskStatus::Cancelled]))),
+        };
+    }
+
+    /**
+     * @param  Builder<Task>  $query
+     * @return Builder<Task>
+     */
+    private function openTasks(Builder $query): Builder
+    {
+        return $query->whereNotIn('status', [TaskStatus::Done, TaskStatus::Cancelled]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return Builder<Task>
+     */
+    private function taskQuery(User $actor, array $filters): Builder
+    {
+        $query = Task::query()->with(self::EAGER)
+            ->where(function (Builder $query) use ($actor): void {
+                $query->where(fn (Builder $personal) => $personal->whereNull('project_id')->where('creator_id', $actor->id));
+
+                if (! $actor->can('viewAny', Task::class)) {
+                    return;
+                }
+
+                $query->orWhere(function (Builder $projects) use ($actor): void {
+                    $projects->whereHas('project');
+                    if (! $actor->isSystemAdmin()) {
+                        $projects->whereIn('project_id', $this->accessibleProjectIds($actor));
+                    }
+                });
+            });
 
         if (! empty($filters['project'])) {
             $project = $this->projectService->resolveScopedProject((string) $filters['project'], $actor);
@@ -81,11 +165,16 @@ class TaskService
             $query->where('priority', $filters['priority']);
         }
 
-        $sortBy = $filters['sort_by'] ?? 'created_at';
-        $sortDirection = $filters['sort_direction'] ?? 'desc';
-        $perPage = (int) ($filters['per_page'] ?? 15);
+        $search = trim($filters['search'] ?? '');
+        if ($search !== '') {
+            $query->where(fn ($matching) => $matching
+                ->whereLike('title', "%{$search}%")
+                ->orWhereLike('description', "%{$search}%")
+                ->orWhereHas('project', fn ($project) => $project->whereLike('name', "%{$search}%"))
+                ->orWhereHas('assignees', fn ($assignee) => $assignee->whereLike('users.name', "%{$search}%")));
+        }
 
-        return $query->orderBy($sortBy, $sortDirection)->paginate($perPage);
+        return $query;
     }
 
     /**
@@ -95,7 +184,7 @@ class TaskService
     {
         $task = Task::query()->with('project:id,uuid,name')->where('uuid', $uuid)->firstOrFail();
 
-        abort_unless(ProjectPolicy::isWithinScope($actor, $task->project), 404);
+        abort_unless(TaskPolicy::isWithinScope($actor, $task), 404);
 
         return $task;
     }
@@ -103,7 +192,7 @@ class TaskService
     /**
      * @param  array<string, mixed>  $data
      */
-    public function createTask(User $actor, Project $project, array $data): Task
+    public function createTask(User $actor, ?Project $project, array $data): Task
     {
         return $this->createTaskAction->execute($actor, $project, $data);
     }
@@ -111,9 +200,9 @@ class TaskService
     /**
      * @param  array<string, mixed>  $data
      */
-    public function updateTask(Task $task, array $data): Task
+    public function updateTask(Task $task, array $data, ?User $actor = null): Task
     {
-        return $this->updateTaskAction->execute($task, $data);
+        return $this->updateTaskAction->execute($task, $data, $actor);
     }
 
     public function deleteTask(Task $task): Task
@@ -124,14 +213,64 @@ class TaskService
     /**
      * @param  array<int, int>  $userIds
      */
-    public function assignTask(User $actor, Task $task, array $userIds): Task
+    public function assignTask(User $actor, Task $task, array $userIds, bool $isReassignment = false): Task
     {
-        return $this->assignTaskAction->execute($actor, $task, $userIds);
+        return $this->assignTaskAction->execute($actor, $task, $userIds, $isReassignment);
     }
 
-    public function unassignTask(Task $task, TaskAssignment $assignment): Task
+    /**
+     * @param  array<int, int>  $userIds
+     */
+    public function reassignTask(User $actor, Task $task, array $userIds): Task
     {
-        return $this->unassignTaskAction->execute($task, $assignment);
+        return $this->assignTaskAction->execute($actor, $task, $userIds, true);
+    }
+
+    public function unassignTask(Task $task, TaskAssignment $assignment, ?User $actor = null): Task
+    {
+        return $this->unassignTaskAction->execute($task, $assignment, $actor);
+    }
+
+    /**
+     * List active users eligible to be assigned to tasks (workspace-wide or scoped to a project).
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    public function listAssignableUsers(User $actor, array $filters = []): LengthAwarePaginator
+    {
+        $query = User::query()
+            ->with(['profile', 'roles'])
+            ->where('account_status', AccountStatus::Active);
+
+        if (! empty($filters['project'])) {
+            $project = $this->projectService->resolveScopedProject((string) $filters['project'], $actor);
+
+            $query->where(function (Builder $builder) use ($project): void {
+                $builder->where('id', $project->owner_id)
+                    ->orWhereHas('projectMemberships', fn (Builder $q) => $q->where('project_id', $project->id));
+            });
+        }
+
+        if (! empty($filters['search'])) {
+            $search = '%'.$filters['search'].'%';
+            $query->where(function (Builder $q) use ($search): void {
+                $q->where('name', 'like', $search)
+                    ->orWhere('email', 'like', $search)
+                    ->orWhereHas('profile', function (Builder $pq) use ($search): void {
+                        $pq->where('job_title', 'like', $search)
+                            ->orWhere('department', 'like', $search);
+                    });
+            });
+        }
+
+        if (! empty($filters['department'])) {
+            $department = $filters['department'];
+            $query->whereHas('profile', fn (Builder $q) => $q->where('department', $department));
+        }
+
+        $perPage = min((int) ($filters['per_page'] ?? 50), 100);
+
+        return $query->orderBy('name', 'asc')->paginate($perPage);
     }
 
     /**

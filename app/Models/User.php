@@ -18,8 +18,8 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'account_status', 'avatar_url', 'timezone', 'last_login_at'])]
-#[Hidden(['password', 'remember_token'])]
+#[Fillable(['name', 'email', 'password', 'account_status', 'avatar_url', 'timezone', 'last_login_at', 'pending_email', 'pending_email_hash', 'pending_email_expires_at', 'two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at', 'two_factor_last_used_step'])]
+#[Hidden(['password', 'remember_token', 'pending_email_hash', 'two_factor_secret', 'two_factor_recovery_codes'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -37,6 +37,11 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'password' => 'hashed',
             'account_status' => AccountStatus::class,
+            'pending_email_expires_at' => 'datetime',
+            'two_factor_confirmed_at' => 'datetime',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_last_used_step' => 'integer',
         ];
     }
 
@@ -180,6 +185,16 @@ class User extends Authenticatable
     }
 
     public function isActive(): bool
+    {
+        return $this->account_status === AccountStatus::Active;
+    }
+
+    public function hasTwoFactorAuthentication(): bool
+    {
+        return $this->two_factor_confirmed_at !== null;
+    }
+
+    public function canManageOwnAccount(): bool
     {
         return $this->account_status === AccountStatus::Active;
     }

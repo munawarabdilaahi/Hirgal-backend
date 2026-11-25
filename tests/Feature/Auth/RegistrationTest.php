@@ -66,6 +66,12 @@ class RegistrationTest extends TestCase
         $user = User::where('email', 'alice@hirgal.local')->first();
         $this->assertTrue($user->hasRole(UserRole::Member->value));
         $this->assertNotNull($user->profile);
+
+        $token = $response->json('data.access_token');
+        $this->withToken($token)->getJson('/api/v1/auth/me')->assertOk();
+        $this->travel(30)->days();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/v1/auth/me')->assertUnauthorized();
     }
 
     public function test_registration_validation_fails_for_duplicate_email(): void

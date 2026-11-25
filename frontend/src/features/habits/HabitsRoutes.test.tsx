@@ -1,3 +1,4 @@
+import { chooseOption } from '@/test/choose-option';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -6,12 +7,13 @@ import { RequirePermission } from '@/features/auth/components/AuthRouteGuards';
 import { HabitDetailsRoute } from './pages/HabitDetailsRoute';
 import { HabitFormRoute } from './pages/HabitFormRoute';
 import { HabitsRoute } from './pages/HabitsRoute';
-import type { ApiDailyOverview, ApiHabit, ApiHabitLog } from '@/services/api/contracts';
+import type { ApiHabit, ApiHabitLog, HabitFilters } from '@/services/api/contracts';
 
-const { habitApi, authState } = vi.hoisted(() => ({
+const { habitApi, authState, toastMock } = vi.hoisted(() => ({
   habitApi: {
     list: vi.fn(),
     dailyOverview: vi.fn(),
+    activity: vi.fn(),
     get: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -34,10 +36,15 @@ const { habitApi, authState } = vi.hoisted(() => ({
       permissions: string[];
     },
   },
+  toastMock: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 vi.mock('@/services/api/habitApi', () => ({ habitApi }));
 vi.mock('@/features/auth/auth-hooks', () => ({ useAuth: () => authState }));
+vi.mock('sonner', () => ({ toast: toastMock }));
 
 const stats = {
   current_streak: 5,
@@ -72,11 +79,13 @@ const logEntry: ApiHabitLog = {
   updated_at: null,
 };
 
-function overviewWith(log: ApiHabitLog | null, isScheduled = true): ApiDailyOverview {
+function weeklyHabits(filters: HabitFilters, log: ApiHabitLog | null = null, scheduled = true) {
+  const date = filters.week_start ?? '2026-11-16';
   return {
-    date: '2026-11-10',
-    timezone: 'UTC',
-    habits: [{ habit, is_scheduled: isScheduled, log }],
+    success: true,
+    message: 'ok',
+    data: [{ ...habit, week: [{ date, log, is_scheduled: scheduled, can_check_in: scheduled }] }],
+    meta: { current_page: 1, last_page: 1, per_page: 12, total: 1 },
   };
 }
 
@@ -105,13 +114,12 @@ beforeEach(() => {
     ],
     permissions: ['habits.manage'],
   };
-  habitApi.list.mockResolvedValue({
-    success: true,
-    message: 'ok',
-    data: [habit],
-    meta: { current_page: 1, last_page: 1, per_page: 12, total: 1 },
+  habitApi.list.mockImplementation(async (filters: HabitFilters) => weeklyHabits(filters));
+  habitApi.activity.mockResolvedValue({
+    from: '2026-11-13',
+    through: '2026-11-16',
+    days: [{ date: '2026-11-14', completed: 2 }],
   });
-  habitApi.dailyOverview.mockResolvedValue(overviewWith(null));
   habitApi.get.mockResolvedValue(habit);
   habitApi.create.mockResolvedValue(habit);
   habitApi.update.mockResolvedValue(habit);
@@ -129,17 +137,26 @@ beforeEach(() => {
 });
 
 describe('HabitsRoute', () => {
-  it('renders authorized habits, the daily check-in and the create action', async () => {
+  it('renders authorized habits, weekly tracking, yearly activity and the create action', async () => {
     renderWithProviders(<HabitsRoute />);
     const habitLinks = await screen.findAllByRole('link', { name: 'Morning Meditation' });
     expect(habitLinks[0]).toHaveAttribute('href', '/habits/habit-uuid');
-    expect(screen.getByRole('link', { name: 'New habit' })).toHaveAttribute('href', '/habits/new');
-    expect(await screen.findByRole('heading', { name: 'Daily check-in' })).toBeInTheDocument();
-    expect(screen.getByText('5 day streak')).toBeInTheDocument();
-    expect(
-      screen.getByRole('progressbar', { name: 'Completion rate for Morning Meditation' }),
-    ).toBeInTheDocument();
-    expect(habitApi.list).toHaveBeenCalledWith({ page: 1, per_page: 12, is_archived: false });
+    expect(screen.getByRole('link', { name: 'New habit' })).toHaveAttribute('href', expect.stringContaining('?editor=create'));
+    const table = await screen.findByRole('table', { name: 'Weekly habit tracking' });
+    expect(screen.getByText(/5 day streak/)).toBeInTheDocument();
+    const activityHeading = screen.getByRole('heading', { name: 'Habit activity' });
+    const nav = screen.getByRole('group', { name: 'Week navigation' });
+    const search = screen.getByRole('textbox', { name: 'Search habits' });
+    expect(screen.getByRole('tablist').compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(nav.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(search.compareDocumentPosition(activityHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(activityHeading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Weekly overview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Filter by frequency' })).not.toBeInTheDocument();
+    const day = await screen.findByRole('button', { name: 'November 14, 2026: 2 completed check-ins' });
+    fireEvent.click(day);
+    expect(day).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => expect(habitApi.list).toHaveBeenLastCalledWith({ page: 1, per_page: 12, is_archived: false, week_start: '2026-11-09' }));
   });
 
   it('shows loading, empty, error and retry states', async () => {
@@ -168,21 +185,18 @@ describe('HabitsRoute', () => {
     view.unmount();
   });
 
-  it('submits supported archive and frequency filters', async () => {
+  it('searches within the selected archive tab', async () => {
     renderWithProviders(<HabitsRoute />);
     await screen.findAllByRole('link', { name: 'Morning Meditation' });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by archive status' }), {
-      target: { value: 'archived' },
-    });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter by frequency' }), {
-      target: { value: 'daily' },
-    });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Archived' }), { button: 0, ctrlKey: false });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search habits' }), { target: { value: 'Meditation' } });
     await waitFor(() =>
       expect(habitApi.list).toHaveBeenLastCalledWith({
         page: 1,
         per_page: 12,
         is_archived: true,
-        frequency: 'daily',
+        search: 'Meditation',
+        week_start: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       }),
     );
   });
@@ -199,11 +213,88 @@ describe('HabitsRoute', () => {
     expect(habitApi.dailyOverview).not.toHaveBeenCalled();
   });
 
-  it('records a completed check-in for the selected date', async () => {
-    habitApi.dailyOverview
-      .mockResolvedValueOnce(overviewWith(null))
-      .mockResolvedValue(overviewWith(logEntry));
+  it('records a completed check-in, closes the modal, and shows a success toast', async () => {
+    habitApi.list.mockImplementationOnce(async (filters: HabitFilters) => weeklyHabits(filters));
+    habitApi.list.mockImplementation(async (filters: HabitFilters) => weeklyHabits(filters, logEntry));
     renderWithProviders(<HabitsRoute />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning Meditation.*No check-in/ }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Daily check-in' })).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Mark Morning Meditation as completed' }),
+    );
+    await waitFor(() =>
+      expect(habitApi.logProgress).toHaveBeenCalledWith('habit-uuid', {
+        logged_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        status: 'completed',
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: 'Daily check-in' })).not.toBeInTheDocument(),
+    );
+    expect(toastMock.success).toHaveBeenCalledWith('Habit completed successfully!');
+  });
+
+  it('keeps the modal open and shows error notification when completion fails', async () => {
+    habitApi.list.mockImplementation(async (filters: HabitFilters) => weeklyHabits(filters));
+    habitApi.logProgress.mockRejectedValueOnce({
+      status: 422,
+      errors: { logged_date: 'Check-in cannot be recorded for this date.' },
+    });
+    renderWithProviders(<HabitsRoute />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning Meditation.*No check-in/ }),
+    );
+    expect(await screen.findByRole('heading', { name: 'Daily check-in' })).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Mark Morning Meditation as completed' }),
+    );
+    await waitFor(() => expect(habitApi.logProgress).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('heading', { name: 'Daily check-in' })).toBeInTheDocument();
+    expect(await screen.findByText('Check-in cannot be recorded for this date.')).toBeInTheDocument();
+    expect(toastMock.error).toHaveBeenCalledWith('Check-in cannot be recorded for this date.');
+  });
+
+  it('prevents duplicate submissions while completion is in flight', async () => {
+    let resolveLog: ((val: unknown) => void) | undefined;
+    habitApi.list.mockImplementation(async (filters: HabitFilters) => weeklyHabits(filters));
+    habitApi.logProgress.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveLog = resolve;
+        }),
+    );
+    renderWithProviders(<HabitsRoute />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning Meditation.*No check-in/ }),
+    );
+    const completeBtn = await screen.findByRole('button', {
+      name: 'Mark Morning Meditation as completed',
+    });
+    fireEvent.click(completeBtn);
+    await waitFor(() => expect(completeBtn).toBeDisabled());
+    fireEvent.click(completeBtn);
+    expect(habitApi.logProgress).toHaveBeenCalledTimes(1);
+    resolveLog?.({ success: true, message: 'ok', data: { log: logEntry, stats } });
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: 'Daily check-in' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('refreshes habit activity heatmap data after successful completion', async () => {
+    habitApi.list.mockImplementation(async (filters: HabitFilters) => weeklyHabits(filters));
+    habitApi.activity.mockResolvedValue({
+      from: '2025-11-23',
+      through: '2026-11-22',
+      days: [{ date: '2026-11-22', completed: 0, status: null }],
+    });
+    renderWithProviders(<HabitsRoute />);
+    await waitFor(() => expect(habitApi.activity).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning Meditation.*No check-in/ }),
+    );
     fireEvent.click(
       await screen.findByRole('button', { name: 'Mark Morning Meditation as completed' }),
     );
@@ -213,17 +304,15 @@ describe('HabitsRoute', () => {
         status: 'completed',
       }),
     );
-    expect(await screen.findByText('Completed')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Remove check-in for Morning Meditation' }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(habitApi.activity).toHaveBeenCalledTimes(2));
   });
 
   it('removes a check-in after confirmation', async () => {
-    habitApi.dailyOverview
-      .mockResolvedValueOnce(overviewWith(logEntry))
-      .mockResolvedValue(overviewWith(null));
+    habitApi.list.mockImplementationOnce(async (filters: HabitFilters) => weeklyHabits(filters, logEntry));
     renderWithProviders(<HabitsRoute />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Morning Meditation.*: Completed/ }),
+    );
     fireEvent.click(
       await screen.findByRole('button', { name: 'Remove check-in for Morning Meditation' }),
     );
@@ -238,9 +327,9 @@ describe('HabitsRoute', () => {
   });
 
   it('hides check-in actions for habits not scheduled on the date', async () => {
-    habitApi.dailyOverview.mockResolvedValue(overviewWith(null, false));
+    habitApi.list.mockImplementation(async (filters: HabitFilters) => weeklyHabits(filters, null, false));
     renderWithProviders(<HabitsRoute />);
-    expect(await screen.findByText('Not scheduled on this date')).toBeInTheDocument();
+    expect((await screen.findAllByRole('img', { name: /Morning Meditation.*Not scheduled/ })).length).toBeGreaterThan(0);
     expect(
       screen.queryByRole('button', { name: 'Mark Morning Meditation as completed' }),
     ).not.toBeInTheDocument();
@@ -291,9 +380,7 @@ describe('HabitFormRoute', () => {
     fireEvent.change(document.querySelector('[name="title"]')!, {
       target: { value: 'Gym Workout' },
     });
-    fireEvent.change(document.querySelector('[name="frequency"]')!, {
-      target: { value: 'custom' },
-    });
+    await chooseOption(screen.getByRole('combobox', { name: 'Frequency' }), 'Custom days');
     fireEvent.click(screen.getByRole('button', { name: 'Create habit' }));
     expect(
       await screen.findByText('Custom habits require at least one weekday.'),
@@ -330,6 +417,25 @@ describe('HabitFormRoute', () => {
       }),
     );
     expect(await screen.findByRole('heading', { name: 'Habit destination' })).toBeInTheDocument();
+  });
+
+  it('saves from the edit dialog and returns to the same detail page with history', async () => {
+    habitApi.update.mockResolvedValue({ ...habit, title: 'Evening Meditation' });
+    renderWithProviders(
+      <Routes><Route path="/habits/:habitUuid" element={<HabitDetailsRoute />} /></Routes>,
+      '/habits/habit-uuid',
+    );
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Edit habit' }));
+    expect(await screen.findByRole('dialog', { name: 'Edit habit' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Habit title' }), {
+      target: { value: 'Evening Meditation' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByRole('heading', { name: 'Evening Meditation' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /history/i })).toBeInTheDocument();
   });
 
   it('blocks creation without the habits manage permission', () => {
@@ -428,9 +534,7 @@ describe('HabitDetailsRoute', () => {
     );
     expect(await screen.findByText('2026-11-10')).toBeInTheDocument();
     expect(screen.getByText('Felt great')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Filter history by status' }), {
-      target: { value: 'completed' },
-    });
+    await chooseOption(screen.getByRole('combobox', { name: 'Filter history by status' }), 'Completed');
     await waitFor(() =>
       expect(habitApi.logs).toHaveBeenLastCalledWith(
         'habit-uuid',

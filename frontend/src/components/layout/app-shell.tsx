@@ -1,3 +1,4 @@
+import { Container } from '@/components/layout/primitives';
 import {
   Activity,
   CalendarDays,
@@ -25,11 +26,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ThemeSwitcher } from '@/components/navigation/theme-switcher';
+import { NotificationBell } from '@/components/navigation/NotificationBell';
 import { UserMenu } from '@/components/navigation/user-menu';
+import { BrandLogo } from '@/components/common/BrandLogo';
 import { useAuth } from '@/features/auth/auth-hooks';
 import { hasPermission } from '@/features/auth/permissions';
 import { hasAnyPermission } from '@/features/auth/permissions';
 import { cn } from '@/lib/utils';
+import type { ApiUser } from '@/services/api/contracts';
 
 type NavigationItemConfig = {
   label: string;
@@ -53,7 +57,7 @@ const navigationGroups: NavigationGroupConfig[] = [
       { label: 'My work', icon: CheckSquare, to: '/my-work', requiredPermission: 'tasks.view' },
       { label: 'Projects', icon: FolderKanban, to: '/projects', requiredPermission: 'projects.view' },
       { label: 'Teams', icon: UsersRound, to: '/teams', requiredPermission: 'teams.view' },
-      { label: 'Tasks', icon: CheckSquare, to: '/tasks', requiredPermission: 'tasks.view' },
+      { label: 'Tasks', icon: CheckSquare, to: '/tasks' },
     ],
   },
   {
@@ -99,22 +103,27 @@ const navigationGroups: NavigationGroupConfig[] = [
 
 interface SidebarProps {
   onNavigate?: () => void;
+  session?: WorkspaceSession | undefined;
 }
 
-function Sidebar({ onNavigate }: SidebarProps) {
+interface WorkspaceSession {
+  user: ApiUser;
+  frontendUrl: string;
+  logout: () => void;
+}
+
+function Sidebar({ onNavigate, session }: SidebarProps) {
   const { pathname } = useLocation();
-  const { user } = useAuth();
+  const { user: apiUser } = useAuth();
+  const user = session?.user ?? apiUser;
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 items-center gap-3 px-5">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-          H
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold tracking-tight">Hirgal</p>
-          <p className="truncate text-xs text-sidebar-muted">Workspace</p>
-        </div>
+        <BrandLogo className="shrink-0 object-contain" height={36} variant="compact" width={36} />
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-[0.08em]">
+          HIRGAL
+        </span>
         <Button
           aria-label="Select workspace"
           className="size-8 text-sidebar-muted hover:text-sidebar-foreground"
@@ -168,7 +177,8 @@ function Sidebar({ onNavigate }: SidebarProps) {
                           )
                         }
                         onClick={onNavigate}
-                        to={item.to}
+                        reloadDocument={Boolean(session)}
+                        to={session && !['/dashboard', '/projects', '/teams', '/tasks', '/my-work', '/appointments', '/habits', '/notifications', '/activity', '/users'].includes(item.to) ? `${session.frontendUrl}${item.to}` : item.to}
                       >
                         <Icon aria-hidden="true" className="size-4 shrink-0" />
                         <span className="flex-1 truncate">{item.label}</span>
@@ -219,14 +229,15 @@ function Sidebar({ onNavigate }: SidebarProps) {
 
 interface BreadcrumbsProps {
   current: string;
+  session?: boolean;
 }
 
-function Breadcrumbs({ current }: BreadcrumbsProps) {
+function Breadcrumbs({ current, session = false }: BreadcrumbsProps) {
   return (
     <nav aria-label="Breadcrumb">
       <ol className="flex items-center gap-2 text-sm">
         <li>
-          <Link className="text-muted-foreground hover:text-foreground" to="/dashboard">
+          <Link className="text-muted-foreground hover:text-foreground" reloadDocument={session} to="/dashboard">
             Workspace
           </Link>
         </li>
@@ -240,15 +251,17 @@ function Breadcrumbs({ current }: BreadcrumbsProps) {
 interface AppShellProps {
   children: React.ReactNode;
   breadcrumb: string;
+  session?: WorkspaceSession;
+  wide?: boolean;
 }
 
-function AppShell({ breadcrumb, children }: AppShellProps) {
+function AppShell({ breadcrumb, children, session, wide = false }: AppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   return (
     <div className="min-h-svh bg-background">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border bg-sidebar md:block">
-        <Sidebar />
+        <Sidebar session={session} />
       </aside>
       <div className="md:pl-64">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
@@ -265,14 +278,14 @@ function AppShell({ breadcrumb, children }: AppShellProps) {
                 </Button>
               </DialogTrigger>
               <DialogContent
-                className="left-0 top-0 h-svh max-h-none w-[min(20rem,85vw)] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 data-[state=open]:animate-[drawer-enter_180ms_ease-out] data-[state=closed]:animate-[drawer-exit_140ms_ease-in] sm:rounded-none"
+                className="left-0 top-0 h-svh max-h-none w-[min(20rem,85vw)] max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 motion-safe:data-[state=open]:animate-[drawer-enter_180ms_ease-out] motion-safe:data-[state=closed]:animate-[drawer-exit_140ms_ease-in] sm:rounded-none"
                 showClose={false}
               >
                 <DialogTitle className="sr-only">Hirgal navigation</DialogTitle>
                 <DialogDescription className="sr-only">
                   Browse workspace and personal navigation.
                 </DialogDescription>
-                <Sidebar onNavigate={() => setMobileNavigationOpen(false)} />
+                <Sidebar onNavigate={() => setMobileNavigationOpen(false)} session={session} />
                 <DialogClose asChild>
                   <Button
                     aria-label="Close navigation menu"
@@ -286,17 +299,18 @@ function AppShell({ breadcrumb, children }: AppShellProps) {
               </DialogContent>
             </Dialog>
             <div className="hidden min-w-0 sm:block">
-              <Breadcrumbs current={breadcrumb} />
+              <Breadcrumbs current={breadcrumb} session={Boolean(session)} />
             </div>
             <p className="truncate text-sm font-medium sm:hidden">{breadcrumb}</p>
           </div>
           <div className="flex items-center gap-2">
             <ThemeSwitcher />
-            <UserMenu />
+            <NotificationBell session={session} />
+            <UserMenu session={session} />
           </div>
         </header>
         <main className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-          {children}
+          <Container size={wide ? 'wide' : 'default'} className={cn('px-0 sm:px-0 lg:px-0', !wide && 'max-w-[69rem]')}>{children}</Container>
         </main>
       </div>
     </div>

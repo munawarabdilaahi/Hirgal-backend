@@ -7,7 +7,7 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AuthContext, type AuthContextValue } from '@/features/auth/auth-context-state';
+import { AuthContext, type AuthContextValue, type LoginResult } from '@/features/auth/auth-context-state';
 import { ApiError } from '@/services/api/ApiError';
 import { authApi, authQueryKey } from '@/services/api/authApi';
 import {
@@ -52,8 +52,63 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [queryClient, token]);
 
   const login = useCallback(
-    async (request: LoginRequest): Promise<ApiUser> => {
-      const tokenData = await authApi.login(request);
+    async (request: LoginRequest): Promise<LoginResult> => {
+      const responseData = await authApi.login(request);
+
+      if (responseData.two_factor_required) {
+        return {
+          two_factor_required: true,
+          challenge_token: responseData.challenge_token,
+          expires_at: responseData.expires_at,
+        };
+      }
+
+      if (responseData.token_type !== 'Bearer' || !responseData.access_token) {
+        throw new ApiError('The API returned an invalid authentication response.', 500);
+      }
+
+      setAccessToken(responseData.access_token);
+
+      try {
+        const user = await queryClient.fetchQuery({
+          queryKey: authQueryKey,
+          queryFn: authApi.getCurrentUser,
+          staleTime: 0,
+          retry: false,
+        });
+
+        if (user.account_status !== 'active') {
+          clearAccessToken('account_inactive');
+          throw new ApiError(inactiveAccountMessage, 403, 'ACCOUNT_NOT_ACTIVE');
+        }
+
+        return {
+          two_factor_required: false,
+          user,
+        };
+      } catch (error: unknown) {
+        if (
+          error instanceof ApiError &&
+          error.status === 403 &&
+          error.code === 'ACCOUNT_NOT_ACTIVE'
+        ) {
+          clearAccessToken('account_inactive');
+        }
+
+        throw error;
+      }
+    },
+    [queryClient],
+  );
+
+  const verifyTwoFactor = useCallback(
+    async (request: {
+      challenge_token: string;
+      code?: string;
+      recovery_code?: string;
+      device_name?: string;
+    }): Promise<ApiUser> => {
+      const tokenData = await authApi.verifyTwoFactor(request);
 
       if (tokenData.token_type !== 'Bearer' || !tokenData.access_token) {
         throw new ApiError('The API returned an invalid authentication response.', 500);
@@ -90,6 +145,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [queryClient],
   );
 
+  const cancelTwoFactor = useCallback(
+    async (challengeToken?: string): Promise<void> => {
+      if (challengeToken) {
+        try {
+          await authApi.cancelTwoFactor(challengeToken);
+        } catch {
+          // Ignore cancellation errors
+        }
+      }
+    },
+    [],
+  );
+
   const logout = useCallback(async (): Promise<void> => {
     try {
       if (getAccessToken()) {
@@ -117,7 +185,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return user;
   }, [queryClient]);
 
-  const user = currentUserQuery.data ?? null;
+  const user = token !== null ? currentUserQuery.data ?? null : null;
   const permissionsSignature = [...(user?.permissions ?? [])].sort().join('\u0000');
   const previousPermissionsSignature = useRef<string | null>(null);
 
@@ -147,10 +215,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       sessionMessage:
         clearReason === 'account_inactive' ? inactiveAccountMessage : null,
       login,
+      verifyTwoFactor,
+      cancelTwoFactor,
       logout,
       retrySession,
     }),
     [
+      cancelTwoFactor,
       clearReason,
       currentUserQuery.error,
       currentUserQuery.isPending,
@@ -159,6 +230,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       retrySession,
       token,
       user,
+      verifyTwoFactor,
     ],
   );
 

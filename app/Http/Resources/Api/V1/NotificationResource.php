@@ -3,6 +3,11 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Notifications\AppointmentNotification;
+use App\Notifications\ProjectNotification;
+use App\Notifications\TaskCommentNotification;
+use App\Notifications\TaskNotification;
+use App\Notifications\TaskReminder;
+use App\Notifications\WelcomeNotification;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Notifications\DatabaseNotification;
@@ -20,6 +25,8 @@ class NotificationResource extends JsonResource
      * @var array<string, array<int, string>>
      */
     private const TYPE_DATA_ALLOWLIST = [
+        WelcomeNotification::class => ['event', 'title', 'message'],
+        TaskReminder::class => ['event', 'title', 'task_uuid'],
         AppointmentNotification::class => [
             'event',
             'appointment_uuid',
@@ -29,6 +36,44 @@ class NotificationResource extends JsonResource
             'timezone',
             'organizer_name',
             'context',
+        ],
+        TaskNotification::class => [
+            'event',
+            'title',
+            'message',
+            'task_uuid',
+            'task_title',
+            'project_uuid',
+            'actor_id',
+            'actor_name',
+            'resource_type',
+            'resource_id',
+            'action_url',
+        ],
+        ProjectNotification::class => [
+            'event',
+            'title',
+            'message',
+            'project_uuid',
+            'project_name',
+            'actor_id',
+            'actor_name',
+            'resource_type',
+            'resource_id',
+            'action_url',
+        ],
+        TaskCommentNotification::class => [
+            'event',
+            'title',
+            'message',
+            'task_uuid',
+            'project_uuid',
+            'comment_id',
+            'actor_id',
+            'actor_name',
+            'resource_type',
+            'resource_id',
+            'action_url',
         ],
     ];
 

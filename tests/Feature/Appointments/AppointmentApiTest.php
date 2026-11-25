@@ -109,6 +109,24 @@ class AppointmentApiTest extends TestCase
         $this->assertSame('read_only', ActivityLog::query()->where('user_id', $administrator->id)->firstOrFail()->properties['access_mode']);
     }
 
+    public function test_appointment_details_expose_management_actions_only_to_authorized_users(): void
+    {
+        $permissions = ['appointments.view', 'appointments.update', 'appointments.delete'];
+        $organizer = $this->userWithPermissions($permissions);
+        $invitee = $this->userWithPermissions($permissions);
+        $appointment = Appointment::factory()->create(['organizer_id' => $organizer->id]);
+        AppointmentParticipant::factory()->create(['appointment_id' => $appointment->id, 'user_id' => $invitee->id]);
+        $path = '/api/v1/appointments/'.$appointment->uuid;
+
+        $this->actingAs($organizer, 'sanctum')->getJson($path)
+            ->assertOk()
+            ->assertJsonPath('data.capabilities', ['update' => true, 'delete' => true]);
+
+        $this->actingAs($invitee, 'sanctum')->getJson($path)
+            ->assertOk()
+            ->assertJsonPath('data.capabilities', ['update' => false, 'delete' => false]);
+    }
+
     public function test_only_the_invited_user_can_submit_their_own_rsvp(): void
     {
         $organizer = User::factory()->create();

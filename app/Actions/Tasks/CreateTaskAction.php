@@ -8,7 +8,10 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskAssignment;
 use App\Models\User;
+use App\Services\Notification\NotificationService;
 use App\Services\Task\TaskService;
+use App\Support\TaskDescription;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -19,7 +22,7 @@ class CreateTaskAction
      *
      * @param  array<string, mixed>  $data
      */
-    public function execute(User $actor, Project $project, array $data): Task
+    public function execute(User $actor, ?Project $project, array $data): Task
     {
         return DB::transaction(function () use ($actor, $project, $data): Task {
             $status = TaskStatus::tryFrom((string) ($data['status'] ?? TaskStatus::Todo->value))
@@ -30,7 +33,7 @@ class CreateTaskAction
             if (! empty($data['parent'])) {
                 $parentId = Task::query()
                     ->where('uuid', $data['parent'])
-                    ->where('project_id', $project->id)
+                    ->where('project_id', $project?->id)
                     ->value('id');
 
                 if ($parentId === null) {
@@ -41,10 +44,21 @@ class CreateTaskAction
             }
 
             $task = Task::create([
-                'project_id' => $project->id,
+                'project_id' => $project?->id,
                 'parent_id' => $parentId,
                 'title' => $data['title'],
-                'description' => $data['description'] ?? null,
+                'description' => ($data['description_is_rich_text'] ?? false)
+                    ? TaskDescription::sanitize($data['description'] ?? null)
+                    : ($data['description'] ?? null),
+                'description_is_rich_text' => $data['description_is_rich_text'] ?? false,
+                'context' => $data['context'] ?? 'project',
+                'department' => $data['department'] ?? null,
+                'start_date' => $data['start_date'] ?? null,
+                'remind_on' => $data['remind_on'] ?? null,
+                'reminder_due_at' => isset($data['remind_on'])
+                    ? CarbonImmutable::parse($data['remind_on'], $actor->timezone)->startOfDay()->utc()
+                    : null,
+                'tags' => $data['tags'] ?? [],
                 'status' => $status,
                 'priority' => $data['priority'] ?? TaskPriority::Medium->value,
                 'creator_id' => $actor->id,
@@ -55,9 +69,10 @@ class CreateTaskAction
             ]);
 
             $assigneeIds = collect($data['assignees'] ?? [])->map(fn ($id): int => (int) $id)->unique();
+            $newlyAssignedIds = [];
 
             foreach ($assigneeIds as $assigneeId) {
-                TaskAssignment::firstOrCreate(
+                $assignment = TaskAssignment::firstOrCreate(
                     [
                         'task_id' => $task->id,
                         'user_id' => $assigneeId,
@@ -67,9 +82,20 @@ class CreateTaskAction
                         'assigned_at' => now(),
                     ]
                 );
+
+                if ($assignment->wasRecentlyCreated && $assigneeId !== $actor->id) {
+                    $newlyAssignedIds[] = $assigneeId;
+                }
             }
 
-            return $task->load(TaskService::EAGER);
+            if (! empty($newlyAssignedIds)) {
+                $recipients = User::query()->whereIn('id', $newlyAssignedIds)->get();
+                app(NotificationService::class)->notifyTask($task, 'task_assigned', $actor, $recipients);
+            }
+
+            $task->followers()->sync($data['followers'] ?? []);
+
+            return $task->load([...TaskService::EAGER, 'followers.profile']);
         });
     }
 }

@@ -1,3 +1,6 @@
+import { ChoiceOption, ChoiceSelect } from '@/components/ui/choice-select';
+import { FormDialog, FormDialogActions } from '@/components/ui/form-dialog';
+import { PageHeader } from '@/components/layout/primitives';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
@@ -25,7 +28,7 @@ import { getApiValidationErrors } from '@/features/auth/auth-validation';
 import { useAuth } from '@/features/auth/auth-hooks';
 import { hasGlobalRole, hasPermission } from '@/features/auth/permissions';
 import { userApi } from '@/services/api/userApi';
-import { userQueryKeys, useUserDetails } from '@/features/users/user-queries';
+import { userQueryKeys, useUserDetails, useInvitationRoles } from '@/features/users/user-queries';
 import type { ApiUser, UpdateUserRequest } from '@/services/api/contracts';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -100,6 +103,10 @@ export function UserDetailsRoute() {
   } = useForm<EditableUserFields>({
     defaultValues: { name: '', email: '', timezone: '' },
   });
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [roleId, setRoleId] = useState('');
+  const canChangeRole = actorIsSystemAdmin && canUpdateUsers && auth.user?.id !== userId && hasPermission(auth.user, 'users.invite');
+  const roles = useInvitationRoles(editorOpen && canChangeRole, auth.user?.id);
   const [formError, setFormError] = useState<string | null>(null);
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
 
@@ -115,6 +122,7 @@ export function UserDetailsRoute() {
       applyUpdatedUser(queryClient, updatedUser, auth.user?.id);
       setFormError(null);
       setServerFieldErrors({});
+      setEditorOpen(false);
       toast.success('User details updated.');
     },
     onError: (error: unknown) => {
@@ -154,9 +162,7 @@ export function UserDetailsRoute() {
 
   if (userQuery.isPending) {
     return (
-      <div className="flex min-h-48 items-center justify-center">
-        <LoadingState label="Loading user details" />
-      </div>
+      <LoadingState label="Loading user details" layout="detail" />
     );
   }
 
@@ -204,6 +210,7 @@ export function UserDetailsRoute() {
       name: parsed.data.name,
       email: parsed.data.email,
       timezone: parsed.data.timezone || null,
+      ...(canChangeRole && roles.isSuccess && roleId ? { role_id: Number(roleId) } : {}),
     };
     updateMutation.mutate(request);
   };
@@ -227,7 +234,7 @@ export function UserDetailsRoute() {
           Back to users
         </Link>
       </Button>
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <PageHeader className="flex-col items-start sm:flex-row sm:items-center">
         <div className="space-y-3">
           <p className="text-sm font-medium text-primary">User administration</p>
           <h1 className="sr-only" id="user-details-title">User details for {person.name}</h1>
@@ -239,7 +246,7 @@ export function UserDetailsRoute() {
           />
         </div>
         <AccountStatusBadge status={person.account_status} />
-      </header>
+      </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
         <Card>
@@ -318,22 +325,15 @@ export function UserDetailsRoute() {
           </CardContent>
         </Card>
 
-        {canEditUser ? (
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Edit user details</CardTitle>
-              <CardDescription>
-                Update the name, email, or time zone supported by the administrative endpoint. Global
-                role assignment is unavailable because the backend has no role-list endpoint.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+        {canEditUser && <div><Button variant="outline" onClick={() => { reset({ name: person.name, email: person.email, timezone: person.timezone ?? '' }); setFormError(null); setServerFieldErrors({}); setRoleId(''); setEditorOpen(true); }}>Edit user details</Button></div>}
+        {canEditUser && editorOpen && (
+          <FormDialog title="Edit user details" description="Update the name, email, and time zone for this account." pending={updateMutation.isPending} onClose={() => setEditorOpen(false)} wide>
               {formError ? (
                 <p className="mb-5 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
                   {formError}
                 </p>
               ) : null}
-              <form className="grid gap-5 md:grid-cols-3" noValidate onSubmit={handleSubmit(submitUserUpdate)}>
+              <form className="grid gap-5" noValidate onSubmit={handleSubmit(submitUserUpdate)}>
                 <FormField error={errors.name?.message ?? serverFieldErrors.name} htmlFor="user-name" label="Name" required>
                   {(controlProps) => <Input autoComplete="name" {...controlProps} {...register('name')} />}
                 </FormField>
@@ -348,15 +348,22 @@ export function UserDetailsRoute() {
                 >
                   {(controlProps) => <Input {...controlProps} {...register('timezone')} />}
                 </FormField>
-                <div className="flex justify-end md:col-span-3">
-                  <Button loading={updateMutation.isPending} type="submit">
-                    Save user details
-                  </Button>
-                </div>
+                {canChangeRole && (
+                  <FormField label="Global role" htmlFor="user-role" error={serverFieldErrors.role_id} description="Choosing a role replaces this account’s current global roles.">
+                    {(props) => roles.isPending ? <LoadingState label="Loading roles" layout="control" /> : roles.isError ? (
+                      <Button type="button" variant="outline" onClick={() => void roles.refetch()}>Retry loading roles</Button>
+                    ) : (
+                      <ChoiceSelect {...props} className="w-full" value={roleId} onValueChange={(nextValue) => setRoleId(nextValue)}>
+                        <ChoiceOption value="">Keep current roles</ChoiceOption>
+                        {roles.data.map((role) => <ChoiceOption key={role.id} value={role.id}>{role.name}</ChoiceOption>)}
+                      </ChoiceSelect>
+                    )}
+                  </FormField>
+                )}
+                <FormDialogActions pending={updateMutation.isPending} submitLabel="Save user details" />
               </form>
-            </CardContent>
-          </Card>
-        ) : null}
+          </FormDialog>
+        )}
       </div>
 
       <AccountActionConfirmation

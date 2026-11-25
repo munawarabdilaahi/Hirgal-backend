@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -23,10 +24,10 @@ class AppointmentNotification extends Notification implements ShouldQueue
     {
         $preferences = $notifiable instanceof User ? ($notifiable->profile?->notification_preferences ?? []) : [];
         $channels = [];
-        if ($preferences['email'] ?? true) {
+        if ($preferences['email_notifications'] ?? $preferences['email'] ?? true) {
             $channels[] = 'mail';
         }
-        if ($preferences['in_app'] ?? true) {
+        if ($preferences['in_app_notifications'] ?? $preferences['in_app'] ?? true) {
             $channels[] = 'database';
         }
 
@@ -41,6 +42,17 @@ class AppointmentNotification extends Notification implements ShouldQueue
             ->line($this->appointment->start_time->copy()->utc()->format('Y-m-d H:i').' UTC ('.$this->appointment->timezone.')')
             ->line('Organizer: '.$this->appointment->organizer->name)
             ->line('Appointment reference: '.$this->appointment->uuid);
+    }
+
+    public function toBroadcast(object $notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'id' => $this->id,
+            'type' => static::class,
+            'data' => $this->toArray($notifiable),
+            'read_at' => null,
+            'created_at' => now()->toIso8601String(),
+        ]);
     }
 
     /** @return array<string, mixed> */
