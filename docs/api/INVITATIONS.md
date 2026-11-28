@@ -153,4 +153,4 @@ Returns an authenticated Sanctum access token and complete user profile.
   }
 }
 ```
-*Note:* In non-production environments, the meta payload includes `invitation_token` to facilitate automated and integration testing. In production, the raw token is exclusively dispatched via email.
+*Note:* In `local` and `testing` environments, the meta payload includes `invitation_token` to facilitate automated and integration testing. In staging, production, and other environments, the raw token is exclusively dispatched via email.

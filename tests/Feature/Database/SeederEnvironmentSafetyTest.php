@@ -108,6 +108,17 @@ class SeederEnvironmentSafetyTest extends TestCase
         $this->assertGreaterThan(0, Permission::count());
     }
 
+    public function test_staging_never_seeds_development_accounts_even_when_called_directly(): void
+    {
+        $this->app['env'] = 'staging';
+        $this->seed(DatabaseSeeder::class);
+        $this->seed(DevelopmentUserSeeder::class);
+        $this->seed(DevelopmentProjectSeeder::class);
+        $this->assertSame(0, User::count());
+        $this->assertSame(0, Project::count());
+        $this->assertGreaterThan(0, Role::count());
+    }
+
     public function test_database_seeder_is_idempotent(): void
     {
         // First run

@@ -19,7 +19,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // 2. Development demonstration accounts & sample projects (strictly forbidden in production)
-        if (! app()->isProduction()) {
+        if (app()->environment(['local', 'testing'])) {
             $this->call([
                 DevelopmentUserSeeder::class,
                 DevelopmentProjectSeeder::class,

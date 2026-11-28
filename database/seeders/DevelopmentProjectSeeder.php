@@ -36,8 +36,8 @@ class DevelopmentProjectSeeder extends Seeder
      */
     public function run(): void
     {
-        if (app()->isProduction()) {
-            $this->command?->warn('DevelopmentProjectSeeder execution blocked: Cannot seed demo projects in production environment.');
+        if (! app()->environment(['local', 'testing'])) {
+            $this->command?->warn('DevelopmentProjectSeeder execution blocked: Cannot seed demo projects outside local and testing environments.');
 
             return;
         }

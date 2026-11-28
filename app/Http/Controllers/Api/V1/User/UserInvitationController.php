@@ -65,7 +65,7 @@ class UserInvitationController extends Controller
         );
 
         $meta = [];
-        if (! app()->isProduction()) {
+        if (app()->environment(['local', 'testing'])) {
             $meta['invitation_token'] = $result['raw_token'];
         }
 
@@ -89,7 +89,7 @@ class UserInvitationController extends Controller
         $result = $this->invitationService->resendInvitation($invitation);
 
         $meta = [];
-        if (! app()->isProduction()) {
+        if (app()->environment(['local', 'testing'])) {
             $meta['invitation_token'] = $result['raw_token'];
         }
 

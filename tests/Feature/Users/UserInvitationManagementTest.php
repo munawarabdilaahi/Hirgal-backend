@@ -123,6 +123,23 @@ class UserInvitationManagementTest extends TestCase
         );
     }
 
+    public function test_staging_does_not_return_invitation_tokens_on_create_or_resend(): void
+    {
+        Notification::fake();
+        $this->app['env'] = 'staging';
+        try {
+            $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/v1/invitations', [
+                'email' => 'staging@example.com',
+                'role_id' => $this->memberRole->id,
+            ])->assertCreated()->assertJsonMissingPath('meta.invitation_token');
+
+            $this->postJson('/api/v1/invitations/'.$response->json('data.id').'/resend')
+                ->assertOk()->assertJsonMissingPath('meta.invitation_token');
+        } finally {
+            $this->app['env'] = 'testing';
+        }
+    }
+
     public function test_cannot_invite_email_that_already_has_an_active_account(): void
     {
         User::factory()->create(['email' => 'existing@hirgal.local']);

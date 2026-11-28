@@ -17,8 +17,8 @@ class DevelopmentUserSeeder extends Seeder
      */
     public function run(): void
     {
-        if (app()->isProduction()) {
-            $this->command?->warn('DevelopmentUserSeeder execution blocked: Cannot seed development demo accounts in production environment.');
+        if (! app()->environment(['local', 'testing'])) {
+            $this->command?->warn('DevelopmentUserSeeder execution blocked: Cannot seed development demo accounts outside local and testing environments.');
 
             return;
         }
